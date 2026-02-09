@@ -469,8 +469,10 @@ if ($hasUpdate) {
 # Line 2: git  limits
 $line2Parts = @()
 $line2Parts += $gitDisplay
-$line2Parts += "${fhBar}${fhResetTxt}"
-$line2Parts += "${sdBar}${sdResetTxt}"
+if ($limitsOk) {
+    $line2Parts += "${fhBar}${fhResetTxt}"
+    $line2Parts += "${sdBar}${sdResetTxt}"
+}
 $line2 = $line2Parts -join "  "
 
 [Console]::Out.WriteLine($line1)
