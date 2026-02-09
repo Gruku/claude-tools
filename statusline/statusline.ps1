@@ -9,6 +9,17 @@
 #   https://github.com/NoobyGains/claude-pulse        — Python, rainbow animation, OAuth usage API, update notifications
 #   https://github.com/sirmalloc/ccstatusline          — pre-built themes and configs
 #   https://github.com/martinemde/starship-claude      — Starship prompt integration
+#
+# Installation (Windows/PowerShell):
+#   1. Save this script, e.g. to ~/.claude/statusline.ps1
+#   2. Add to ~/.claude/settings.json:
+#        {
+#          "statusLine": {
+#            "command": "powershell -NoProfile -File \"%USERPROFILE%\\.claude\\statusline.ps1\""
+#          }
+#        }
+#   3. Rate limit bars require OAuth login — run `claude` and sign in.
+#      Credentials are read from ~/.claude/.credentials.json automatically.
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $esc = [char]27
 $bel = [char]7
