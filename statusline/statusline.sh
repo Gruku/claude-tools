@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Claude Code statusline — pastel, brightness squares, git+github, gradient limits
-# Line 1: dir  model  ■⬓□ pct%  [agent]  [vim:MODE]  [↑ update]
-# Line 2: ⎇ branch [✔ ~]  limit_bars [reset times]
+# Line 1: dir  model  ■⬓□ pct%  [$cost]  [agent]  [vim:MODE]  [↑ update]
+# Line 2: ⎇ branch [✔ ~]  limit_bars [reset times]  [⚡ extra usage]
 #
 # Official docs:
 #   https://code.claude.com/docs/en/statusline
@@ -114,11 +114,41 @@ grad_color() {
     printf '%s' "${E}[38;2;${GR};${GG};${GB}m"
 }
 
+# --- Limit-bar gradient (80%=green, 100%=red, saturation ramps at high %) ---
+# Sets globals: LR LG LB
+limit_grad_rgb() {
+    local p=$1
+    (( p < 0 )) && p=0; (( p > 100 )) && p=100
+    local r g b
+    if (( p <= 80 )); then
+        r=130 g=190 b=150
+    elif (( p <= 90 )); then
+        local t=$(((p - 80) * 1000 / 10))
+        r=$((130 + 80 * t / 1000));  g=$((190 - 15 * t / 1000));  b=$((150 - 50 * t / 1000))
+    else
+        local t=$(((p - 90) * 1000 / 10))
+        r=210; g=$((175 - 80 * t / 1000)); b=$((100 - 15 * t / 1000))
+    fi
+    # Dynamic muting: muted at <=80%, increasingly saturated toward 100%
+    local mf=750  # ×1000 scale
+    if (( p > 80 )); then
+        mf=$((750 + 250 * (p - 80) / 20))
+    fi
+    LR=$((dimR + (r - dimR) * mf / 1000))
+    LG=$((dimG + (g - dimG) * mf / 1000))
+    LB=$((dimB + (b - dimB) * mf / 1000))
+}
+
+limit_grad_color() {
+    limit_grad_rgb "$1"
+    printf '%s' "${E}[38;2;${LR};${LG};${LB}m"
+}
+
 # --- Read JSON from stdin ---
 INPUT=$(cat)
 
 # Extract fields (single jq call)
-J_MODEL="" J_CWD="" J_PROJ_DIR="" J_AGENT="" J_VIM="" J_SID=""
+J_MODEL="" J_CWD="" J_PROJ_DIR="" J_AGENT="" J_VIM="" J_SID="" J_COST="0"
 J_CW_SIZE=0 J_CW_USED_PCT=0 J_CW_INPUT=-1 J_CW_CACHE_CREATE=0 J_CW_CACHE_READ=0
 eval "$(echo "$INPUT" | jq -r '
     "J_MODEL=" + (.model.display_name // "" | @sh),
@@ -127,6 +157,7 @@ eval "$(echo "$INPUT" | jq -r '
     "J_AGENT=" + ((.agent.name // "") | @sh),
     "J_VIM=" + ((.vim.mode // "") | @sh),
     "J_SID=" + (.session_id // "" | @sh),
+    "J_COST=" + (.cost.total_cost_usd // 0 | tostring | @sh),
     "J_CW_SIZE=" + (.context_window.context_window_size // 0 | tostring | @sh),
     "J_CW_USED_PCT=" + (.context_window.used_percentage // 0 | tostring | @sh),
     "J_CW_INPUT=" + (.context_window.current_usage.input_tokens // -1 | tostring | @sh),
@@ -148,8 +179,16 @@ else
     dirDisplay="$projName"
 fi
 
+# --- Read Claude Code config (autoCompact) ---
+autoCompactOn=true
+configPath="$HOME/.claude/settings.json"
+if [[ -f "$configPath" ]]; then
+    acVal=$(jq -r '.autoCompact // true' "$configPath" 2>/dev/null || echo "true")
+    [[ "$acVal" == "false" ]] && autoCompactOn=false
+fi
+
 # --- Context percentage (adjusted for autocompact buffer) ---
-autocompactBuffer=33000
+if $autoCompactOn; then autocompactBuffer=33000; else autocompactBuffer=0; fi
 pct=0
 cwSize=${J_CW_SIZE%%.*}   # truncate decimal
 cwInput=${J_CW_INPUT%%.*}
@@ -160,13 +199,13 @@ if (( cwInput >= 0 && cwSize > 0 )); then
     current=$((cwInput + ccCreate + ccRead))
     usable=$((cwSize - autocompactBuffer))
     (( usable < 1 )) && usable=1
-    pct=$((current * 100 / usable))
+    pct=$(( (current * 100 + usable / 2) / usable ))  # rounded
 elif (( cwSize > 0 )); then
     rawPctInt=${J_CW_USED_PCT%%.*}
     rawTokens=$((cwSize * rawPctInt / 100))
     usable=$((cwSize - autocompactBuffer))
     (( usable < 1 )) && usable=1
-    pct=$((rawTokens * 100 / usable))
+    pct=$(( (rawTokens * 100 + usable / 2) / usable ))  # rounded
 fi
 (( pct < 0 )) && pct=0; (( pct > 100 )) && pct=100
 
@@ -280,6 +319,7 @@ fi
 # --- Rate limits via OAuth API (cached 60s) ---
 cacheFile="${TMPD}/claude-sl-usage.json"
 fhPct=0 fhReset="" fhResetRaw="" sdPct=0 sdReset="" sdResetRaw=""
+exEnabled=false exUsed="0" exLimit="0" exPct=0
 limitsOk=false
 needFetch=true
 
@@ -293,6 +333,11 @@ if [[ -f "$cacheFile" ]]; then
         sdPct=$(jq -r '.sdPct // 0' "$cacheFile" 2>/dev/null || echo 0)
         sdReset=$(jq -r '.sdReset // ""' "$cacheFile" 2>/dev/null || echo "")
         sdResetRaw=$(jq -r '.sdResetRaw // ""' "$cacheFile" 2>/dev/null || echo "")
+        exEnabledStr=$(jq -r '.exEnabled // false' "$cacheFile" 2>/dev/null || echo "false")
+        [[ "$exEnabledStr" == "true" ]] && exEnabled=true
+        exUsed=$(jq -r '.exUsed // 0' "$cacheFile" 2>/dev/null || echo "0")
+        exLimit=$(jq -r '.exLimit // 0' "$cacheFile" 2>/dev/null || echo "0")
+        exPct=$(jq -r '.exPct // 0' "$cacheFile" 2>/dev/null || echo 0)
         limitsOk=true
     fi
 fi
@@ -317,11 +362,24 @@ if $needFetch; then
                 sdResetRaw=$(echo "$resp" | jq -r '.seven_day.resets_at // ""' 2>/dev/null || echo "")
                 if [[ -n "$sdResetRaw" && "$sdResetRaw" != "null" ]]; then
                     epoch=$(iso_to_epoch "$sdResetRaw")
-                    (( epoch > 0 )) && sdReset=$(fmt_day "$epoch")
+                    if (( epoch > 0 )); then
+                        sdReset="$(fmt_day "$epoch") $(fmt_time "$epoch")"
+                    fi
                 fi
+
+                # Extra usage (may not exist if never configured)
+                exEnabledStr=$(echo "$resp" | jq -r '.extra_usage.is_enabled // false' 2>/dev/null || echo "false")
+                [[ "$exEnabledStr" == "true" ]] && exEnabled=true
+                exUsedCents=$(echo "$resp" | jq -r '.extra_usage.used_credits // 0' 2>/dev/null || echo "0")
+                exLimitCents=$(echo "$resp" | jq -r '.extra_usage.monthly_limit // 0' 2>/dev/null || echo "0")
+                exUsed=$(awk "BEGIN{printf \"%.2f\", $exUsedCents/100}")
+                exLimit=$(awk "BEGIN{printf \"%.2f\", $exLimitCents/100}")
+                exPct=$(echo "$resp" | jq -r '.extra_usage.utilization // 0' 2>/dev/null | awk '{printf "%d", $1+0.5}')
+
                 jq -n --argjson fh "$fhPct" --arg fr "$fhReset" --arg frr "$fhResetRaw" \
                     --argjson sd "$sdPct" --arg sr "$sdReset" --arg srr "$sdResetRaw" \
-                    '{fhPct:$fh,fhReset:$fr,fhResetRaw:$frr,sdPct:$sd,sdReset:$sr,sdResetRaw:$srr}' \
+                    --argjson exE "$exEnabled" --arg exU "$exUsed" --arg exL "$exLimit" --argjson exP "$exPct" \
+                    '{fhPct:$fh,fhReset:$fr,fhResetRaw:$frr,sdPct:$sd,sdReset:$sr,sdResetRaw:$srr,exEnabled:$exE,exUsed:$exU,exLimit:$exL,exPct:$exP}' \
                     > "$cacheFile" 2>/dev/null
                 limitsOk=true
             fi
@@ -335,7 +393,7 @@ fi
 build_limit_bar() {
     local lpct=$1 barR=$2 barG=$3 barB=$4 forceShow=$5
     (( lpct < 0 )) && lpct=0; (( lpct > 100 )) && lpct=100
-    local gradC=$(grad_color "$lpct")
+    local gradC=$(limit_grad_color "$lpct")
     local barC="${E}[38;2;${barR};${barG};${barB}m"
     local displayPct=false
     $forceShow && displayPct=true
@@ -348,8 +406,7 @@ build_limit_bar() {
         local pStr
         if (( lpct >= 100 )); then pStr="100"
         else pStr="${lpct}%"; fi
-        local txtC
-        if (( lpct >= 75 )); then txtC="$cSalmon"; else txtC="$barC"; fi
+        local txtC=$(limit_grad_color "$lpct")
         local tLen=${#pStr}
         local tStart=$(( (barW - tLen + 1) / 2 ))   # Ceiling division
 
@@ -370,10 +427,10 @@ build_limit_bar() {
                 local bri=$((250 + 750 * fill / 1000))
                 local lr lg lb
                 if (( i == barW - 1 )); then
-                    grad_rgb "$lpct"
-                    lr=$((dimR + (GR - dimR) * bri / 1000))
-                    lg=$((dimG + (GG - dimG) * bri / 1000))
-                    lb=$((dimB + (GB - dimB) * bri / 1000))
+                    limit_grad_rgb "$lpct"
+                    lr=$((dimR + (LR - dimR) * bri / 1000))
+                    lg=$((dimG + (LG - dimG) * bri / 1000))
+                    lb=$((dimB + (LB - dimB) * bri / 1000))
                 else
                     lr=$((dimR + (barR - dimR) * bri / 1000))
                     lg=$((dimG + (barG - dimG) * bri / 1000))
@@ -385,7 +442,7 @@ build_limit_bar() {
             fi
         done
     else
-        # 5 pips: identity color with brightness ramp, last pip = gradient
+        # 5 pips: identity color, last pip = limit gradient
         for (( i=0; i<barW; i++ )); do
             local pipStart=$((i * pipW))
             local pipEnd=$(((i + 1) * pipW))
@@ -398,10 +455,10 @@ build_limit_bar() {
                 local bri=$((250 + 750 * fill / 1000))
                 local lr lg lb
                 if (( i == barW - 1 )); then
-                    grad_rgb "$lpct"
-                    lr=$((dimR + (GR - dimR) * bri / 1000))
-                    lg=$((dimG + (GG - dimG) * bri / 1000))
-                    lb=$((dimB + (GB - dimB) * bri / 1000))
+                    limit_grad_rgb "$lpct"
+                    lr=$((dimR + (LR - dimR) * bri / 1000))
+                    lg=$((dimG + (LG - dimG) * bri / 1000))
+                    lb=$((dimB + (LB - dimB) * bri / 1000))
                 else
                     lr=$((dimR + (barR - dimR) * bri / 1000))
                     lg=$((dimG + (barG - dimG) * bri / 1000))
@@ -432,9 +489,9 @@ if ! $fhShowReset && [[ -n "$fhResetRaw" && "$fhResetRaw" != "null" ]]; then
 fi
 $fhShowReset && [[ -n "$fhReset" ]] && fhResetTxt=" ${cSage}${fhReset}${R}"
 
-# 7d reset: show if >=90% or within 4 hours of reset
+# 7d reset: show if >=80% or within 4 hours of reset
 sdShowReset=false sdResetTxt=""
-(( sdPct >= 90 )) && sdShowReset=true
+(( sdPct >= 80 )) && sdShowReset=true
 if ! $sdShowReset && [[ -n "$sdResetRaw" && "$sdResetRaw" != "null" ]]; then
     epoch=$(iso_to_epoch "$sdResetRaw")
     now=$(date +%s)
@@ -472,20 +529,45 @@ if $needUpdateCheck; then
         '{hasUpdate:$h,local:$l,remote:$r}' > "$updateCache" 2>/dev/null
 fi
 
+# --- Session cost (from statusline JSON) ---
+costTxt=""
+costCheck=$(awk "BEGIN{print ($J_COST > 0) ? 1 : 0}")
+if [[ "$costCheck" == "1" ]]; then
+    costVal=$(awk "BEGIN{printf \"%.2f\", $J_COST}")
+    costTxt="${cDim}\$${costVal}${R}"
+fi
+
+# --- Extra usage indicator (show at 95%+ on either limit) ---
+extraTxt=""
+if $limitsOk && (( fhPct >= 95 || sdPct >= 95 )); then
+    if $exEnabled && (( fhPct > 100 || sdPct > 100 )); then
+        # Actively consuming extra usage — show spend/limit
+        extraTxt="${cAmber}⚡ \$${exUsed}/\$${exLimit}${R}"
+    elif $exEnabled; then
+        # Approaching limit, extra usage will kick in
+        extraTxt="${cDim}⚡ Extra${R}"
+    else
+        # No extra usage — dim warning
+        extraTxt="${cDimmer}⚡ No extra${R}"
+    fi
+fi
+
 # --- Output ---
-# Line 1: dir  model  context  [agent]  [vim]  [update]
+# Line 1: dir  model  context  [cost]  [agent]  [vim]  [update]
 line1="${cSand}${dirDisplay}${R}  ${cPeach}${J_MODEL}${R}  ${ctxText}"
+[[ -n "$costTxt" ]] && line1+="  ${costTxt}"
 [[ -n "${J_AGENT:-}" ]] && line1+="  ${cLav}⚙ ${J_AGENT}${R}"
 [[ -n "${J_VIM:-}" ]]   && line1+="  ${cDim}${J_VIM}${R}"
 if $hasUpdate; then
     line1+="  ${cAmber}↑ ${updateLocal} → ${updateRemote}${R}"
 fi
 
-# Line 2: git  [limits]
+# Line 2: git  limits  [extra]
 line2="$gitDisplay"
 if $limitsOk; then
     line2+="  ${fhBar}${fhResetTxt}  ${sdBar}${sdResetTxt}"
 fi
+[[ -n "$extraTxt" ]] && line2+="  ${extraTxt}"
 
 printf '%s\n' "$line1"
 printf '%s' "$line2"

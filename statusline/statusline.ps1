@@ -1,6 +1,6 @@
 # Claude Code statusline — pastel, brightness squares, git+github, gradient limits
-# Line 1: dir  model  ■⬓□ pct%  [agent]  [vim:MODE]  [↑ update]
-# Line 2: ⎇ branch [✔ ~]  limit_bars [reset times]
+# Line 1: dir  model  ■⬓□ pct%  [$cost]  [agent]  [vim:MODE]  [↑ update]
+# Line 2: ⎇ branch [✔ ~]  limit_bars [reset times]  [⚡ extra usage]
 #
 # Official docs:
 #   https://code.claude.com/docs/en/statusline
@@ -60,6 +60,29 @@ function Get-GradColor([int]$p) {
     return "$esc[38;2;$($rgb[0]);$($rgb[1]);$($rgb[2])m"
 }
 
+# --- Limit-bar gradient (80%=green, 100%=red, saturation ramps at high %) ---
+function Get-LimitGradRGB([int]$p) {
+    $p = [math]::Max(0, [math]::Min(100, $p))
+    if ($p -le 80) {
+        $r = 130; $g = 190; $b = 150
+    } elseif ($p -le 90) {
+        $t = ($p - 80) / 10.0
+        $r = [int](130 + 80*$t);  $g = [int](190 - 15*$t);  $b = [int](150 - 50*$t)
+    } else {
+        $t = ($p - 90) / 10.0
+        $r = 210; $g = [int](175 - 80*$t); $b = [int](100 - 15*$t)
+    }
+    # Dynamic muting: muted at <=80%, increasingly saturated toward 100%
+    if ($p -le 80) { $mf = 0.75 }
+    else { $mf = 0.75 + 0.25 * (($p - 80) / 20.0) }
+    return @([int]($dimR + ($r - $dimR) * $mf), [int]($dimG + ($g - $dimG) * $mf), [int]($dimB + ($b - $dimB) * $mf))
+}
+
+function Get-LimitGradColor([int]$p) {
+    $rgb = Get-LimitGradRGB $p
+    return "$esc[38;2;$($rgb[0]);$($rgb[1]);$($rgb[2])m"
+}
+
 # --- Read JSON ---
 $inputData = [System.Console]::In.ReadToEnd()
 $data = $inputData | ConvertFrom-Json
@@ -97,25 +120,37 @@ if ($data.PSObject.Properties['vim'] -and $data.vim -and
 }
 
 
+# --- Read Claude Code config (autoCompact) ---
+$autoCompactOn = $true   # default when absent
+$configPath = Join-Path ([System.Environment]::GetFolderPath('UserProfile')) ".claude\settings.json"
+if (Test-Path $configPath) {
+    try {
+        $ccConfig = Get-Content $configPath -Raw | ConvertFrom-Json
+        if ($ccConfig.PSObject.Properties['autoCompact'] -and $ccConfig.autoCompact -eq $false) {
+            $autoCompactOn = $false
+        }
+    } catch {}
+}
+
 # --- Context percentage (adjusted for autocompact buffer) ---
-# Autocompact reserves ~33000 tokens (20000 max_output + 13000 buffer).
+# When autocompact is on, it reserves ~33000 tokens (20000 max_output + 13000 buffer).
 # used_percentage is raw % of total window — we recalculate against usable space.
 $pct = 0
 if ($data.PSObject.Properties['context_window']) {
     $cw = $data.context_window
     $size = if ($cw.PSObject.Properties['context_window_size']) { [int]$cw.context_window_size } else { 0 }
-    $autocompactBuffer = 33000
+    $autocompactBuffer = if ($autoCompactOn) { 33000 } else { 0 }
 
     if ($cw.PSObject.Properties['current_usage'] -and $null -ne $cw.current_usage) {
         $cu = $cw.current_usage
         $current = $cu.input_tokens + $cu.cache_creation_input_tokens + $cu.cache_read_input_tokens
         $usable = [math]::Max(1, $size - $autocompactBuffer)
-        $pct = [math]::Floor($current * 100 / $usable)
+        $pct = [math]::Round($current * 100 / $usable)
     } elseif ($cw.PSObject.Properties['used_percentage'] -and $null -ne $cw.used_percentage -and $size -gt 0) {
         # Fallback: convert raw used_percentage to autocompact-adjusted
         $rawTokens = [math]::Floor($size * [double]$cw.used_percentage / 100)
         $usable = [math]::Max(1, $size - $autocompactBuffer)
-        $pct = [math]::Floor($rawTokens * 100 / $usable)
+        $pct = [math]::Round($rawTokens * 100 / $usable)
     }
 }
 $pct = [math]::Max(0, [math]::Min(100, $pct))
@@ -250,6 +285,7 @@ if ($sid) {
 # --- Rate limits via OAuth API (cached 60s) ---
 $cacheFile = Join-Path $env:TEMP "claude-sl-usage.json"
 $fhPct = 0; $fhReset = ""; $fhResetRaw = ""; $sdPct = 0; $sdReset = ""; $sdResetRaw = ""
+$exEnabled = $false; $exUsed = 0.0; $exLimit = 0.0; $exPct = 0
 $limitsOk = $false
 $needFetch = $true
 
@@ -263,6 +299,10 @@ if (Test-Path $cacheFile) {
             $fhResetRaw = if ($c.PSObject.Properties['fhResetRaw']) { [string]$c.fhResetRaw } else { "" }
             $sdPct = [int]$c.sdPct; $sdReset = [string]$c.sdReset
             $sdResetRaw = if ($c.PSObject.Properties['sdResetRaw']) { [string]$c.sdResetRaw } else { "" }
+            if ($c.PSObject.Properties['exEnabled']) { $exEnabled = [bool]$c.exEnabled }
+            if ($c.PSObject.Properties['exUsed']) { $exUsed = [double]$c.exUsed }
+            if ($c.PSObject.Properties['exLimit']) { $exLimit = [double]$c.exLimit }
+            if ($c.PSObject.Properties['exPct']) { $exPct = [int]$c.exPct }
             $limitsOk = $true
         } catch {}
     }
@@ -295,11 +335,23 @@ if ($needFetch) {
                     $sdPct = [math]::Round([double]$resp.seven_day.utilization)
                     if ($resp.seven_day.PSObject.Properties['resets_at'] -and $resp.seven_day.resets_at) {
                         $sdResetRaw = [string]$resp.seven_day.resets_at
-                        $sdReset = ([DateTimeOffset]::Parse($sdResetRaw)).LocalDateTime.ToString("ddd")
+                        $sdDt = ([DateTimeOffset]::Parse($sdResetRaw)).LocalDateTime
+                        $sdReset = $sdDt.ToString("ddd") + " " + $sdDt.ToString("h:mmtt").ToLower()
                     }
                 }
 
-                @{ fhPct=$fhPct; fhReset="$fhReset"; fhResetRaw="$fhResetRaw"; sdPct=$sdPct; sdReset="$sdReset"; sdResetRaw="$sdResetRaw" } |
+                # Extra usage (may not exist if never configured)
+                if ($resp.PSObject.Properties['extra_usage'] -and $resp.extra_usage) {
+                    $ex = $resp.extra_usage
+                    if ($ex.PSObject.Properties['is_enabled']) { $exEnabled = [bool]$ex.is_enabled }
+                    if ($ex.PSObject.Properties['used_credits']) { $exUsed = [math]::Round([double]$ex.used_credits / 100, 2) }
+                    if ($ex.PSObject.Properties['monthly_limit']) { $exLimit = [math]::Round([double]$ex.monthly_limit / 100, 2) }
+                    if ($ex.PSObject.Properties['utilization']) { $exPct = [math]::Round([double]$ex.utilization) }
+                }
+
+                @{ fhPct=$fhPct; fhReset="$fhReset"; fhResetRaw="$fhResetRaw";
+                   sdPct=$sdPct; sdReset="$sdReset"; sdResetRaw="$sdResetRaw";
+                   exEnabled=$exEnabled; exUsed=$exUsed; exLimit=$exLimit; exPct=$exPct } |
                     ConvertTo-Json | Set-Content $cacheFile -Encoding UTF8
                 $limitsOk = $true
             }
@@ -314,7 +366,7 @@ $barW = 5
 
 function Build-LimitBar([int]$lpct, [int[]]$barRGB, [bool]$forceShowPct) {
     $lpct = [math]::Max(0, [math]::Min(100, $lpct))
-    $gradColor = Get-GradColor $lpct
+    $gradColor = Get-LimitGradColor $lpct
     $barColor = "$esc[38;2;$($barRGB[0]);$($barRGB[1]);$($barRGB[2])m"
     $displayPct = $forceShowPct -or ($lpct -ge 80)
     $pipW = 100.0 / $barW
@@ -323,7 +375,7 @@ function Build-LimitBar([int]$lpct, [int[]]$barRGB, [bool]$forceShowPct) {
         # Percentage text centered; flanking pips render naturally
         if ($lpct -ge 100) { $pStr = "100" }
         else { $pStr = "${lpct}%" }
-        $txtColor = if ($lpct -ge 75) { $cSalmon } else { $barColor }
+        $txtColor = Get-LimitGradColor $lpct
         $tStart = [math]::Ceiling(($barW - $pStr.Length) / 2)
         $result = ""
         for ($i = 0; $i -lt $barW; $i++) {
@@ -342,7 +394,7 @@ function Build-LimitBar([int]$lpct, [int[]]$barRGB, [bool]$forceShowPct) {
                 $fill = [math]::Min(1.0, ($lpct - $pipStart) / $pipW)
                 $bri = 0.25 + 0.75 * $fill
                 if ($isLastPip) {
-                    $gRGB = Get-GradRGB $lpct
+                    $gRGB = Get-LimitGradRGB $lpct
                     $lr = [math]::Round($dimR + ($gRGB[0] - $dimR) * $bri)
                     $lg = [math]::Round($dimG + ($gRGB[1] - $dimG) * $bri)
                     $lb = [math]::Round($dimB + ($gRGB[2] - $dimB) * $bri)
@@ -358,7 +410,7 @@ function Build-LimitBar([int]$lpct, [int[]]$barRGB, [bool]$forceShowPct) {
         }
         return "${result}${R}"
     } else {
-        # 5 pips: identity color with brightness ramp, last pip = gradient
+        # 5 pips: identity color, last pip = limit gradient
         $result = ""
         for ($i = 0; $i -lt $barW; $i++) {
             $pipStart = $i * $pipW
@@ -366,18 +418,14 @@ function Build-LimitBar([int]$lpct, [int[]]$barRGB, [bool]$forceShowPct) {
             $isLastPip = ($i -eq ($barW - 1))
 
             if ($lpct -ge $pipEnd) {
-                # Fully filled pip
-                if ($isLastPip) {
-                    $result += "${gradColor}${fc}"
-                } else {
-                    $result += "${barColor}${fc}"
-                }
+                if ($isLastPip) { $result += "${gradColor}${fc}" }
+                else { $result += "${barColor}${fc}" }
             } elseif ($lpct -gt $pipStart) {
                 # Leading pip — brightness interpolation
                 $fill = [math]::Min(1.0, ($lpct - $pipStart) / $pipW)
                 $bri = 0.25 + 0.75 * $fill
                 if ($isLastPip) {
-                    $gRGB = Get-GradRGB $lpct
+                    $gRGB = Get-LimitGradRGB $lpct
                     $lr = [math]::Round($dimR + ($gRGB[0] - $dimR) * $bri)
                     $lg = [math]::Round($dimG + ($gRGB[1] - $dimG) * $bri)
                     $lb = [math]::Round($dimB + ($gRGB[2] - $dimB) * $bri)
@@ -388,7 +436,6 @@ function Build-LimitBar([int]$lpct, [int[]]$barRGB, [bool]$forceShowPct) {
                 }
                 $result += "$esc[38;2;${lr};${lg};${lb}m${fc}"
             } else {
-                # Empty pip
                 $result += "${cDim}${ec}"
             }
         }
@@ -408,8 +455,8 @@ if (-not $fhShowReset -and $fhResetRaw) {
     } catch {}
 }
 $fhResetTxt = if ($fhShowReset -and $fhReset) { " ${cSage}${fhReset}${R}" } else { "" }
-# Show 7d reset time if usage >= 90% OR within 4 hours of reset
-$sdShowReset = ($sdPct -ge 90)
+# Show 7d reset time if usage >= 80% OR within 4 hours of reset
+$sdShowReset = ($sdPct -ge 80)
 if (-not $sdShowReset -and $sdResetRaw) {
     try {
         $sdHoursLeft = (([DateTimeOffset]::Parse($sdResetRaw)).LocalDateTime - (Get-Date)).TotalHours
@@ -457,22 +504,48 @@ if ($needUpdateCheck) {
     }
 }
 
+# --- Session cost (from statusline JSON) ---
+$costTxt = ""
+if ($data.PSObject.Properties['cost'] -and $data.cost -and
+    $data.cost.PSObject.Properties['total_cost_usd'] -and $data.cost.total_cost_usd -gt 0) {
+    $costVal = [math]::Round([double]$data.cost.total_cost_usd, 2)
+    $costTxt = "${cDim}`$$costVal${R}"
+}
+
+# --- Extra usage indicator (show at 95%+ on either limit) ---
+$extraTxt = ""
+if ($limitsOk -and ($fhPct -ge 95 -or $sdPct -ge 95)) {
+    $bolt = [char]0x26A1  # ⚡
+    if ($exEnabled -and ($fhPct -gt 100 -or $sdPct -gt 100)) {
+        # Actively consuming extra usage — show spend/limit
+        $extraTxt = "${cAmber}${bolt} `$$exUsed/`$$exLimit${R}"
+    } elseif ($exEnabled) {
+        # Approaching limit, extra usage will kick in
+        $extraTxt = "${cDim}${bolt} Extra${R}"
+    } else {
+        # No extra usage — dim warning
+        $extraTxt = "${cDimmer}${bolt} No extra${R}"
+    }
+}
+
 # --- Output ---
-# Line 1: dir  model  context  [agent]  [vim]  [update]
+# Line 1: dir  model  context  [cost]  [agent]  [vim]  [update]
 $line1 = "${cSand}${dirDisplay}${R}  ${cPeach}${model}${R}  ${ctxText}"
+if ($costTxt) { $line1 += "  ${costTxt}" }
 if ($agentName) { $line1 += "  ${cLav}$([char]0x2699) ${agentName}${R}" }
 if ($vimMode) { $line1 += "  ${cDim}${vimMode}${R}" }
 if ($hasUpdate) {
     $line1 += "  ${cAmber}$([char]0x2191) ${updateLocal} $([char]0x2192) ${updateRemote}${R}"
 }
 
-# Line 2: git  limits
+# Line 2: git  limits  [extra]
 $line2Parts = @()
 $line2Parts += $gitDisplay
 if ($limitsOk) {
     $line2Parts += "${fhBar}${fhResetTxt}"
     $line2Parts += "${sdBar}${sdResetTxt}"
 }
+if ($extraTxt) { $line2Parts += $extraTxt }
 $line2 = $line2Parts -join "  "
 
 [Console]::Out.WriteLine($line1)
