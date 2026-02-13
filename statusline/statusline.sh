@@ -502,18 +502,20 @@ if ! $sdShowReset && [[ -n "$sdResetRaw" && "$sdResetRaw" != "null" ]]; then
 fi
 $sdShowReset && [[ -n "$sdReset" ]] && sdResetTxt=" ${cMauve}${sdReset}${R}"
 
-# --- Claude Code update check (cached 1 hour) ---
-updateCache="${TMPD}/claude-sl-update.json"
+# --- Claude Code update check (per-session cache, refreshed hourly) ---
+updateCacheTag="${J_SID:0:12}"
+updateCacheTag="${updateCacheTag:-nosid}"
+updateCache="${TMPD}/claude-sl-update-${updateCacheTag}.json"
 hasUpdate=false updateLocal="" updateRemote=""
 needUpdateCheck=true
 
 if [[ -f "$updateCache" ]]; then
     age=$(file_age "$updateCache")
     if (( age < 3600 )); then
-        needUpdateCheck=false
         updateLocal=$(jq -r '.local // ""' "$updateCache" 2>/dev/null | awk '{print $1}')
         updateRemote=$(jq -r '.remote // ""' "$updateCache" 2>/dev/null | awk '{print $1}')
         [[ -n "$updateLocal" && -n "$updateRemote" && "$updateLocal" != "$updateRemote" ]] && hasUpdate=true
+        needUpdateCheck=false
     fi
 fi
 

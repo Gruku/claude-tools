@@ -465,21 +465,23 @@ if (-not $sdShowReset -and $sdResetRaw) {
 }
 $sdResetTxt = if ($sdShowReset -and $sdReset) { " ${cMauve}${sdReset}${R}" } else { "" }
 
-# --- Claude Code update check (cached 1 hour) ---
-$updateCache = Join-Path $env:TEMP "claude-sl-update.json"
+# --- Claude Code update check (per-session cache, refreshed hourly) ---
 $hasUpdate = $false; $updateLocal = ""; $updateRemote = ""
 $needUpdateCheck = $true
+
+# Per-session cache: each session gets its own file, no cross-session pollution
+$updateCacheTag = if ($sid) { $sid.Substring(0, [Math]::Min(12, $sid.Length)) } else { "nosid" }
+$updateCache = Join-Path $env:TEMP "claude-sl-update-$updateCacheTag.json"
 
 if (Test-Path $updateCache) {
     $updateAge = ((Get-Date) - (Get-Item $updateCache).LastWriteTime).TotalSeconds
     if ($updateAge -lt 3600) {
-        $needUpdateCheck = $false
         try {
             $uc = Get-Content $updateCache -Raw | ConvertFrom-Json
             $updateLocal = (([string]$uc.local) -split '\s+')[0]
             $updateRemote = (([string]$uc.remote) -split '\s+')[0]
-            # Re-validate: don't trust cached hasUpdate if versions match
             $hasUpdate = ($updateLocal -and $updateRemote -and $updateLocal -ne $updateRemote)
+            $needUpdateCheck = $false
         } catch {}
     }
 }

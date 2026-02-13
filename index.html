@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Claude Tools</title>
+<style>
+  body { background: #1a1a1a; color: #ccc; font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 14px; padding: 32px; margin: 0; }
+  h1 { color: #aaa; font-size: 18px; margin-bottom: 8px; }
+  .subtitle { color: #555; font-size: 13px; margin-bottom: 32px; }
+  .tools { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+  .tool { background: #111; border: 1px solid #333; border-radius: 6px; padding: 20px; transition: border-color 0.2s; }
+  .tool:hover { border-color: rgb(165,150,200); }
+  .tool a { color: rgb(195,180,165); text-decoration: none; font-size: 15px; display: block; margin-bottom: 8px; }
+  .tool a:hover { color: rgb(235,195,80); }
+  .tool .desc { color: #666; font-size: 12px; line-height: 1.5; }
+  .tool .tag { display: inline-block; background: #222; border: 1px solid #333; border-radius: 3px; padding: 2px 8px; font-size: 11px; color: rgb(165,150,200); margin-top: 10px; }
+</style>
+</head><body>
+
+<h1>Claude Tools</h1>
+<div class="subtitle">Custom tools for Claude Code by <a href="https://github.com/Gruku" style="color:rgb(140,160,185);text-decoration:none;">Gruku</a></div>
+
+<div class="tools">
+
+  <div class="tool">
+    <a href="statusline/">Statusline</a>
+    <div class="desc">Pastel statusline for Claude Code with rate limit bars, git status, context usage, update notifications, and session cost tracking. Supports PowerShell and Bash.</div>
+    <span class="tag">ps1</span> <span class="tag">bash</span>
+  </div>
+
+  <div class="tool">
+    <a href="ue5-custom-shader-nodes/">UE5 Custom Shader Nodes</a>
+    <div class="desc">Material graph node generator for Unreal Engine 5.5. Copy-paste node structures, custom HLSL nodes, material functions, and wiring diagrams.</div>
+    <span class="tag">ue5</span> <span class="tag">hlsl</span>
+  </div>
+
+</div>
+
+</body></html>

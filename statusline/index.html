@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Statusline Preview</title>
+<style>
+  body { background: #1a1a1a; color: #ccc; font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 14px; padding: 32px; }
+  h2 { color: #888; font-size: 13px; font-weight: normal; margin: 28px 0 8px; letter-spacing: 1px; text-transform: uppercase; }
+  .sl { background: #111; border: 1px solid #333; border-radius: 4px; padding: 8px 14px; margin-bottom: 4px; white-space: pre; line-height: 1.6; }
+  .sand { color: rgb(205,185,165); }
+  .peach { color: rgb(195,160,155); }
+  .lav { color: rgb(165,150,200); }
+  .sage { color: rgb(135,180,160); }
+  .mauve { color: rgb(185,140,160); }
+  .salmon { color: rgb(205,140,125); }
+  .slate { color: rgb(140,160,185); }
+  .amber { color: rgb(235,195,80); }
+  .dim { color: rgb(80,75,70); }
+  .dimmer { color: rgb(60,58,55); }
+  .neu { color: rgb(195,180,165); }
+  /* limit gradient colors at various % (muted) */
+  .lg80 { color: rgb(110,155,124); }  /* 80% green muted */
+  .lg85 { color: rgb(140,152,109); }
+  .lg87 { color: rgb(152,151,103); }
+  .lg90 { color: rgb(190,159,93); }
+  .lg91 { color: rgb(192,154,92); }
+  .lg95 { color: rgb(204,116,88); }
+  .lg97 { color: rgb(206,109,87); }
+  .lg98 { color: rgb(207,105,86); }
+  .lg100 { color: rgb(210,95,85); } /* 100% red full sat */
+  .lg102 { color: rgb(210,95,85); } /* clamped */
+  /* context gradient */
+  .ctx85 { color: rgb(210,155,96); }
+  .ctx35 { color: rgb(148,195,133); }
+  .desc { color: #555; font-size: 12px; margin: 2px 0 16px 14px; }
+</style>
+</head><body>
+<h1 style="color:#aaa;font-size:16px;margin-bottom:24px;">Statusline Simulation — All Scenarios</h1>
+
+<h2>1. Extra Usage Active (5h=102%, 7d=87%)</h2>
+<div class="sl"><span class="sand">launcher-v2</span>  <span class="peach">Opus</span>  <span class="neu">■■</span><span class="ctx85">⬓</span> <span class="ctx85">85%</span>  <span class="dim">$3.87</span></div>
+<div class="sl"><span class="slate">⎇ feature/extra-usage</span> <span class="sage">✔</span> <span class="salmon">~</span>  <span class="sage">▰</span><span class="lg102">1</span><span class="lg102">0</span><span class="lg102">0</span><span class="lg100">▰</span> <span class="sage">4:30pm</span>  <span class="mauve">▰▰▰▰</span><span class="lg87">87%</span> <span class="mauve">Thu 9:15am</span>  <span class="amber">⚡ $12.47/$50</span></div>
+<div class="desc">5h over limit → amber spend/limit shown. 7d shows reset day+time.</div>
+
+<h2>2. Approaching Limit, Extra Enabled (5h=97%, 7d=91%)</h2>
+<div class="sl"><span class="sand">launcher-v2</span>  <span class="peach">Opus</span>  <span class="neu">■■</span><span class="ctx85">⬓</span> <span class="ctx85">85%</span>  <span class="dim">$3.87</span></div>
+<div class="sl"><span class="slate">⎇ feature/extra-usage</span> <span class="sage">✔</span> <span class="salmon">~</span>  <span class="sage">▰</span><span class="lg97">9</span><span class="lg97">7</span><span class="lg97">%</span><span class="lg95">▰</span> <span class="sage">5:15pm</span>  <span class="mauve">▰</span><span class="lg91">9</span><span class="lg91">1</span><span class="lg91">%</span><span class="lg90">▰</span> <span class="mauve">Thu 9:15am</span>  <span class="dim">⚡ Extra</span></div>
+<div class="desc">Both bars show %. Dim "Extra" = enabled but not yet consuming.</div>
+
+<h2>3. Approaching Limit, No Extra (5h=98%, 7d=72%)</h2>
+<div class="sl"><span class="sand">launcher-v2</span>  <span class="peach">Opus</span>  <span class="neu">■■</span><span class="ctx85">⬓</span> <span class="ctx85">85%</span>  <span class="dim">$3.87</span></div>
+<div class="sl"><span class="slate">⎇ feature/extra-usage</span> <span class="sage">✔</span> <span class="salmon">~</span>  <span class="sage">▰</span><span class="lg98">9</span><span class="lg98">8</span><span class="lg98">%</span><span class="lg97">▰</span> <span class="sage">5:15pm</span>  <span class="mauve">▰▰▰</span><span style="color:rgb(144,112,126)">▰</span><span class="dim">▱</span>  <span class="dimmer">⚡ No extra</span></div>
+<div class="desc">5h at 98% with %. 7d at 72% (no %). Dimmer "No extra" warning.</div>
+
+<h2>4. Normal Usage (5h=35%, 7d=52%)</h2>
+<div class="sl"><span class="sand">launcher-v2</span>  <span class="peach">Opus</span>  <span class="neu">■■</span><span class="ctx85">⬓</span> <span class="ctx85">85%</span>  <span class="dim">$3.87</span></div>
+<div class="sl"><span class="slate">⎇ feature/extra-usage</span> <span class="sage">✔</span> <span class="salmon">~</span>  <span class="sage">▰</span><span style="color:rgb(119,155,138)">▰</span><span class="dim">▱▱▱</span>  <span class="mauve">▰▰</span><span style="color:rgb(144,112,126)">▰</span><span class="dim">▱▱</span></div>
+<div class="desc">Both bars under 80% — no %, no reset times, no extra usage indicator.</div>
+
+<h2>5. First Render of New Session (5h=45%, 7d=60%)</h2>
+<div class="sl"><span class="sand">launcher-v2</span>  <span class="peach">Opus</span>  <span class="dim">□□□</span> <span class="lg80">0%</span></div>
+<div class="sl"><span class="slate">⎇ master</span>  <span class="sage">▰▰</span><span class="lg80">45%</span><span class="dim">▱▱</span>  <span class="mauve">▰▰▰</span><span class="lg80">60%</span><span class="dim">▱</span></div>
+<div class="desc">First render shows % overlay on both bars regardless of threshold.</div>
+
+<h2>6. With Update Available (per-session cached)</h2>
+<div class="sl"><span class="sand">launcher-v2</span>  <span class="peach">Opus</span>  <span class="neu">■</span><span style="color:rgb(148,195,133)">⬓</span><span class="dim">□</span> <span style="color:rgb(148,195,133)">35%</span>  <span class="dim">$0.52</span>  <span class="amber">↑ 2.1.39 → 2.2.0</span></div>
+<div class="sl"><span class="slate">⎇ master</span> <span class="sage">✔</span>  <span class="sage">▰</span><span style="color:rgb(119,155,138)">▰</span><span class="dim">▱▱▱</span>  <span class="mauve">▰▰</span><span style="color:rgb(144,112,126)">▰</span><span class="dim">▱▱</span></div>
+<div class="desc">Amber update arrow on line 1 when npm has newer version. Cache is per-session (keyed by session_id) and refreshed hourly — parallel sessions on different CLI versions each see their own correct state.</div>
+
+</body></html>
