@@ -465,7 +465,7 @@ if (-not $sdShowReset -and $sdResetRaw) {
 }
 $sdResetTxt = if ($sdShowReset -and $sdReset) { " ${cMauve}${sdReset}${R}" } else { "" }
 
-# --- Claude Code update check (per-session cache, refreshed hourly) ---
+# --- Claude Code update check (per-session cache, checked once per session) ---
 $hasUpdate = $false; $updateLocal = ""; $updateRemote = ""
 $needUpdateCheck = $true
 
@@ -514,28 +514,36 @@ if ($data.PSObject.Properties['cost'] -and $data.cost -and
     $costTxt = "${cDim}`$$costVal${R}"
 }
 
-# --- Extra usage indicator (show at 95%+ on either limit) ---
+# --- Extra usage detection ---
+# Active extra usage: enabled AND hit 100% on either limit (currently consuming extra credits)
+$activeExtra = $limitsOk -and $exEnabled -and ($fhPct -ge 100 -or $sdPct -ge 100)
+$nearExtra = $limitsOk -and ($fhPct -ge 90 -or $sdPct -ge 90)
+
+# --- Extra usage indicator ---
 $extraTxt = ""
-if ($limitsOk -and ($fhPct -ge 95 -or $sdPct -ge 95)) {
-    $bolt = [char]0x26A1  # ⚡
-    if ($exEnabled -and ($fhPct -gt 100 -or $sdPct -gt 100)) {
-        # Actively consuming extra usage — show spend/limit
-        $extraTxt = "${cAmber}${bolt} `$$exUsed/`$$exLimit${R}"
-    } elseif ($exEnabled) {
-        # Approaching limit, extra usage will kick in
-        $extraTxt = "${cDim}${bolt} Extra${R}"
-    } else {
-        # No extra usage — dim warning
-        $extraTxt = "${cDimmer}${bolt} No extra${R}"
-    }
+$bolt = [char]0x26A1  # ⚡
+if ($activeExtra) {
+    # Actively consuming extra usage — show spend/limit
+    $extraTxt = "${cAmber}${bolt} `$$exUsed/`$$exLimit${R}"
+} elseif ($nearExtra -and $exEnabled) {
+    # Approaching limit, extra usage will kick in
+    $extraTxt = "${cDim}${bolt} Extra${R}"
+} elseif ($nearExtra) {
+    # No extra usage — dim warning
+    $extraTxt = "${cDimmer}${bolt} No extra${R}"
 }
 
 # --- Output ---
-# Line 1: dir  model  context  [cost]  [agent]  [vim]  [update]
+# Line 1: dir  model  context  [cost]  [agent]  [vim]  [extra msg]  [update]
 $line1 = "${cSand}${dirDisplay}${R}  ${cPeach}${model}${R}  ${ctxText}"
-if ($costTxt) { $line1 += "  ${costTxt}" }
+# Show session cost when approaching or on extra usage
+if ($costTxt -and ($nearExtra -or $activeExtra)) { $line1 += "  ${costTxt}" }
 if ($agentName) { $line1 += "  ${cLav}$([char]0x2699) ${agentName}${R}" }
 if ($vimMode) { $line1 += "  ${cDim}${vimMode}${R}" }
+# Show "Extra Usage" on line 1 when actively consuming
+if ($activeExtra) {
+    $line1 += "  ${cAmber}Extra Usage${R}"
+}
 if ($hasUpdate) {
     $line1 += "  ${cAmber}$([char]0x2191) ${updateLocal} $([char]0x2192) ${updateRemote}${R}"
 }

@@ -539,27 +539,35 @@ if [[ "$costCheck" == "1" ]]; then
     costTxt="${cDim}\$${costVal}${R}"
 fi
 
-# --- Extra usage indicator (show at 95%+ on either limit) ---
+# --- Extra usage detection ---
+# Active extra usage: enabled AND hit 100% on either limit (currently consuming extra credits)
+activeExtra=false
+$limitsOk && $exEnabled && (( fhPct >= 100 || sdPct >= 100 )) && activeExtra=true
+nearExtra=false
+$limitsOk && (( fhPct >= 90 || sdPct >= 90 )) && nearExtra=true
+
+# --- Extra usage indicator ---
 extraTxt=""
-if $limitsOk && (( fhPct >= 95 || sdPct >= 95 )); then
-    if $exEnabled && (( fhPct > 100 || sdPct > 100 )); then
-        # Actively consuming extra usage — show spend/limit
-        extraTxt="${cAmber}⚡ \$${exUsed}/\$${exLimit}${R}"
-    elif $exEnabled; then
-        # Approaching limit, extra usage will kick in
-        extraTxt="${cDim}⚡ Extra${R}"
-    else
-        # No extra usage — dim warning
-        extraTxt="${cDimmer}⚡ No extra${R}"
-    fi
+if $activeExtra; then
+    # Actively consuming extra usage — show spend/limit
+    extraTxt="${cAmber}⚡ \$${exUsed}/\$${exLimit}${R}"
+elif $nearExtra && $exEnabled; then
+    # Approaching limit, extra usage will kick in
+    extraTxt="${cDim}⚡ Extra${R}"
+elif $nearExtra; then
+    # No extra usage — dim warning
+    extraTxt="${cDimmer}⚡ No extra${R}"
 fi
 
 # --- Output ---
-# Line 1: dir  model  context  [cost]  [agent]  [vim]  [update]
+# Line 1: dir  model  context  [cost]  [agent]  [vim]  [extra msg]  [update]
 line1="${cSand}${dirDisplay}${R}  ${cPeach}${J_MODEL}${R}  ${ctxText}"
-[[ -n "$costTxt" ]] && line1+="  ${costTxt}"
+# Show session cost when approaching or on extra usage
+if [[ -n "$costTxt" ]] && ($nearExtra || $activeExtra); then line1+="  ${costTxt}"; fi
 [[ -n "${J_AGENT:-}" ]] && line1+="  ${cLav}⚙ ${J_AGENT}${R}"
 [[ -n "${J_VIM:-}" ]]   && line1+="  ${cDim}${J_VIM}${R}"
+# Show "Extra Usage" on line 1 when actively consuming
+$activeExtra && line1+="  ${cAmber}Extra Usage${R}"
 if $hasUpdate; then
     line1+="  ${cAmber}↑ ${updateLocal} → ${updateRemote}${R}"
 fi
