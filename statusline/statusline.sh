@@ -36,6 +36,7 @@ cSage="${E}[38;2;135;180;160m"
 cMauve="${E}[38;2;185;140;160m"
 cSalmon="${E}[38;2;205;140;125m"
 cSlate="${E}[38;2;140;160;185m"
+cTeal="${E}[38;2;115;195;195m"
 cAmber="${E}[38;2;235;195;80m"
 cDim="${E}[38;2;80;75;70m"
 cDimmer="${E}[38;2;60;58;55m"
@@ -289,6 +290,7 @@ gitDisplay=""
 if $hasGit && [[ -n "$branch" ]]; then
     if [[ -n "$repoUrl" ]]; then
         gitDisplay="${E}]8;;${repoUrl}${BEL}${cSlate}⎇ ${branch}${R}${E}]8;;${BEL}"
+        gitDisplay+=" ${cTeal}⬡${R}"   # hosted repo indicator
     else
         gitDisplay="${cSlate}⎇ ${branch}${R}"
     fi

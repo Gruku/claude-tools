@@ -32,6 +32,7 @@ $cSage   = "$esc[38;2;135;180;160m"
 $cMauve  = "$esc[38;2;185;140;160m"
 $cSalmon = "$esc[38;2;205;140;125m"
 $cSlate  = "$esc[38;2;140;160;185m"   # git branch - dusty blue
+$cTeal   = "$esc[38;2;115;195;195m"   # hosted repo indicator - soft cyan
 $cAmber  = "$esc[38;2;235;195;80m"    # bright warm yellow - update alert
 $cDim    = "$esc[38;2;80;75;70m"
 $cDimmer = "$esc[38;2;60;58;55m"
@@ -247,6 +248,7 @@ if ($hasGit -and $branch) {
         $linkOpen = "${esc}]8;;${repoUrl}${bel}"
         $linkClose = "${esc}]8;;${bel}"
         $gitDisplay = "${linkOpen}${cSlate}${gitIcon} ${branch}${R}${linkClose}"
+        $gitDisplay += " ${cTeal}$([char]0x2B21)${R}"   # ⬡ hosted repo indicator
     } else {
         $gitDisplay = "${cSlate}${gitIcon} ${branch}${R}"
     }
