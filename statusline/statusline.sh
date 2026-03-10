@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Claude Code statusline — pastel, brightness squares, git+github, gradient limits
+# Claude Code statusline — pastel, brightness squares, git+hosting, gradient limits
 # Line 1: dir  model  ■⬓□ pct%  [$cost]  [agent]  [vim:MODE]  [↑ update]
 # Line 2: ⎇ branch [✔ ~]  limit_bars [reset times]  [⚡ extra usage]
 #
@@ -249,14 +249,15 @@ fi
 
 # --- Git info (cached 30s, per-project) ---
 gitCache="${TMPD}/claude-sl-git.json"
-branch="" gitStaged=0 gitModified=0 repoUrl="" hasGit=false
+branch="" gitStaged=0 gitModified=0 repoUrl="" hasGit=false gitNested=false
 needGit=true
 
 if [[ -f "$gitCache" ]]; then
     age=$(file_age "$gitCache")
     if (( age < 30 )); then
         cachedProj=$(jq -r '.projDir // ""' "$gitCache" 2>/dev/null || echo "")
-        if [[ "$cachedProj" == "$projDir" ]]; then
+        cachedCur=$(jq -r '.curDir // ""' "$gitCache" 2>/dev/null || echo "")
+        if [[ "$cachedProj" == "$projDir" && "$cachedCur" == "$curDir" ]]; then
             needGit=false
             branch=$(jq -r '.branch // ""' "$gitCache")
             gitStaged=$(jq -r '.staged // 0' "$gitCache")
@@ -264,35 +265,49 @@ if [[ -f "$gitCache" ]]; then
             repoUrl=$(jq -r '.repoUrl // ""' "$gitCache")
             hasGitStr=$(jq -r '.hasGit // false' "$gitCache")
             [[ "$hasGitStr" == "true" ]] && hasGit=true
+            nestedStr=$(jq -r '.nested // false' "$gitCache")
+            [[ "$nestedStr" == "true" ]] && gitNested=true
         fi
     fi
 fi
 
 if $needGit; then
-    if git -C "$projDir" rev-parse --git-dir >/dev/null 2>&1; then
+    # Check projDir first, fall back to curDir (nested repo support)
+    gitCheckDir="$projDir"
+    if ! git -C "$projDir" rev-parse --git-dir >/dev/null 2>&1; then
+        if [[ "$curDir" != "$projDir" ]] && git -C "$curDir" rev-parse --git-dir >/dev/null 2>&1; then
+            gitCheckDir="$curDir"
+            gitNested=true
+        fi
+    fi
+    if git -C "$gitCheckDir" rev-parse --git-dir >/dev/null 2>&1; then
         hasGit=true
-        branch=$(git -C "$projDir" branch --show-current 2>/dev/null || echo "")
-        gitStaged=$(git -C "$projDir" diff --cached --numstat 2>/dev/null | wc -l | tr -d ' ')
-        gitModified=$(git -C "$projDir" diff --numstat 2>/dev/null | wc -l | tr -d ' ')
-        remote=$(git -C "$projDir" remote get-url origin 2>/dev/null || echo "")
+        branch=$(git -C "$gitCheckDir" branch --show-current 2>/dev/null || echo "")
+        gitStaged=$(git -C "$gitCheckDir" diff --cached --numstat 2>/dev/null | wc -l | tr -d ' ')
+        gitModified=$(git -C "$gitCheckDir" diff --numstat 2>/dev/null | wc -l | tr -d ' ')
+        remote=$(git -C "$gitCheckDir" remote get-url origin 2>/dev/null || echo "")
         if [[ -n "$remote" ]]; then
             repoUrl=$(echo "$remote" | sed -E 's|^git@([^:]+):|https://\1/|; s|\.git$||')
         fi
     fi
-    jq -n --arg p "$projDir" --arg b "$branch" --argjson s "$gitStaged" \
-        --argjson m "$gitModified" --arg r "$repoUrl" --argjson h "$hasGit" \
-        '{projDir:$p,branch:$b,staged:$s,modified:$m,repoUrl:$r,hasGit:$h}' \
+    jq -n --arg p "$projDir" --arg c "$curDir" --arg b "$branch" --argjson s "$gitStaged" \
+        --argjson m "$gitModified" --arg r "$repoUrl" --argjson h "$hasGit" --argjson n "$gitNested" \
+        '{projDir:$p,curDir:$c,branch:$b,staged:$s,modified:$m,repoUrl:$r,hasGit:$h,nested:$n}' \
         > "$gitCache" 2>/dev/null
 fi
 
 # Build git display
 gitDisplay=""
+nestedPrefix=""
+if $hasGit && $gitNested; then
+    nestedPrefix="${cDim}↳ "
+fi
 if $hasGit && [[ -n "$branch" ]]; then
     if [[ -n "$repoUrl" ]]; then
-        gitDisplay="${E}]8;;${repoUrl}${BEL}${cSlate}⎇ ${branch}${R}${E}]8;;${BEL}"
+        gitDisplay="${nestedPrefix}${E}]8;;${repoUrl}${BEL}${cSlate}⎇ ${branch}${R}${E}]8;;${BEL}"
         gitDisplay+=" ${cTeal}⬡${R}"   # hosted repo indicator
     else
-        gitDisplay="${cSlate}⎇ ${branch}${R}"
+        gitDisplay="${nestedPrefix}${cSlate}⎇ ${branch}${R}"
     fi
     (( gitStaged > 0 ))  && gitDisplay+=" ${cSage}✔${R}"
     (( gitModified > 0 )) && gitDisplay+=" ${cSalmon}~${R}"
@@ -318,30 +333,29 @@ if [[ -n "${J_SID:-}" ]]; then
     fi
 fi
 
-# --- Rate limits via OAuth API (cached 60s) ---
+# --- Rate limits via OAuth API (cached 5min, stale fallback) ---
 cacheFile="${TMPD}/claude-sl-usage.json"
 fhPct=0 fhReset="" fhResetRaw="" sdPct=0 sdReset="" sdResetRaw=""
 exEnabled=false exUsed="0" exLimit="0" exPct=0
 limitsOk=false
 needFetch=true
 
+# Always load cache as fallback (even if stale) — prevents bars vanishing on fetch failure
 if [[ -f "$cacheFile" ]]; then
+    fhPct=$(jq -r '.fhPct // 0' "$cacheFile" 2>/dev/null || echo 0)
+    fhReset=$(jq -r '.fhReset // ""' "$cacheFile" 2>/dev/null || echo "")
+    fhResetRaw=$(jq -r '.fhResetRaw // ""' "$cacheFile" 2>/dev/null || echo "")
+    sdPct=$(jq -r '.sdPct // 0' "$cacheFile" 2>/dev/null || echo 0)
+    sdReset=$(jq -r '.sdReset // ""' "$cacheFile" 2>/dev/null || echo "")
+    sdResetRaw=$(jq -r '.sdResetRaw // ""' "$cacheFile" 2>/dev/null || echo "")
+    exEnabledStr=$(jq -r '.exEnabled // false' "$cacheFile" 2>/dev/null || echo "false")
+    [[ "$exEnabledStr" == "true" ]] && exEnabled=true
+    exUsed=$(jq -r '.exUsed // 0' "$cacheFile" 2>/dev/null || echo "0")
+    exLimit=$(jq -r '.exLimit // 0' "$cacheFile" 2>/dev/null || echo "0")
+    exPct=$(jq -r '.exPct // 0' "$cacheFile" 2>/dev/null || echo 0)
+    limitsOk=true
     age=$(file_age "$cacheFile")
-    if (( age < 60 )); then
-        needFetch=false
-        fhPct=$(jq -r '.fhPct // 0' "$cacheFile" 2>/dev/null || echo 0)
-        fhReset=$(jq -r '.fhReset // ""' "$cacheFile" 2>/dev/null || echo "")
-        fhResetRaw=$(jq -r '.fhResetRaw // ""' "$cacheFile" 2>/dev/null || echo "")
-        sdPct=$(jq -r '.sdPct // 0' "$cacheFile" 2>/dev/null || echo 0)
-        sdReset=$(jq -r '.sdReset // ""' "$cacheFile" 2>/dev/null || echo "")
-        sdResetRaw=$(jq -r '.sdResetRaw // ""' "$cacheFile" 2>/dev/null || echo "")
-        exEnabledStr=$(jq -r '.exEnabled // false' "$cacheFile" 2>/dev/null || echo "false")
-        [[ "$exEnabledStr" == "true" ]] && exEnabled=true
-        exUsed=$(jq -r '.exUsed // 0' "$cacheFile" 2>/dev/null || echo "0")
-        exLimit=$(jq -r '.exLimit // 0' "$cacheFile" 2>/dev/null || echo "0")
-        exPct=$(jq -r '.exPct // 0' "$cacheFile" 2>/dev/null || echo 0)
-        limitsOk=true
-    fi
+    if (( age < 300 )); then needFetch=false; fi   # 5 min cache — API rate-limits aggressively
 fi
 
 if $needFetch; then

@@ -1,4 +1,4 @@
-# Claude Code statusline — pastel, brightness squares, git+github, gradient limits
+# Claude Code statusline — pastel, brightness squares, git+hosting, gradient limits
 # Line 1: dir  model  ■⬓□ pct%  [$cost]  [agent]  [vim:MODE]  [↑ update]
 # Line 2: ⎇ branch [✔ ~]  limit_bars [reset times]  [⚡ extra usage]
 #
@@ -195,7 +195,7 @@ if ($pct -ge 100) {
 
 # --- Git info (cached 30s, per-project) ---
 $gitCache = Join-Path $env:TEMP "claude-sl-git.json"
-$branch = ""; $gitStaged = 0; $gitModified = 0; $repoUrl = ""; $hasGit = $false
+$branch = ""; $gitStaged = 0; $gitModified = 0; $repoUrl = ""; $hasGit = $false; $gitNested = $false
 $needGit = $true
 
 if (Test-Path $gitCache) {
@@ -203,14 +203,16 @@ if (Test-Path $gitCache) {
     if ($gitAge -lt 30) {
         try {
             $gc = Get-Content $gitCache -Raw | ConvertFrom-Json
-            # Invalidate cache if project changed
-            if ([string]$gc.projDir -eq $projDir) {
+            # Invalidate cache if project or cwd changed
+            $cachedCur = if ($gc.PSObject.Properties['curDir']) { [string]$gc.curDir } else { "" }
+            if ([string]$gc.projDir -eq $projDir -and $cachedCur -eq $curDir) {
                 $needGit = $false
                 $branch = [string]$gc.branch
                 $gitStaged = [int]$gc.staged
                 $gitModified = [int]$gc.modified
                 $repoUrl = [string]$gc.repoUrl
                 $hasGit = [bool]$gc.hasGit
+                if ($gc.PSObject.Properties['nested']) { $gitNested = [bool]$gc.nested }
             }
         } catch {}
     }
@@ -218,39 +220,50 @@ if (Test-Path $gitCache) {
 
 if ($needGit) {
     try {
-        $gitDir = git -C $projDir rev-parse --git-dir 2>$null
+        # Check projDir first, fall back to curDir (nested repo support)
+        $gitCheckDir = $projDir
+        $null = git -C $projDir rev-parse --git-dir 2>$null
+        if ($LASTEXITCODE -ne 0 -and $curDir -ne $projDir) {
+            $null = git -C $curDir rev-parse --git-dir 2>$null
+            if ($LASTEXITCODE -eq 0) { $gitCheckDir = $curDir; $gitNested = $true }
+        }
+        $null = git -C $gitCheckDir rev-parse --git-dir 2>$null
         if ($LASTEXITCODE -eq 0) {
             $hasGit = $true
-            $branch = (git -C $projDir branch --show-current 2>$null)
+            $branch = (git -C $gitCheckDir branch --show-current 2>$null)
             if ($branch) { $branch = $branch.Trim() }
-            $stagedOut = @(git -C $projDir diff --cached --numstat 2>$null | Where-Object { $_ })
+            $stagedOut = @(git -C $gitCheckDir diff --cached --numstat 2>$null | Where-Object { $_ })
             $gitStaged = $stagedOut.Count
-            $modOut = @(git -C $projDir diff --numstat 2>$null | Where-Object { $_ })
+            $modOut = @(git -C $gitCheckDir diff --numstat 2>$null | Where-Object { $_ })
             $gitModified = $modOut.Count
-            $remote = git -C $projDir remote get-url origin 2>$null
+            $remote = git -C $gitCheckDir remote get-url origin 2>$null
             if ($remote) {
                 # Convert SSH → HTTPS for GitHub, GitLab, Bitbucket
                 $repoUrl = ($remote.Trim() -replace '^git@([^:]+):', 'https://$1/' -replace '\.git$', '')
             }
         }
     } catch {}
-    @{ projDir="$projDir"; branch="$branch"; staged=[int]$gitStaged; modified=[int]$gitModified; repoUrl="$repoUrl"; hasGit=$hasGit } |
+    @{ projDir="$projDir"; curDir="$curDir"; branch="$branch"; staged=[int]$gitStaged; modified=[int]$gitModified; repoUrl="$repoUrl"; hasGit=$hasGit; nested=$gitNested } |
         ConvertTo-Json | Set-Content $gitCache -Encoding UTF8
 }
 
 # Build git display: icon + branch as clickable link + dot indicators for dirty state
 $gitIcon = [char]0x2387   # ⎇ (branch icon)
 $gitDisplay = ""
+$nestedPrefix = ""
+if ($hasGit -and $gitNested) {
+    $nestedPrefix = "${cDim}$([char]0x21B3) "   # ↳ nested repo indicator
+}
 if ($hasGit -and $branch) {
     if ($repoUrl) {
         # OSC 8 clickable link (broken in Claude Code >=2.1.3, see github.com/anthropics/claude-code/issues/21586)
         # Keeping the code for when it's fixed — link just renders as plain text for now
         $linkOpen = "${esc}]8;;${repoUrl}${bel}"
         $linkClose = "${esc}]8;;${bel}"
-        $gitDisplay = "${linkOpen}${cSlate}${gitIcon} ${branch}${R}${linkClose}"
+        $gitDisplay = "${nestedPrefix}${linkOpen}${cSlate}${gitIcon} ${branch}${R}${linkClose}"
         $gitDisplay += " ${cTeal}$([char]0x2B21)${R}"   # ⬡ hosted repo indicator
     } else {
-        $gitDisplay = "${cSlate}${gitIcon} ${branch}${R}"
+        $gitDisplay = "${nestedPrefix}${cSlate}${gitIcon} ${branch}${R}"
     }
     # Presence-based: sage ✔ = staged, salmon ~ = modified
     if ($gitStaged -gt 0) { $gitDisplay += " ${cSage}$([char]0x2714)${R}" }
@@ -284,30 +297,29 @@ if ($sid) {
     }
 }
 
-# --- Rate limits via OAuth API (cached 60s) ---
+# --- Rate limits via OAuth API (cached 5min, stale fallback) ---
 $cacheFile = Join-Path $env:TEMP "claude-sl-usage.json"
 $fhPct = 0; $fhReset = ""; $fhResetRaw = ""; $sdPct = 0; $sdReset = ""; $sdResetRaw = ""
 $exEnabled = $false; $exUsed = 0.0; $exLimit = 0.0; $exPct = 0
 $limitsOk = $false
 $needFetch = $true
 
+# Always load cache as fallback (even if stale) — prevents bars vanishing on fetch failure
 if (Test-Path $cacheFile) {
+    try {
+        $c = Get-Content $cacheFile -Raw | ConvertFrom-Json
+        $fhPct = [int]$c.fhPct; $fhReset = [string]$c.fhReset
+        $fhResetRaw = if ($c.PSObject.Properties['fhResetRaw']) { [string]$c.fhResetRaw } else { "" }
+        $sdPct = [int]$c.sdPct; $sdReset = [string]$c.sdReset
+        $sdResetRaw = if ($c.PSObject.Properties['sdResetRaw']) { [string]$c.sdResetRaw } else { "" }
+        if ($c.PSObject.Properties['exEnabled']) { $exEnabled = [bool]$c.exEnabled }
+        if ($c.PSObject.Properties['exUsed']) { $exUsed = [double]$c.exUsed }
+        if ($c.PSObject.Properties['exLimit']) { $exLimit = [double]$c.exLimit }
+        if ($c.PSObject.Properties['exPct']) { $exPct = [int]$c.exPct }
+        $limitsOk = $true
+    } catch {}
     $age = ((Get-Date) - (Get-Item $cacheFile).LastWriteTime).TotalSeconds
-    if ($age -lt 60) {
-        $needFetch = $false
-        try {
-            $c = Get-Content $cacheFile -Raw | ConvertFrom-Json
-            $fhPct = [int]$c.fhPct; $fhReset = [string]$c.fhReset
-            $fhResetRaw = if ($c.PSObject.Properties['fhResetRaw']) { [string]$c.fhResetRaw } else { "" }
-            $sdPct = [int]$c.sdPct; $sdReset = [string]$c.sdReset
-            $sdResetRaw = if ($c.PSObject.Properties['sdResetRaw']) { [string]$c.sdResetRaw } else { "" }
-            if ($c.PSObject.Properties['exEnabled']) { $exEnabled = [bool]$c.exEnabled }
-            if ($c.PSObject.Properties['exUsed']) { $exUsed = [double]$c.exUsed }
-            if ($c.PSObject.Properties['exLimit']) { $exLimit = [double]$c.exLimit }
-            if ($c.PSObject.Properties['exPct']) { $exPct = [int]$c.exPct }
-            $limitsOk = $true
-        } catch {}
-    }
+    if ($age -lt 300) { $needFetch = $false }   # 5 min cache — API rate-limits aggressively
 }
 
 if ($needFetch) {
