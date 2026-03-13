@@ -1,2 +1,5 @@
 # Local workspace — scratch files, source templates, build artifacts
 .workspace/
+
+# Dependencies
+node_modules/

@@ -1,5 +1,5 @@
 # Claude Code statusline — pastel, brightness squares, git+hosting, gradient limits
-# Line 1: dir  model  ■⬓□ pct%  [$cost]  [agent]  [vim:MODE]  [↑ update]
+# Line 1: dir  model  ■■⬓□□ pct% Nk [◉◎○◌]  [$cost]  [agent]  [vim:MODE]  [↑ update]
 # Line 2: ⎇ branch [✔ ~]  limit_bars [reset times]  [⚡ extra usage]
 #
 # Official docs:
@@ -136,7 +136,7 @@ if (Test-Path $configPath) {
 # --- Context percentage (adjusted for autocompact buffer) ---
 # When autocompact is on, it reserves ~33000 tokens (20000 max_output + 13000 buffer).
 # used_percentage is raw % of total window — we recalculate against usable space.
-$pct = 0
+$pct = 0; $currentTokens = [int64]0
 if ($data.PSObject.Properties['context_window']) {
     $cw = $data.context_window
     $size = if ($cw.PSObject.Properties['context_window_size']) { [int]$cw.context_window_size } else { 0 }
@@ -145,26 +145,29 @@ if ($data.PSObject.Properties['context_window']) {
     if ($cw.PSObject.Properties['current_usage'] -and $null -ne $cw.current_usage) {
         $cu = $cw.current_usage
         $current = $cu.input_tokens + $cu.cache_creation_input_tokens + $cu.cache_read_input_tokens
+        $currentTokens = [int64]$current
         $usable = [math]::Max(1, $size - $autocompactBuffer)
         $pct = [math]::Round($current * 100 / $usable)
     } elseif ($cw.PSObject.Properties['used_percentage'] -and $null -ne $cw.used_percentage -and $size -gt 0) {
         # Fallback: convert raw used_percentage to autocompact-adjusted
         $rawTokens = [math]::Floor($size * [double]$cw.used_percentage / 100)
+        $currentTokens = [int64]$rawTokens
         $usable = [math]::Max(1, $size - $autocompactBuffer)
         $pct = [math]::Round($rawTokens * 100 / $usable)
     }
 }
 $pct = [math]::Max(0, [math]::Min(100, $pct))
 
-# --- Context squares (brightness + half-fills, leading = gradient) ---
+# --- Context squares (5 squares, brightness + half-fills, leading = gradient) ---
 $sq_full  = [char]0x25A0
 $sq_half  = [char]0x2B13
 $sq_empty = [char]0x25A1
-$sqW = 100.0 / 3
+$sqCount = 5
+$sqW = 100.0 / $sqCount
 $gradRGB = Get-GradRGB $pct
 
 $squares = ""
-for ($i = 0; $i -lt 3; $i++) {
+for ($i = 0; $i -lt $sqCount; $i++) {
     $rangeStart = $i * $sqW
     $rangeEnd = ($i + 1) * $sqW
 
@@ -186,9 +189,43 @@ for ($i = 0; $i -lt 3; $i++) {
 }
 $squares += $R
 
+# --- Format token count ---
+$tokenStr = ""
+if ($currentTokens -ge 1000000) {
+    $tokenStr = "{0:F1}M" -f ($currentTokens / 1000000.0)
+} elseif ($currentTokens -ge 1000) {
+    $tokenStr = "{0}k" -f [math]::Round($currentTokens / 1000)
+} elseif ($currentTokens -gt 0) {
+    $tokenStr = "$currentTokens"
+}
+
+# --- Focus ring (attention quality — appears at 150k+, unfocuses with degradation) ---
+$focusRing = ""
+if ($currentTokens -ge 700000) {
+    # ◌ dashed ring — dim red, barely there
+    $fr = Get-GradRGB 95
+    $rr = [math]::Round($dimR + ($fr[0] - $dimR) * 0.6)
+    $rg = [math]::Round($dimG + ($fr[1] - $dimG) * 0.6)
+    $rb = [math]::Round($dimB + ($fr[2] - $dimB) * 0.6)
+    $focusRing = " $esc[38;2;${rr};${rg};${rb}m$([char]0x25CC)${R}"
+} elseif ($currentTokens -ge 500000) {
+    # ○ empty ring — salmon
+    $fr = Get-GradRGB 82
+    $focusRing = " $esc[38;2;$($fr[0]);$($fr[1]);$($fr[2])m$([char]0x25CB)${R}"
+} elseif ($currentTokens -ge 300000) {
+    # ◎ hollowing — amber
+    $fr = Get-GradRGB 65
+    $focusRing = " $esc[38;2;$($fr[0]);$($fr[1]);$($fr[2])m$([char]0x25CE)${R}"
+} elseif ($currentTokens -ge 150000) {
+    # ◉ solid — dim, just appeared
+    $focusRing = " ${cDim}$([char]0x25C9)${R}"
+}
+
 $ctxColor = Get-GradColor $pct
 if ($pct -ge 100) {
     $ctxText = "$squares ${ctxColor}COMPACT${R}"
+} elseif ($tokenStr) {
+    $ctxText = "$squares ${ctxColor}${pct}%${R} ${cDim}${tokenStr}${R}${focusRing}"
 } else {
     $ctxText = "$squares ${ctxColor}${pct}%${R}"
 }
@@ -302,21 +339,26 @@ $cacheFile = Join-Path $env:TEMP "claude-sl-usage.json"
 $fhPct = 0; $fhReset = ""; $fhResetRaw = ""; $sdPct = 0; $sdReset = ""; $sdResetRaw = ""
 $exEnabled = $false; $exUsed = 0.0; $exLimit = 0.0; $exPct = 0
 $limitsOk = $false
+$limitsFailed = $false
 $needFetch = $true
 
 # Always load cache as fallback (even if stale) — prevents bars vanishing on fetch failure
 if (Test-Path $cacheFile) {
     try {
         $c = Get-Content $cacheFile -Raw | ConvertFrom-Json
-        $fhPct = [int]$c.fhPct; $fhReset = [string]$c.fhReset
-        $fhResetRaw = if ($c.PSObject.Properties['fhResetRaw']) { [string]$c.fhResetRaw } else { "" }
-        $sdPct = [int]$c.sdPct; $sdReset = [string]$c.sdReset
-        $sdResetRaw = if ($c.PSObject.Properties['sdResetRaw']) { [string]$c.sdResetRaw } else { "" }
-        if ($c.PSObject.Properties['exEnabled']) { $exEnabled = [bool]$c.exEnabled }
-        if ($c.PSObject.Properties['exUsed']) { $exUsed = [double]$c.exUsed }
-        if ($c.PSObject.Properties['exLimit']) { $exLimit = [double]$c.exLimit }
-        if ($c.PSObject.Properties['exPct']) { $exPct = [int]$c.exPct }
-        $limitsOk = $true
+        if ($c.PSObject.Properties['failed'] -and $c.failed -eq $true) {
+            $limitsFailed = $true
+        } else {
+            $fhPct = [int]$c.fhPct; $fhReset = [string]$c.fhReset
+            $fhResetRaw = if ($c.PSObject.Properties['fhResetRaw']) { [string]$c.fhResetRaw } else { "" }
+            $sdPct = [int]$c.sdPct; $sdReset = [string]$c.sdReset
+            $sdResetRaw = if ($c.PSObject.Properties['sdResetRaw']) { [string]$c.sdResetRaw } else { "" }
+            if ($c.PSObject.Properties['exEnabled']) { $exEnabled = [bool]$c.exEnabled }
+            if ($c.PSObject.Properties['exUsed']) { $exUsed = [double]$c.exUsed }
+            if ($c.PSObject.Properties['exLimit']) { $exLimit = [double]$c.exLimit }
+            if ($c.PSObject.Properties['exPct']) { $exPct = [int]$c.exPct }
+            $limitsOk = $true
+        }
     } catch {}
     $age = ((Get-Date) - (Get-Item $cacheFile).LastWriteTime).TotalSeconds
     if ($age -lt 300) { $needFetch = $false }   # 5 min cache — API rate-limits aggressively
@@ -335,7 +377,7 @@ if ($needFetch) {
             }
             if ($tok) {
                 $resp = Invoke-RestMethod -Uri "https://api.anthropic.com/api/oauth/usage" `
-                    -Headers @{ "Authorization"="Bearer $tok"; "anthropic-beta"="oauth-2025-04-20" } `
+                    -Headers @{ "Authorization"="Bearer $tok"; "anthropic-beta"="oauth-2025-04-20"; "User-Agent"="claude-tools-statusline/1.0" } `
                     -Method Get -TimeoutSec 5
 
                 if ($resp.PSObject.Properties['five_hour'] -and $resp.five_hour) {
@@ -371,6 +413,15 @@ if ($needFetch) {
             }
         }
     } catch {}
+    # Negative cache: if fetch didn't succeed, write a marker so we don't retry for 5 minutes
+    if (-not $limitsOk -and -not (Test-Path $cacheFile)) {
+        @{ fhPct=0; fhReset=""; fhResetRaw="";
+           sdPct=0; sdReset=""; sdResetRaw="";
+           exEnabled=$false; exUsed=0; exLimit=0; exPct=0;
+           failed=$true } |
+            ConvertTo-Json | Set-Content $cacheFile -Encoding UTF8
+        $limitsFailed = $true
+    }
 }
 
 # --- Build limit bars (brightness-based, gradient only on last pip) ---
@@ -568,6 +619,8 @@ $line2Parts += $gitDisplay
 if ($limitsOk) {
     $line2Parts += "${fhBar}${fhResetTxt}"
     $line2Parts += "${sdBar}${sdResetTxt}"
+} elseif ($limitsFailed) {
+    $line2Parts += "${cDimmer}limits --${R}"
 }
 if ($extraTxt) { $line2Parts += $extraTxt }
 $line2 = $line2Parts -join "  "

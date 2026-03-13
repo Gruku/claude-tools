@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Claude Code statusline — pastel, brightness squares, git+hosting, gradient limits
-# Line 1: dir  model  ■⬓□ pct%  [$cost]  [agent]  [vim:MODE]  [↑ update]
+# Line 1: dir  model  ■■⬓□□ pct% Nk [◉◎○◌]  [$cost]  [agent]  [vim:MODE]  [↑ update]
 # Line 2: ⎇ branch [✔ ~]  limit_bars [reset times]  [⚡ extra usage]
 #
 # Official docs:
@@ -190,7 +190,7 @@ fi
 
 # --- Context percentage (adjusted for autocompact buffer) ---
 if $autoCompactOn; then autocompactBuffer=33000; else autocompactBuffer=0; fi
-pct=0
+pct=0; currentTokens=0
 cwSize=${J_CW_SIZE%%.*}   # truncate decimal
 cwInput=${J_CW_INPUT%%.*}
 
@@ -198,33 +198,35 @@ if (( cwInput >= 0 && cwSize > 0 )); then
     ccCreate=${J_CW_CACHE_CREATE%%.*}
     ccRead=${J_CW_CACHE_READ%%.*}
     current=$((cwInput + ccCreate + ccRead))
+    currentTokens=$current
     usable=$((cwSize - autocompactBuffer))
     (( usable < 1 )) && usable=1
     pct=$(( (current * 100 + usable / 2) / usable ))  # rounded
 elif (( cwSize > 0 )); then
     rawPctInt=${J_CW_USED_PCT%%.*}
     rawTokens=$((cwSize * rawPctInt / 100))
+    currentTokens=$rawTokens
     usable=$((cwSize - autocompactBuffer))
     (( usable < 1 )) && usable=1
     pct=$(( (rawTokens * 100 + usable / 2) / usable ))  # rounded
 fi
 (( pct < 0 )) && pct=0; (( pct > 100 )) && pct=100
 
-# --- Context squares (brightness + half-fills, leading = gradient) ---
-# Use pct*3 scale: each square spans 100 units (total 300 = 100%)
+# --- Context squares (5 squares, brightness + half-fills, leading = gradient) ---
+sqCount=5
 grad_rgb "$pct"
 gradR=$GR gradG=$GG gradB=$GB
-pct3=$((pct * 3))
+pctScaled=$((pct * sqCount))
 
 squares=""
-for i in 0 1 2; do
+for (( i=0; i<sqCount; i++ )); do
     rangeStart=$((i * 100))
     rangeEnd=$(((i + 1) * 100))
 
-    if (( pct3 >= rangeEnd )); then
+    if (( pctScaled >= rangeEnd )); then
         squares+="${E}[38;2;${neuR};${neuG};${neuB}m■"
-    elif (( pct3 > rangeStart )); then
-        fill=$(( (pct3 - rangeStart) * 10 ))   # 0–1000 scale
+    elif (( pctScaled > rangeStart )); then
+        fill=$(( (pctScaled - rangeStart) * 10 ))   # 0–1000 scale
         bri=$((250 + 750 * fill / 1000))
         sr=$((dimR + (gradR - dimR) * bri / 1000))
         sg=$((dimG + (gradG - dimG) * bri / 1000))
@@ -240,9 +242,44 @@ for i in 0 1 2; do
 done
 squares+="$R"
 
+# --- Format token count ---
+tokenStr=""
+if (( currentTokens >= 1000000 )); then
+    tM=$((currentTokens / 100000))
+    tokenStr="$((tM / 10)).$((tM % 10))M"
+elif (( currentTokens >= 1000 )); then
+    tokenStr="$(( (currentTokens + 500) / 1000 ))k"
+elif (( currentTokens > 0 )); then
+    tokenStr="$currentTokens"
+fi
+
+# --- Focus ring (attention quality — appears at 150k+, unfocuses with degradation) ---
+focusRing=""
+if (( currentTokens >= 700000 )); then
+    # ◌ dashed ring — dim red, barely there
+    grad_rgb 95
+    fr=$((dimR + (GR - dimR) * 600 / 1000))
+    fg=$((dimG + (GG - dimG) * 600 / 1000))
+    fb=$((dimB + (GB - dimB) * 600 / 1000))
+    focusRing=" ${E}[38;2;${fr};${fg};${fb}m◌${R}"
+elif (( currentTokens >= 500000 )); then
+    # ○ empty ring — salmon
+    grad_rgb 82
+    focusRing=" ${E}[38;2;${GR};${GG};${GB}m○${R}"
+elif (( currentTokens >= 300000 )); then
+    # ◎ hollowing — amber
+    grad_rgb 65
+    focusRing=" ${E}[38;2;${GR};${GG};${GB}m◎${R}"
+elif (( currentTokens >= 150000 )); then
+    # ◉ solid — dim, just appeared
+    focusRing=" ${cDim}◉${R}"
+fi
+
 ctxColor=$(grad_color "$pct")
 if (( pct >= 100 )); then
     ctxText="$squares ${ctxColor}COMPACT${R}"
+elif [[ -n "$tokenStr" ]]; then
+    ctxText="$squares ${ctxColor}${pct}%${R} ${cDim}${tokenStr}${R}${focusRing}"
 else
     ctxText="$squares ${ctxColor}${pct}%${R}"
 fi
@@ -338,22 +375,28 @@ cacheFile="${TMPD}/claude-sl-usage.json"
 fhPct=0 fhReset="" fhResetRaw="" sdPct=0 sdReset="" sdResetRaw=""
 exEnabled=false exUsed="0" exLimit="0" exPct=0
 limitsOk=false
+limitsFailed=false
 needFetch=true
 
 # Always load cache as fallback (even if stale) — prevents bars vanishing on fetch failure
 if [[ -f "$cacheFile" ]]; then
-    fhPct=$(jq -r '.fhPct // 0' "$cacheFile" 2>/dev/null || echo 0)
-    fhReset=$(jq -r '.fhReset // ""' "$cacheFile" 2>/dev/null || echo "")
-    fhResetRaw=$(jq -r '.fhResetRaw // ""' "$cacheFile" 2>/dev/null || echo "")
-    sdPct=$(jq -r '.sdPct // 0' "$cacheFile" 2>/dev/null || echo 0)
-    sdReset=$(jq -r '.sdReset // ""' "$cacheFile" 2>/dev/null || echo "")
-    sdResetRaw=$(jq -r '.sdResetRaw // ""' "$cacheFile" 2>/dev/null || echo "")
-    exEnabledStr=$(jq -r '.exEnabled // false' "$cacheFile" 2>/dev/null || echo "false")
-    [[ "$exEnabledStr" == "true" ]] && exEnabled=true
-    exUsed=$(jq -r '.exUsed // 0' "$cacheFile" 2>/dev/null || echo "0")
-    exLimit=$(jq -r '.exLimit // 0' "$cacheFile" 2>/dev/null || echo "0")
-    exPct=$(jq -r '.exPct // 0' "$cacheFile" 2>/dev/null || echo 0)
-    limitsOk=true
+    cachedFailed=$(jq -r '.failed // false' "$cacheFile" 2>/dev/null || echo "false")
+    if [[ "$cachedFailed" == "true" ]]; then
+        limitsFailed=true
+    else
+        fhPct=$(jq -r '.fhPct // 0' "$cacheFile" 2>/dev/null || echo 0)
+        fhReset=$(jq -r '.fhReset // ""' "$cacheFile" 2>/dev/null || echo "")
+        fhResetRaw=$(jq -r '.fhResetRaw // ""' "$cacheFile" 2>/dev/null || echo "")
+        sdPct=$(jq -r '.sdPct // 0' "$cacheFile" 2>/dev/null || echo 0)
+        sdReset=$(jq -r '.sdReset // ""' "$cacheFile" 2>/dev/null || echo "")
+        sdResetRaw=$(jq -r '.sdResetRaw // ""' "$cacheFile" 2>/dev/null || echo "")
+        exEnabledStr=$(jq -r '.exEnabled // false' "$cacheFile" 2>/dev/null || echo "false")
+        [[ "$exEnabledStr" == "true" ]] && exEnabled=true
+        exUsed=$(jq -r '.exUsed // 0' "$cacheFile" 2>/dev/null || echo "0")
+        exLimit=$(jq -r '.exLimit // 0' "$cacheFile" 2>/dev/null || echo "0")
+        exPct=$(jq -r '.exPct // 0' "$cacheFile" 2>/dev/null || echo 0)
+        limitsOk=true
+    fi
     age=$(file_age "$cacheFile")
     if (( age < 300 )); then needFetch=false; fi   # 5 min cache — API rate-limits aggressively
 fi
@@ -366,6 +409,7 @@ if $needFetch; then
             resp=$(curl -sf --max-time 5 \
                 -H "Authorization: Bearer $tok" \
                 -H "anthropic-beta: oauth-2025-04-20" \
+                -H "User-Agent: claude-tools-statusline/1.0" \
                 "https://api.anthropic.com/api/oauth/usage" 2>/dev/null || echo "")
             if [[ -n "$resp" ]]; then
                 fhPct=$(echo "$resp" | jq -r '.five_hour.utilization // 0' | awk '{printf "%d", $1+0.5}')
@@ -400,6 +444,12 @@ if $needFetch; then
                 limitsOk=true
             fi
         fi
+    fi
+    # Negative cache: if fetch didn't succeed, write a marker so we don't retry for 5 minutes
+    if ! $limitsOk && [[ ! -f "$cacheFile" ]]; then
+        jq -n '{fhPct:0,fhReset:"",fhResetRaw:"",sdPct:0,sdReset:"",sdResetRaw:"",exEnabled:false,exUsed:"0",exLimit:"0",exPct:0,failed:true}' \
+            > "$cacheFile" 2>/dev/null
+        limitsFailed=true
     fi
 fi
 
@@ -592,6 +642,8 @@ fi
 line2="$gitDisplay"
 if $limitsOk; then
     line2+="  ${fhBar}${fhResetTxt}  ${sdBar}${sdResetTxt}"
+elif $limitsFailed; then
+    line2+="  ${cDimmer}limits --${R}"
 fi
 [[ -n "$extraTxt" ]] && line2+="  ${extraTxt}"
 
