@@ -1,203 +1,108 @@
 # Claude Tools
 
-Custom tools for [Claude Code](https://claude.ai/claude-code).
+Plugin marketplace & standalone tools for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 
-**[Live Preview](https://gruku.github.io/claude-tools/)**
+**[Browse Plugins](https://gruku.github.io/claude-tools/)** · Marketplace: `gruku-tools`
 
-## Statusline
+## Quick Start
+
+```bash
+# Add the marketplace
+/plugin marketplace add Gruku/claude-tools
+
+# Install a plugin
+/plugin install taskmaster@gruku-tools
+```
+
+---
+
+## Plugins
+
+### Taskmaster `v1.0.0` ✨ NEW
+
+Universal AI-powered task and backlog management. Drop into any project.
+
+- **23 MCP tools** — tasks, epics, milestones, dependencies, search, validation, session locking
+- **Kanban viewer** — dark/light theme board on port 6800 with filtering, search, and milestone progress
+- **Session tracking** — auto-generated Done/Decisions/Issues changelog entries
+- **Worktree isolation** — every task gets its own git worktree
+- **Quality gates** — spec/plan check, code review, tests, build verification
+- **TODO auditing** — scan codebase for TODO/FIXME/HACK, cross-reference with backlog
+- **Milestones** — sequential blocks of work for focus, one active at a time
+- **Configurable storage** — `.claude/` (hidden) or project root (git-tracked)
+
+**Skills:** `/init-taskmaster` `/start-session` `/pick-task` `/review-gate` `/end-session` `/check-todos`
+
+### Shader Nodes `v2.0.0`
+
+UE5.5 shader development pipeline. HLSL design (Opus) + Material Graph generation (Sonnet) → paste into Material Editor.
+
+**Skills:** `/shader-nodes:create` `/shader-nodes:yaml` `/shader-nodes:registry`
+
+### Reality Reprojection `v1.3.0`
+
+Web design system plugin. Generate components, convert existing code, review compliance.
+
+**Skills:** `/reality-reprojection:apply` `/reality-reprojection:generate` `/reality-reprojection:convert`
+
+### Image Gen `v1.0.0`
+
+Multi-backend image generation with Google Gemini and OpenAI GPT Image 1.5. Transparent PNGs, multi-turn refinement, game assets.
+
+**Skills:** `/image-gen` `/image-gen:generate` `/image-gen:edit` `/image-gen:refine`
+
+### Codex Dispatch `v1.0.0`
+
+Dispatch tasks to OpenAI Codex CLI for parallel execution with GPT/o-series models.
+
+**Skills:** `/codex-dispatch`
+
+---
+
+## Standalone Tools
+
+### Statusline
 
 Pastel statusline for Claude Code with rate limit bars, git status, context usage, update notifications, and session cost tracking.
 
-**[Live Preview](https://gruku.github.io/claude-tools/statusline/)**
+**[Live Preview](https://gruku.github.io/claude-tools/statusline/)** · Supports PowerShell and Bash
 
 ![Statusline Preview](statusline/screenshot.png)
 
-**Features:**
-- Pastel color palette with gradient limit bars (green → red)
-- Git branch, dirty/staged indicators (with nested repo fallback)
-- 5-hour and 7-day rate limit bars via OAuth API
-- Context window usage with brightness squares
-- Per-session update notifications (no cross-session pollution)
-- Session cost tracking
-- Extra usage spend/limit display
-- Vim mode indicator
-
-**Supports:** PowerShell (Windows) and Bash (macOS/Linux)
-
-## UE5 Custom Shader Nodes
-
-Material graph node generator for Unreal Engine 5.5. Generates node structures for copy-paste into the Material Editor, including custom HLSL nodes, material functions, and wiring diagrams.
-
-## Reality Reprojection
-
-Design system plugin for web projects. Provides setup, generate, convert, review, and apply skills.
-
-## Image Gen
-
-Multi-backend image generation plugin. Generate, edit, and iteratively refine images using Gemini and OpenAI GPT Image 1.5. Supports native transparent PNGs (OpenAI) and two-pass alpha extraction (Gemini).
-
 ---
 
-## Plugin & Marketplace Reference
+## Marketplace Reference
 
-### Local Marketplace Setup
-
-This repo is a local plugin marketplace. Claude Code discovers plugins through a `marketplace.json` that lists available plugins.
-
-**Required structure:**
+### Structure
 
 ```
-claude-tools/                          # marketplace root
+claude-tools/
 ├── .claude-plugin/
-│   └── marketplace.json               # lists all plugins
-└── plugins/
-    ├── my-plugin/
-    │   ├── .claude-plugin/
-    │   │   └── plugin.json            # plugin identity
-    │   ├── skills/
-    │   │   └── my-skill/
-    │   │       └── SKILL.md
-    │   └── src/                       # optional: scripts, assets
-    └── another-plugin/
-        └── ...
+│   └── marketplace.json        # plugin catalog
+├── plugins/
+│   ├── taskmaster/             # AI task management
+│   ├── shader-nodes/           # UE5 shader pipeline
+│   ├── reality-reprojection/   # web design system
+│   ├── image-gen/              # image generation
+│   └── codex-dispatch/         # multi-model dispatch
+└── statusline/                 # standalone tool
 ```
 
-### Step 1: Create the Marketplace Manifest
-
-`.claude-plugin/marketplace.json` at the repo root:
-
-```json
-{
-  "name": "my-marketplace",
-  "owner": { "name": "your-name" },
-  "metadata": {
-    "description": "Description of your marketplace",
-    "pluginRoot": "./plugins"
-  },
-  "plugins": [
-    {
-      "name": "my-plugin",
-      "source": "./plugins/my-plugin",
-      "description": "What the plugin does",
-      "version": "1.0.0"
-    }
-  ]
-}
-```
-
-Every plugin you add must have an entry in the `plugins` array.
-
-### Step 2: Create a Plugin
-
-Each plugin needs `.claude-plugin/plugin.json`:
-
-```json
-{
-  "name": "my-plugin",
-  "description": "What the plugin does",
-  "version": "1.0.0",
-  "author": { "name": "your-name" }
-}
-```
-
-The `name` field becomes the skill namespace (e.g., `/my-plugin:skill-name`).
-
-### Step 3: Add Skills
-
-Skills live in `skills/<skill-name>/SKILL.md`:
-
-```markdown
----
-name: skill-name
-description: "When and why Claude should use this skill"
----
-
-# Skill Title
-
-Instructions for Claude when this skill is invoked.
-```
-
-- Folder name = skill name
-- `name` in frontmatter must match folder name
-- `description` helps Claude decide when to auto-invoke the skill
-
-### Step 4: Register the Marketplace
-
-```bash
-# Add the marketplace (one-time)
-/plugin marketplace add /path/to/claude-tools
-
-# Or from GitHub
-/plugin marketplace add owner/repo
-```
-
-After adding, run `/plugin` to browse and install plugins from the **Discover** tab.
-
-### Step 5: Install a Plugin
-
-```bash
-# Via CLI
-/plugin install my-plugin@my-marketplace
-
-# Or use the interactive /plugin UI → Discover tab → select → choose scope
-```
-
-**Scopes:** User (all projects), Project (shared via .claude/settings.json), Local (just you, this repo)
-
-### Adding a New Plugin (Checklist)
-
-1. Create `plugins/new-plugin/.claude-plugin/plugin.json`
-2. Create `plugins/new-plugin/skills/<name>/SKILL.md` for each skill
-3. Add entry to `.claude-plugin/marketplace.json` `plugins` array
-4. Run `/plugin marketplace update marketplace-name` to refresh
-5. Install via `/plugin install new-plugin@marketplace-name`
-
-### Testing During Development
-
-```bash
-# Load a plugin directly without marketplace (for dev/testing)
-claude --plugin-dir ./plugins/my-plugin
-
-# Load multiple
-claude --plugin-dir ./plugins/plugin-one --plugin-dir ./plugins/plugin-two
-```
-
-### Useful Commands
+### Commands
 
 | Command | Purpose |
 |---------|---------|
-| `/plugin` | Open plugin manager UI |
-| `/plugin marketplace list` | List configured marketplaces |
-| `/plugin marketplace update name` | Refresh plugin listings |
-| `/plugin install name@marketplace` | Install a plugin |
-| `/plugin disable name@marketplace` | Disable without uninstalling |
-| `/plugin enable name@marketplace` | Re-enable |
-| `/plugin uninstall name@marketplace` | Remove completely |
+| `/plugin marketplace add Gruku/claude-tools` | Add this marketplace |
+| `/plugin install name@gruku-tools` | Install a plugin |
+| `/plugin marketplace update gruku-tools` | Pull latest changes |
+| `/plugin update name@gruku-tools` | Update a specific plugin |
 | `/reload-plugins` | Apply changes without restarting |
 
-### Plugin Component Reference
+### Creating Your Own Plugin
 
-| Directory | Location | Purpose |
-|-----------|----------|---------|
-| `.claude-plugin/` | Plugin root | `plugin.json` manifest only |
-| `skills/` | Plugin root | Agent Skills (`SKILL.md` per folder) |
-| `commands/` | Plugin root | User-invocable commands (`.md` files) |
-| `agents/` | Plugin root | Custom agent definitions |
-| `hooks/` | Plugin root | Event handlers (`hooks.json`) |
-| `.mcp.json` | Plugin root | MCP server configs |
-| `.lsp.json` | Plugin root | LSP server configs |
-| `settings.json` | Plugin root | Default settings when plugin is enabled |
+1. Create `plugins/my-plugin/.claude-plugin/plugin.json` with name, description, version, author
+2. Add skills in `plugins/my-plugin/skills/<name>/SKILL.md`
+3. Add entry to `.claude-plugin/marketplace.json`
+4. Push to GitHub — users install via `/plugin marketplace add your/repo`
 
-### How Skills Work
-
-A `skills/<name>/SKILL.md` in a plugin automatically registers as `/plugin-name:<name>`. Both `commands/foo.md` and `skills/foo/SKILL.md` create the same namespaced command. If both exist with the same name, the skill takes precedence.
-
-- `disable-model-invocation: true` — hides from Claude's auto-invocation (user must invoke manually)
-- SessionStart hooks — optional, inject context into every session (not required for skills to load)
-
-### Common Gotchas
-
-- **Plugin not showing up?** Check that it's listed in `marketplace.json` AND has `.claude-plugin/plugin.json`
-- **Skills not loading?** Each skill must be a directory with `SKILL.md` inside, not a flat `.md` file
-- **Don't put skills inside `.claude-plugin/`** — only `plugin.json` goes there
-- **After changes:** run `/plugin marketplace update` then `/reload-plugins`
+See [Plugin Marketplaces docs](https://code.claude.com/docs/en/plugin-marketplaces) for the full guide.
