@@ -1,0 +1,42 @@
+{
+  "name": "gruku-tools",
+  "owner": {
+    "name": "gruku"
+  },
+  "metadata": {
+    "description": "Claude Code plugins for UE5 shaders, design systems, image generation, AI task management, and multi-model orchestration",
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "name": "shader-nodes",
+      "source": "./plugins/shader-nodes",
+      "description": "UE5.5 shader development: HLSL design (Opus) + Material Graph generation (Sonnet) + paste into Material Editor",
+      "version": "2.0.0"
+    },
+    {
+      "name": "reality-reprojection",
+      "source": "./plugins/reality-reprojection",
+      "description": "Apply the Reality Reprojection design system to any web project — generate components, convert existing code, review compliance",
+      "version": "1.3.0"
+    },
+    {
+      "name": "image-gen",
+      "source": "./plugins/image-gen",
+      "description": "Generate, edit, and refine images using Google Gemini and OpenAI GPT Image 1.5. Supports transparent backgrounds, multi-turn refinement, and game asset creation.",
+      "version": "1.0.0"
+    },
+    {
+      "name": "codex-dispatch",
+      "source": "./plugins/codex-dispatch",
+      "description": "Dispatch tasks to OpenAI Codex CLI for parallel execution with GPT/o-series models. Diversity of thought, cost-optimized sub-tasks, and independent parallel work.",
+      "version": "1.0.0"
+    },
+    {
+      "name": "taskmaster",
+      "source": "./plugins/taskmaster",
+      "description": "Universal AI-powered task and backlog management. Kanban viewer, session tracking, worktree isolation, dependency graphs, and quality gates. Drop into any project.",
+      "version": "1.0.0"
+    }
+  ]
+}
