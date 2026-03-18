@@ -11,13 +11,13 @@
     {
       "name": "taskmaster",
       "source": "./plugins/taskmaster",
-      "description": "Universal AI-powered task and backlog management. Kanban viewer, session tracking, worktree isolation, dependency graphs, and quality gates. Drop into any project.",
+      "description": "Universal AI-powered task and backlog management. Kanban viewer, session tracking, worktree isolation, dependency graphs, and quality gates. Drop into any project. Requires: uv (https://docs.astral.sh/uv/)",
       "version": "1.1.0"
     },
     {
       "name": "guard-hooks",
       "source": "./plugins/guard-hooks",
-      "description": "Safety guard hooks that block destructive CLI commands and sensitive file edits, with in-flow user approval via UserPromptSubmit.",
+      "description": "Safety guard hooks that block destructive CLI commands and sensitive file edits, with in-flow user approval via UserPromptSubmit. Requires: jq (https://jqlang.github.io/jq/)",
       "version": "2.1.0"
     }
   ]
