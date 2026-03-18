@@ -37,19 +37,23 @@ if echo "$COMMAND" | grep -qEi '(^|\s|&&|\|)(rm\s+-rf|rm\s+-r\s|rm\s+--recursive
   block "Destructive file deletion ('$COMMAND'). Use 'git worktree remove' for worktrees."
 fi
 
-# --- Git force push ---
-if echo "$COMMAND" | grep -qE 'git\s+push\s+.*(-f|--force)'; then
-  block "Force push detected. This can overwrite remote history."
-fi
-
-# --- Git push to main/master (explicit or implicit via bare `git push`) ---
-if echo "$COMMAND" | grep -qE 'git\s+push\s+.*(main|master)(\s|$)'; then
-  block "Pushing directly to main/master. Create a PR instead."
-fi
-if echo "$COMMAND" | grep -qE 'git\s+push\s*$'; then
-  CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)
-  if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
-    block "Bare 'git push' on $CURRENT_BRANCH. Create a PR instead."
+# --- Git push guards (force push, push to main/master, bare push) ---
+# Extract just the git push portion (before any && or | or ;) to avoid
+# false positives from words like "main/master" appearing in commit messages.
+PUSH_CMD=$(echo "$COMMAND" | grep -oE 'git\s+push(\s+[^;&|]+)?' | head -1)
+if [ -n "$PUSH_CMD" ]; then
+  if echo "$PUSH_CMD" | grep -qE '(-f|--force)'; then
+    block "Force push detected. This can overwrite remote history."
+  fi
+  if echo "$PUSH_CMD" | grep -qE '\b(main|master)\b'; then
+    block "Pushing directly to main/master. Create a PR instead."
+  fi
+  # Bare `git push` with no args — check current branch
+  if echo "$PUSH_CMD" | grep -qE 'git\s+push\s*$'; then
+    CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)
+    if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
+      block "Bare 'git push' on $CURRENT_BRANCH. Create a PR instead."
+    fi
   fi
 fi
 

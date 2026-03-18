@@ -1,7 +1,7 @@
 {
   "name": "guard-hooks",
   "description": "Safety guard hooks that block destructive CLI commands and sensitive file edits, with user-approval override flow via AskUserQuestion.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": {
     "name": "gruku"
   }
