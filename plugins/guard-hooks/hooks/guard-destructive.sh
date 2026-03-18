@@ -59,8 +59,8 @@ Reason: $1
 Command: $COMMAND
 
 ACTION REQUIRED: You MUST use the AskUserQuestion tool to ask the user for explicit permission.
-Tell the user: "To approve, run this in another terminal: touch ~/.claude/guard-approve"
-Then retry the ORIGINAL command (without any override prefix).
+Tell the user: "To approve, type 'approve' and press Enter."
+Then WAIT for the user's response. Once they approve, retry the ORIGINAL command unchanged.
 Do NOT attempt to create the approval file yourself.
 Do NOT re-run automatically without user approval.
 EOF
