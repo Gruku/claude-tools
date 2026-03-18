@@ -23,6 +23,11 @@ EOF
   exit 2
 }
 
+# --- Guard approval file (only the user can create this) ---
+if echo "$FILE_PATH" | grep -qE 'guard-approve'; then
+  block "You cannot create or modify the guard approval file. Only the user can do this manually."
+fi
+
 # --- Environment / secrets files ---
 if echo "$FILE_PATH" | grep -qEi '(\.env$|\.env\.|credentials|secrets|\.pem$|\.key$|id_rsa)'; then
   block "This looks like a sensitive file containing secrets."

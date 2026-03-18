@@ -4,8 +4,11 @@
 # Exit 2 = block (stderr sent to Claude as feedback)
 # Exit 0 = allow
 #
-# Set GUARD_OVERRIDE=1 in the command to bypass after user approval.
-# e.g.: GUARD_OVERRIDE=1 git push origin master
+# To approve a blocked command, the USER (not the LLM) must run in another terminal:
+#   touch ~/.claude/guard-approve
+# The approval is valid for 60 seconds and consumed on use.
+
+APPROVE_FILE="$HOME/.claude/guard-approve"
 
 INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
@@ -14,20 +17,52 @@ if [ -z "$COMMAND" ]; then
   exit 0
 fi
 
-# --- User-approved override ---
-if echo "$COMMAND" | grep -qE '(^|\s)GUARD_OVERRIDE=1(\s|$)'; then
-  exit 0
+# --- Block LLM from creating the approval file ---
+if echo "$COMMAND" | grep -qE 'guard-approve'; then
+  cat >&2 <<'EOF'
+⛔ GUARD HOOK BLOCKED THIS COMMAND.
+Reason: You cannot create or manipulate the guard approval file. Only the user can do this manually.
+EOF
+  exit 2
 fi
 
+# --- Time-limited user approval ---
+check_approval() {
+  if [ -f "$APPROVE_FILE" ]; then
+    # Check if file was modified within the last 60 seconds
+    if [ "$(uname)" = "Linux" ] || [ "$(uname)" = "Darwin" ]; then
+      FILE_AGE=$(( $(date +%s) - $(stat -c %Y "$APPROVE_FILE" 2>/dev/null || stat -f %m "$APPROVE_FILE" 2>/dev/null) ))
+    else
+      # Windows (Git Bash / MSYS2) — stat -c works
+      FILE_AGE=$(( $(date +%s) - $(stat -c %Y "$APPROVE_FILE" 2>/dev/null || echo 0) ))
+    fi
+    if [ "$FILE_AGE" -le 60 ] 2>/dev/null; then
+      # Consume the approval (one-time use)
+      rm -f "$APPROVE_FILE"
+      return 0
+    fi
+    # Expired — clean up
+    rm -f "$APPROVE_FILE"
+  fi
+  return 1
+}
+
 block() {
+  # Check for valid user approval before blocking
+  if check_approval; then
+    exit 0
+  fi
+
   cat >&2 <<EOF
 ⛔ GUARD HOOK BLOCKED THIS COMMAND.
 Reason: $1
 Command: $COMMAND
 
-ACTION REQUIRED: You MUST use the AskUserQuestion tool to ask the user for explicit permission before proceeding. Do NOT re-run automatically. Do NOT assume approval.
-If the user explicitly approves, re-run the command with GUARD_OVERRIDE=1 prefixed. Example: GUARD_OVERRIDE=1 <original command>
-If the user denies or does not respond, do NOT run this command.
+ACTION REQUIRED: You MUST use the AskUserQuestion tool to ask the user for explicit permission.
+Tell the user: "To approve, run this in another terminal: touch ~/.claude/guard-approve"
+Then retry the ORIGINAL command (without any override prefix).
+Do NOT attempt to create the approval file yourself.
+Do NOT re-run automatically without user approval.
 EOF
   exit 2
 }
