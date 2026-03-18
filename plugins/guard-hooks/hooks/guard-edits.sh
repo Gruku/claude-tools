@@ -24,7 +24,8 @@ EOF
 }
 
 # --- Guard approval file (only the user can create this) ---
-if echo "$FILE_PATH" | grep -qE 'guard-approve'; then
+# Match only the actual approval file at ~/.claude/guard-approve, not source files
+if echo "$FILE_PATH" | grep -qE '\.claude/guard-approve$'; then
   block "You cannot create or modify the guard approval file. Only the user can do this manually."
 fi
 
