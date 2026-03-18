@@ -58,9 +58,9 @@ block() {
 Reason: $1
 Command: $COMMAND
 
-ACTION REQUIRED: You MUST use the AskUserQuestion tool to ask the user for explicit permission.
-Tell the user: "To approve, type 'approve' and press Enter."
-Then WAIT for the user's response. Once they approve, retry the ORIGINAL command unchanged.
+ACTION REQUIRED: Tell the user to type the word "approve" (lowercase) directly into the chat prompt and press Enter.
+Do NOT use AskUserQuestion — the approval hook only triggers on direct user input via UserPromptSubmit.
+Once the user types "approve", WAIT for the approval confirmation, then retry the ORIGINAL command unchanged.
 Do NOT attempt to create the approval file yourself.
 Do NOT re-run automatically without user approval.
 EOF
