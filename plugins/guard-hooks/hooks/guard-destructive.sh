@@ -42,9 +42,15 @@ if echo "$COMMAND" | grep -qE 'git\s+push\s+.*(-f|--force)'; then
   block "Force push detected. This can overwrite remote history."
 fi
 
-# --- Git push to main/master ---
+# --- Git push to main/master (explicit or implicit via bare `git push`) ---
 if echo "$COMMAND" | grep -qE 'git\s+push\s+.*(main|master)(\s|$)'; then
   block "Pushing directly to main/master. Create a PR instead."
+fi
+if echo "$COMMAND" | grep -qE 'git\s+push\s*$'; then
+  CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)
+  if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
+    block "Bare 'git push' on $CURRENT_BRANCH. Create a PR instead."
+  fi
 fi
 
 # --- Git reset --hard ---
