@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 # Claude Code statusline — pastel, brightness squares, git+hosting, gradient limits
 # Line 1: dir  model  ■■⬓□□ pct% Nk [◉◎○◌]  [$cost]  [agent]  [vim:MODE]  [↑ update]
-# Line 2: ⎇ branch [✔ ~]  limit_bars [reset times]  [⚡ extra usage]
+# Line 2: ⎇ branch [✔ ~]  limit_bars [reset times]  [peak]  [⚡ extra usage]
 #
 # Official docs:
 #   https://code.claude.com/docs/en/statusline
 #
 # Reference implementations:
-#   https://github.com/NoobyGains/claude-pulse        — Python, rainbow animation, OAuth usage API, update notifications
+#   https://github.com/NoobyGains/claude-pulse        — Python, rainbow animation, usage data, update notifications
 #   https://github.com/sirmalloc/ccstatusline          — pre-built themes and configs
 #   https://github.com/martinemde/starship-claude      — Starship prompt integration
+#
+# Rate limits: read from stdin rate_limits JSON (v2.1.80+, zero API calls).
 #
 # Installation (macOS/Linux):
 #   1. Save this script to ~/.claude/statusline.sh
@@ -20,9 +22,7 @@
 #            "command": "~/.claude/statusline.sh"
 #          }
 #        }
-#   4. Rate limit bars require OAuth login — run `claude` and sign in.
-#      Credentials are read from ~/.claude/.credentials.json automatically.
-#   5. Requires: jq, curl, git
+#   4. Requires: jq, git
 
 command -v jq >/dev/null 2>&1 || { echo "statusline: jq required"; exit 1; }
 
@@ -151,6 +151,8 @@ INPUT=$(cat)
 # Extract fields (single jq call)
 J_MODEL="" J_CWD="" J_PROJ_DIR="" J_AGENT="" J_VIM="" J_SID="" J_COST="0"
 J_CW_SIZE=0 J_CW_USED_PCT=0 J_CW_INPUT=-1 J_CW_CACHE_CREATE=0 J_CW_CACHE_READ=0
+J_RL_FH_PCT=0 J_RL_FH_RESET=0 J_RL_SD_PCT=0 J_RL_SD_RESET=0 J_RL_HAS=false
+J_RL_EX_ENABLED=false J_RL_EX_USED=0 J_RL_EX_LIMIT=0 J_RL_EX_PCT=0
 eval "$(echo "$INPUT" | jq -r '
     "J_MODEL=" + (.model.display_name // "" | @sh),
     "J_CWD=" + (.workspace.current_dir // .cwd // "" | @sh),
@@ -163,7 +165,16 @@ eval "$(echo "$INPUT" | jq -r '
     "J_CW_USED_PCT=" + (.context_window.used_percentage // 0 | tostring | @sh),
     "J_CW_INPUT=" + (.context_window.current_usage.input_tokens // -1 | tostring | @sh),
     "J_CW_CACHE_CREATE=" + (.context_window.current_usage.cache_creation_input_tokens // 0 | tostring | @sh),
-    "J_CW_CACHE_READ=" + (.context_window.current_usage.cache_read_input_tokens // 0 | tostring | @sh)
+    "J_CW_CACHE_READ=" + (.context_window.current_usage.cache_read_input_tokens // 0 | tostring | @sh),
+    "J_RL_HAS=" + (if .rate_limits then "true" else "false" end | @sh),
+    "J_RL_FH_PCT=" + (.rate_limits.five_hour.used_percentage // 0 | tostring | @sh),
+    "J_RL_FH_RESET=" + (.rate_limits.five_hour.resets_at // 0 | tostring | @sh),
+    "J_RL_SD_PCT=" + (.rate_limits.seven_day.used_percentage // 0 | tostring | @sh),
+    "J_RL_SD_RESET=" + (.rate_limits.seven_day.resets_at // 0 | tostring | @sh),
+    "J_RL_EX_ENABLED=" + (.rate_limits.extra_usage.is_enabled // false | tostring | @sh),
+    "J_RL_EX_USED=" + (.rate_limits.extra_usage.used_credits // 0 | tostring | @sh),
+    "J_RL_EX_LIMIT=" + (.rate_limits.extra_usage.monthly_limit // 0 | tostring | @sh),
+    "J_RL_EX_PCT=" + (.rate_limits.extra_usage.utilization // 0 | tostring | @sh)
 ' 2>/dev/null)" || true
 
 # --- Directory (project_dir:relative when cwd differs) ---
@@ -370,87 +381,33 @@ if [[ -n "${J_SID:-}" ]]; then
     fi
 fi
 
-# --- Rate limits via OAuth API (cached 5min, stale fallback) ---
-cacheFile="${TMPD}/claude-sl-usage.json"
-fhPct=0 fhReset="" fhResetRaw="" sdPct=0 sdReset="" sdResetRaw=""
+# --- Rate limits from stdin JSON (live every refresh, v2.1.80+, zero API calls) ---
+fhPct=0 fhReset="" fhResetEpoch=0 sdPct=0 sdReset="" sdResetEpoch=0
 exEnabled=false exUsed="0" exLimit="0" exPct=0
 limitsOk=false
 limitsFailed=false
-needFetch=true
 
-# Always load cache as fallback (even if stale) — prevents bars vanishing on fetch failure
-if [[ -f "$cacheFile" ]]; then
-    cachedFailed=$(jq -r '.failed // false' "$cacheFile" 2>/dev/null || echo "false")
-    if [[ "$cachedFailed" == "true" ]]; then
-        limitsFailed=true
-    else
-        fhPct=$(jq -r '.fhPct // 0' "$cacheFile" 2>/dev/null || echo 0)
-        fhReset=$(jq -r '.fhReset // ""' "$cacheFile" 2>/dev/null || echo "")
-        fhResetRaw=$(jq -r '.fhResetRaw // ""' "$cacheFile" 2>/dev/null || echo "")
-        sdPct=$(jq -r '.sdPct // 0' "$cacheFile" 2>/dev/null || echo 0)
-        sdReset=$(jq -r '.sdReset // ""' "$cacheFile" 2>/dev/null || echo "")
-        sdResetRaw=$(jq -r '.sdResetRaw // ""' "$cacheFile" 2>/dev/null || echo "")
-        exEnabledStr=$(jq -r '.exEnabled // false' "$cacheFile" 2>/dev/null || echo "false")
-        [[ "$exEnabledStr" == "true" ]] && exEnabled=true
-        exUsed=$(jq -r '.exUsed // 0' "$cacheFile" 2>/dev/null || echo "0")
-        exLimit=$(jq -r '.exLimit // 0' "$cacheFile" 2>/dev/null || echo "0")
-        exPct=$(jq -r '.exPct // 0' "$cacheFile" 2>/dev/null || echo 0)
-        limitsOk=true
+if [[ "$J_RL_HAS" == "true" ]]; then
+    fhPct=$(awk "BEGIN{printf \"%d\", $J_RL_FH_PCT+0.5}")
+    if (( J_RL_FH_RESET > 0 )); then
+        fhResetEpoch=$J_RL_FH_RESET
+        fhReset=$(fmt_time "$fhResetEpoch")
     fi
-    age=$(file_age "$cacheFile")
-    if (( age < 300 )); then needFetch=false; fi   # 5 min cache — API rate-limits aggressively
-fi
+    limitsOk=true
 
-if $needFetch; then
-    credPath="$HOME/.claude/.credentials.json"
-    if [[ -f "$credPath" ]]; then
-        tok=$(jq -r '.claudeAiOauth.accessToken // .accessToken // empty' "$credPath" 2>/dev/null || echo "")
-        if [[ -n "$tok" ]]; then
-            resp=$(curl -sf --max-time 5 \
-                -H "Authorization: Bearer $tok" \
-                -H "anthropic-beta: oauth-2025-04-20" \
-                -H "User-Agent: claude-tools-statusline/1.0" \
-                "https://api.anthropic.com/api/oauth/usage" 2>/dev/null || echo "")
-            if [[ -n "$resp" ]]; then
-                fhPct=$(echo "$resp" | jq -r '.five_hour.utilization // 0' | awk '{printf "%d", $1+0.5}')
-                fhResetRaw=$(echo "$resp" | jq -r '.five_hour.resets_at // ""' 2>/dev/null || echo "")
-                if [[ -n "$fhResetRaw" && "$fhResetRaw" != "null" ]]; then
-                    epoch=$(iso_to_epoch "$fhResetRaw")
-                    (( epoch > 0 )) && fhReset=$(fmt_time "$epoch")
-                fi
-                sdPct=$(echo "$resp" | jq -r '.seven_day.utilization // 0' | awk '{printf "%d", $1+0.5}')
-                sdResetRaw=$(echo "$resp" | jq -r '.seven_day.resets_at // ""' 2>/dev/null || echo "")
-                if [[ -n "$sdResetRaw" && "$sdResetRaw" != "null" ]]; then
-                    epoch=$(iso_to_epoch "$sdResetRaw")
-                    if (( epoch > 0 )); then
-                        sdReset="$(fmt_day "$epoch") $(fmt_time "$epoch")"
-                    fi
-                fi
-
-                # Extra usage (may not exist if never configured)
-                exEnabledStr=$(echo "$resp" | jq -r '.extra_usage.is_enabled // false' 2>/dev/null || echo "false")
-                [[ "$exEnabledStr" == "true" ]] && exEnabled=true
-                exUsedCents=$(echo "$resp" | jq -r '.extra_usage.used_credits // 0' 2>/dev/null || echo "0")
-                exLimitCents=$(echo "$resp" | jq -r '.extra_usage.monthly_limit // 0' 2>/dev/null || echo "0")
-                exUsed=$(awk "BEGIN{printf \"%.2f\", $exUsedCents/100}")
-                exLimit=$(awk "BEGIN{printf \"%.2f\", $exLimitCents/100}")
-                exPct=$(echo "$resp" | jq -r '.extra_usage.utilization // 0' 2>/dev/null | awk '{printf "%d", $1+0.5}')
-
-                jq -n --argjson fh "$fhPct" --arg fr "$fhReset" --arg frr "$fhResetRaw" \
-                    --argjson sd "$sdPct" --arg sr "$sdReset" --arg srr "$sdResetRaw" \
-                    --argjson exE "$exEnabled" --arg exU "$exUsed" --arg exL "$exLimit" --argjson exP "$exPct" \
-                    '{fhPct:$fh,fhReset:$fr,fhResetRaw:$frr,sdPct:$sd,sdReset:$sr,sdResetRaw:$srr,exEnabled:$exE,exUsed:$exU,exLimit:$exL,exPct:$exP}' \
-                    > "$cacheFile" 2>/dev/null
-                limitsOk=true
-            fi
-        fi
+    sdPct=$(awk "BEGIN{printf \"%d\", $J_RL_SD_PCT+0.5}")
+    if (( J_RL_SD_RESET > 0 )); then
+        sdResetEpoch=$J_RL_SD_RESET
+        sdReset="$(fmt_day "$sdResetEpoch") $(fmt_time "$sdResetEpoch")"
     fi
-    # Negative cache: if fetch didn't succeed, write a marker so we don't retry for 5 minutes
-    if ! $limitsOk && [[ ! -f "$cacheFile" ]]; then
-        jq -n '{fhPct:0,fhReset:"",fhResetRaw:"",sdPct:0,sdReset:"",sdResetRaw:"",exEnabled:false,exUsed:"0",exLimit:"0",exPct:0,failed:true}' \
-            > "$cacheFile" 2>/dev/null
-        limitsFailed=true
-    fi
+
+    # Extra usage (may be present in rate_limits)
+    [[ "$J_RL_EX_ENABLED" == "true" ]] && exEnabled=true
+    exUsed=$(awk "BEGIN{printf \"%.2f\", $J_RL_EX_USED/100}")
+    exLimit=$(awk "BEGIN{printf \"%.2f\", $J_RL_EX_LIMIT/100}")
+    exPct=$(awk "BEGIN{printf \"%d\", $J_RL_EX_PCT+0.5}")
+else
+    limitsFailed=true
 fi
 
 # --- Build limit bars (brightness-based, gradient only on last pip) ---
@@ -545,26 +502,20 @@ sdBar=$(build_limit_bar "$sdPct" 185 140 160 "$showLimitPct")
 # 5h reset: show if >=75% or within 15 min of reset
 fhShowReset=false fhResetTxt=""
 (( fhPct >= 75 )) && fhShowReset=true
-if ! $fhShowReset && [[ -n "$fhResetRaw" && "$fhResetRaw" != "null" ]]; then
-    epoch=$(iso_to_epoch "$fhResetRaw")
+if ! $fhShowReset && (( fhResetEpoch > 0 )); then
     now=$(date +%s)
-    if (( epoch > 0 )); then
-        minLeft=$(( (epoch - now) / 60 ))
-        (( minLeft >= 0 && minLeft <= 15 )) && fhShowReset=true
-    fi
+    minLeft=$(( (fhResetEpoch - now) / 60 ))
+    (( minLeft >= 0 && minLeft <= 15 )) && fhShowReset=true
 fi
 $fhShowReset && [[ -n "$fhReset" ]] && fhResetTxt=" ${cSage}${fhReset}${R}"
 
 # 7d reset: show if >=80% or within 4 hours of reset
 sdShowReset=false sdResetTxt=""
 (( sdPct >= 80 )) && sdShowReset=true
-if ! $sdShowReset && [[ -n "$sdResetRaw" && "$sdResetRaw" != "null" ]]; then
-    epoch=$(iso_to_epoch "$sdResetRaw")
+if ! $sdShowReset && (( sdResetEpoch > 0 )); then
     now=$(date +%s)
-    if (( epoch > 0 )); then
-        hoursLeft=$(( (epoch - now) / 3600 ))
-        (( hoursLeft >= 0 && hoursLeft <= 4 )) && sdShowReset=true
-    fi
+    hoursLeft=$(( (sdResetEpoch - now) / 3600 ))
+    (( hoursLeft >= 0 && hoursLeft <= 4 )) && sdShowReset=true
 fi
 $sdShowReset && [[ -n "$sdReset" ]] && sdResetTxt=" ${cMauve}${sdReset}${R}"
 
@@ -612,6 +563,14 @@ $limitsOk && $exEnabled && (( fhPct >= 100 || sdPct >= 100 )) && activeExtra=tru
 nearExtra=false
 $limitsOk && (( fhPct >= 90 || sdPct >= 90 )) && nearExtra=true
 
+# --- Peak hours indicator (1pm-7pm GMT, limits burn faster during peak) ---
+peakTxt=""
+utcHour=$(date -u +%H)
+utcHour=$((10#$utcHour))  # strip leading zero
+if (( utcHour >= 13 && utcHour < 19 )); then
+    peakTxt="${cDim}peak${R}"
+fi
+
 # --- Extra usage indicator ---
 extraTxt=""
 if $activeExtra; then
@@ -642,6 +601,7 @@ fi
 line2="$gitDisplay"
 if $limitsOk; then
     line2+="  ${fhBar}${fhResetTxt}  ${sdBar}${sdResetTxt}"
+    [[ -n "$peakTxt" ]] && line2+="  ${peakTxt}"
 elif $limitsFailed; then
     line2+="  ${cDimmer}limits --${R}"
 fi

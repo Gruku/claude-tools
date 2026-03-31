@@ -1,14 +1,16 @@
 # Claude Code statusline — pastel, brightness squares, git+hosting, gradient limits
 # Line 1: dir  model  ■■⬓□□ pct% Nk [◉◎○◌]  [$cost]  [agent]  [vim:MODE]  [↑ update]
-# Line 2: ⎇ branch [✔ ~]  limit_bars [reset times]  [⚡ extra usage]
+# Line 2: ⎇ branch [✔ ~]  limit_bars [reset times]  [peak]  [⚡ extra usage]
 #
 # Official docs:
 #   https://code.claude.com/docs/en/statusline
 #
 # Reference implementations:
-#   https://github.com/NoobyGains/claude-pulse        — Python, rainbow animation, OAuth usage API, update notifications
+#   https://github.com/NoobyGains/claude-pulse        — Python, rainbow animation, usage data, update notifications
 #   https://github.com/sirmalloc/ccstatusline          — pre-built themes and configs
 #   https://github.com/martinemde/starship-claude      — Starship prompt integration
+#
+# Rate limits: read from stdin rate_limits JSON (v2.1.80+, zero API calls).
 #
 # Installation (Windows/PowerShell):
 #   1. Save this script, e.g. to ~/.claude/statusline.ps1
@@ -18,8 +20,6 @@
 #            "command": "powershell -NoProfile -File \"%USERPROFILE%\\.claude\\statusline.ps1\""
 #          }
 #        }
-#   3. Rate limit bars require OAuth login — run `claude` and sign in.
-#      Credentials are read from ~/.claude/.credentials.json automatically.
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $esc = [char]27
 $bel = [char]7
@@ -334,94 +334,41 @@ if ($sid) {
     }
 }
 
-# --- Rate limits via OAuth API (cached 5min, stale fallback) ---
-$cacheFile = Join-Path $env:TEMP "claude-sl-usage.json"
-$fhPct = 0; $fhReset = ""; $fhResetRaw = ""; $sdPct = 0; $sdReset = ""; $sdResetRaw = ""
+# --- Rate limits from stdin JSON (live every refresh, v2.1.80+, zero API calls) ---
+$fhPct = 0; $fhReset = ""; $fhResetEpoch = 0; $sdPct = 0; $sdReset = ""; $sdResetEpoch = 0
 $exEnabled = $false; $exUsed = 0.0; $exLimit = 0.0; $exPct = 0
 $limitsOk = $false
 $limitsFailed = $false
-$needFetch = $true
 
-# Always load cache as fallback (even if stale) — prevents bars vanishing on fetch failure
-if (Test-Path $cacheFile) {
-    try {
-        $c = Get-Content $cacheFile -Raw | ConvertFrom-Json
-        if ($c.PSObject.Properties['failed'] -and $c.failed -eq $true) {
-            $limitsFailed = $true
-        } else {
-            $fhPct = [int]$c.fhPct; $fhReset = [string]$c.fhReset
-            $fhResetRaw = if ($c.PSObject.Properties['fhResetRaw']) { [string]$c.fhResetRaw } else { "" }
-            $sdPct = [int]$c.sdPct; $sdReset = [string]$c.sdReset
-            $sdResetRaw = if ($c.PSObject.Properties['sdResetRaw']) { [string]$c.sdResetRaw } else { "" }
-            if ($c.PSObject.Properties['exEnabled']) { $exEnabled = [bool]$c.exEnabled }
-            if ($c.PSObject.Properties['exUsed']) { $exUsed = [double]$c.exUsed }
-            if ($c.PSObject.Properties['exLimit']) { $exLimit = [double]$c.exLimit }
-            if ($c.PSObject.Properties['exPct']) { $exPct = [int]$c.exPct }
-            $limitsOk = $true
+if ($data.PSObject.Properties['rate_limits'] -and $data.rate_limits) {
+    $rl = $data.rate_limits
+    if ($rl.PSObject.Properties['five_hour'] -and $rl.five_hour) {
+        $fhPct = [math]::Round([double]$rl.five_hour.used_percentage)
+        if ($rl.five_hour.PSObject.Properties['resets_at'] -and $rl.five_hour.resets_at) {
+            $fhResetEpoch = [long]$rl.five_hour.resets_at
+            $fhReset = ([DateTimeOffset]::FromUnixTimeSeconds($fhResetEpoch)).LocalDateTime.ToString("h:mmtt").ToLower()
         }
-    } catch {}
-    $age = ((Get-Date) - (Get-Item $cacheFile).LastWriteTime).TotalSeconds
-    if ($age -lt 300) { $needFetch = $false }   # 5 min cache — API rate-limits aggressively
-}
-
-if ($needFetch) {
-    try {
-        $credPath = Join-Path ([System.Environment]::GetFolderPath('UserProfile')) ".claude\.credentials.json"
-        if (Test-Path $credPath) {
-            $creds = Get-Content $credPath -Raw | ConvertFrom-Json
-            $tok = $null
-            if ($creds.PSObject.Properties['claudeAiOauth'] -and $creds.claudeAiOauth.accessToken) {
-                $tok = $creds.claudeAiOauth.accessToken
-            } elseif ($creds.PSObject.Properties['accessToken']) {
-                $tok = $creds.accessToken
-            }
-            if ($tok) {
-                $resp = Invoke-RestMethod -Uri "https://api.anthropic.com/api/oauth/usage" `
-                    -Headers @{ "Authorization"="Bearer $tok"; "anthropic-beta"="oauth-2025-04-20"; "User-Agent"="claude-tools-statusline/1.0" } `
-                    -Method Get -TimeoutSec 5
-
-                if ($resp.PSObject.Properties['five_hour'] -and $resp.five_hour) {
-                    $fhPct = [math]::Round([double]$resp.five_hour.utilization)
-                    if ($resp.five_hour.PSObject.Properties['resets_at'] -and $resp.five_hour.resets_at) {
-                        $fhResetRaw = [string]$resp.five_hour.resets_at
-                        $fhReset = ([DateTimeOffset]::Parse($fhResetRaw)).LocalDateTime.ToString("h:mmtt").ToLower()
-                    }
-                }
-                if ($resp.PSObject.Properties['seven_day'] -and $resp.seven_day) {
-                    $sdPct = [math]::Round([double]$resp.seven_day.utilization)
-                    if ($resp.seven_day.PSObject.Properties['resets_at'] -and $resp.seven_day.resets_at) {
-                        $sdResetRaw = [string]$resp.seven_day.resets_at
-                        $sdDt = ([DateTimeOffset]::Parse($sdResetRaw)).LocalDateTime
-                        $sdReset = $sdDt.ToString("ddd") + " " + $sdDt.ToString("h:mmtt").ToLower()
-                    }
-                }
-
-                # Extra usage (may not exist if never configured)
-                if ($resp.PSObject.Properties['extra_usage'] -and $resp.extra_usage) {
-                    $ex = $resp.extra_usage
-                    if ($ex.PSObject.Properties['is_enabled']) { $exEnabled = [bool]$ex.is_enabled }
-                    if ($ex.PSObject.Properties['used_credits']) { $exUsed = [math]::Round([double]$ex.used_credits / 100, 2) }
-                    if ($ex.PSObject.Properties['monthly_limit']) { $exLimit = [math]::Round([double]$ex.monthly_limit / 100, 2) }
-                    if ($ex.PSObject.Properties['utilization']) { $exPct = [math]::Round([double]$ex.utilization) }
-                }
-
-                @{ fhPct=$fhPct; fhReset="$fhReset"; fhResetRaw="$fhResetRaw";
-                   sdPct=$sdPct; sdReset="$sdReset"; sdResetRaw="$sdResetRaw";
-                   exEnabled=$exEnabled; exUsed=$exUsed; exLimit=$exLimit; exPct=$exPct } |
-                    ConvertTo-Json | Set-Content $cacheFile -Encoding UTF8
-                $limitsOk = $true
-            }
-        }
-    } catch {}
-    # Negative cache: if fetch didn't succeed, write a marker so we don't retry for 5 minutes
-    if (-not $limitsOk -and -not (Test-Path $cacheFile)) {
-        @{ fhPct=0; fhReset=""; fhResetRaw="";
-           sdPct=0; sdReset=""; sdResetRaw="";
-           exEnabled=$false; exUsed=0; exLimit=0; exPct=0;
-           failed=$true } |
-            ConvertTo-Json | Set-Content $cacheFile -Encoding UTF8
-        $limitsFailed = $true
+        $limitsOk = $true
     }
+    if ($rl.PSObject.Properties['seven_day'] -and $rl.seven_day) {
+        $sdPct = [math]::Round([double]$rl.seven_day.used_percentage)
+        if ($rl.seven_day.PSObject.Properties['resets_at'] -and $rl.seven_day.resets_at) {
+            $sdResetEpoch = [long]$rl.seven_day.resets_at
+            $sdDt = ([DateTimeOffset]::FromUnixTimeSeconds($sdResetEpoch)).LocalDateTime
+            $sdReset = $sdDt.ToString("ddd") + " " + $sdDt.ToString("h:mmtt").ToLower()
+        }
+        $limitsOk = $true
+    }
+    # Extra usage (may be present in rate_limits)
+    if ($rl.PSObject.Properties['extra_usage'] -and $rl.extra_usage) {
+        $ex = $rl.extra_usage
+        if ($ex.PSObject.Properties['is_enabled']) { $exEnabled = [bool]$ex.is_enabled }
+        if ($ex.PSObject.Properties['used_credits']) { $exUsed = [math]::Round([double]$ex.used_credits / 100, 2) }
+        if ($ex.PSObject.Properties['monthly_limit']) { $exLimit = [math]::Round([double]$ex.monthly_limit / 100, 2) }
+        if ($ex.PSObject.Properties['utilization']) { $exPct = [math]::Round([double]$ex.utilization) }
+    }
+} else {
+    $limitsFailed = $true
 }
 
 # --- Build limit bars (brightness-based, gradient only on last pip) ---
@@ -513,20 +460,16 @@ $sdBar = Build-LimitBar $sdPct @(185, 140, 160) $showLimitPct   # mauve RGB
 
 # Show 5h reset time if usage >= 75% OR within 15 minutes of reset
 $fhShowReset = ($fhPct -ge 75)
-if (-not $fhShowReset -and $fhResetRaw) {
-    try {
-        $fhMinLeft = (([DateTimeOffset]::Parse($fhResetRaw)).LocalDateTime - (Get-Date)).TotalMinutes
-        if ($fhMinLeft -ge 0 -and $fhMinLeft -le 15) { $fhShowReset = $true }
-    } catch {}
+if (-not $fhShowReset -and $fhResetEpoch -gt 0) {
+    $fhMinLeft = ([DateTimeOffset]::FromUnixTimeSeconds($fhResetEpoch).LocalDateTime - (Get-Date)).TotalMinutes
+    if ($fhMinLeft -ge 0 -and $fhMinLeft -le 15) { $fhShowReset = $true }
 }
 $fhResetTxt = if ($fhShowReset -and $fhReset) { " ${cSage}${fhReset}${R}" } else { "" }
 # Show 7d reset time if usage >= 80% OR within 4 hours of reset
 $sdShowReset = ($sdPct -ge 80)
-if (-not $sdShowReset -and $sdResetRaw) {
-    try {
-        $sdHoursLeft = (([DateTimeOffset]::Parse($sdResetRaw)).LocalDateTime - (Get-Date)).TotalHours
-        if ($sdHoursLeft -ge 0 -and $sdHoursLeft -le 4) { $sdShowReset = $true }
-    } catch {}
+if (-not $sdShowReset -and $sdResetEpoch -gt 0) {
+    $sdHoursLeft = ([DateTimeOffset]::FromUnixTimeSeconds($sdResetEpoch).LocalDateTime - (Get-Date)).TotalHours
+    if ($sdHoursLeft -ge 0 -and $sdHoursLeft -le 4) { $sdShowReset = $true }
 }
 $sdResetTxt = if ($sdShowReset -and $sdReset) { " ${cMauve}${sdReset}${R}" } else { "" }
 
@@ -584,6 +527,13 @@ if ($data.PSObject.Properties['cost'] -and $data.cost -and
 $activeExtra = $limitsOk -and $exEnabled -and ($fhPct -ge 100 -or $sdPct -ge 100)
 $nearExtra = $limitsOk -and ($fhPct -ge 90 -or $sdPct -ge 90)
 
+# --- Peak hours indicator (1pm-7pm GMT, limits burn faster during peak) ---
+$peakTxt = ""
+$utcHour = [DateTimeOffset]::UtcNow.Hour
+if ($utcHour -ge 13 -and $utcHour -lt 19) {
+    $peakTxt = "${cDim}peak${R}"
+}
+
 # --- Extra usage indicator ---
 $extraTxt = ""
 $bolt = [char]0x26A1  # ⚡
@@ -619,6 +569,7 @@ $line2Parts += $gitDisplay
 if ($limitsOk) {
     $line2Parts += "${fhBar}${fhResetTxt}"
     $line2Parts += "${sdBar}${sdResetTxt}"
+    if ($peakTxt) { $line2Parts += $peakTxt }
 } elseif ($limitsFailed) {
     $line2Parts += "${cDimmer}limits --${R}"
 }
