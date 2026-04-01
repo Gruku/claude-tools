@@ -18,44 +18,32 @@ Plugin marketplace & standalone tools for [Claude Code](https://docs.anthropic.c
 
 ## Plugins
 
-### Taskmaster `v1.0.0` ✨ NEW
+### Taskmaster `v1.4.1`
 
 Universal AI-powered task and backlog management. Drop into any project.
 
-- **23 MCP tools** — tasks, epics, milestones, dependencies, search, validation, session locking
-- **Kanban viewer** — dark/light theme board on port 6800 with filtering, search, and milestone progress
+- **23 MCP tools** — tasks, epics, phases, dependencies, search, validation, session locking
+- **Kanban viewer** — dark/light theme board on port 6800 with filtering, search, and phase progress
 - **Session tracking** — auto-generated Done/Decisions/Issues changelog entries
 - **Worktree isolation** — every task gets its own git worktree
 - **Quality gates** — spec/plan check, code review, tests, build verification
 - **TODO auditing** — scan codebase for TODO/FIXME/HACK, cross-reference with backlog
-- **Milestones** — sequential blocks of work for focus, one active at a time
+- **Phases** — sequential blocks of work for focus, one active at a time
 - **Configurable storage** — `.claude/` (hidden) or project root (git-tracked)
 
 **Skills:** `/init-taskmaster` `/start-session` `/pick-task` `/review-gate` `/end-session` `/check-todos`
 
-### Shader Nodes `v2.0.0`
+### Guard Hooks `v2.1.0`
 
-UE5.5 shader development pipeline. HLSL design (Opus) + Material Graph generation (Sonnet) → paste into Material Editor.
+Safety guard hooks that block destructive CLI commands and sensitive file edits, with in-flow user approval.
 
-**Skills:** `/shader-nodes:create` `/shader-nodes:yaml` `/shader-nodes:registry`
+- **Destructive command blocking** — prevents `rm -rf`, `git push --force`, `git reset --hard`, etc.
+- **Sensitive file protection** — guards `.env`, credentials, and config files from accidental edits
+- **User approval flow** — prompts for confirmation via `UserPromptSubmit` before allowing risky actions
 
-### Reality Reprojection `v1.3.0`
+**Requires:** jq
 
-Web design system plugin. Generate components, convert existing code, review compliance.
-
-**Skills:** `/reality-reprojection:apply` `/reality-reprojection:generate` `/reality-reprojection:convert`
-
-### Image Gen `v1.0.0`
-
-Multi-backend image generation with Google Gemini and OpenAI GPT Image 1.5. Transparent PNGs, multi-turn refinement, game assets.
-
-**Skills:** `/image-gen` `/image-gen:generate` `/image-gen:edit` `/image-gen:refine`
-
-### Codex Dispatch `v1.0.0`
-
-Dispatch tasks to OpenAI Codex CLI for parallel execution with GPT/o-series models.
-
-**Skills:** `/codex-dispatch`
+**Skills:** `/guard-hooks:install`
 
 ---
 
@@ -65,9 +53,68 @@ Dispatch tasks to OpenAI Codex CLI for parallel execution with GPT/o-series mode
 
 Pastel statusline for Claude Code with rate limit bars, git status, context usage, update notifications, and session cost tracking.
 
-**[Live Preview](https://gruku.github.io/claude-tools/statusline/)** · Supports PowerShell and Bash
+**[Live Preview](https://gruku.github.io/claude-tools/statusline/)** · Supports Bash and PowerShell
 
 ![Statusline Preview](statusline/screenshot.png)
+
+#### Installation
+
+##### macOS / Linux (Bash)
+
+**Requires:** `jq`, `git`
+
+1. Copy the script:
+   ```bash
+   curl -o ~/.claude/statusline.sh https://raw.githubusercontent.com/Gruku/claude-tools/master/statusline/statusline.sh
+   chmod +x ~/.claude/statusline.sh
+   ```
+
+2. Add to `~/.claude/settings.json`:
+   ```json
+   {
+     "statusLine": {
+       "command": "~/.claude/statusline.sh"
+     }
+   }
+   ```
+
+3. Restart Claude Code.
+
+##### Windows (PowerShell)
+
+1. Copy the script:
+   ```powershell
+   Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Gruku/claude-tools/master/statusline/statusline.ps1" -OutFile "$env:USERPROFILE\.claude\statusline.ps1"
+   ```
+
+2. Add to `~/.claude/settings.json` (located at `%USERPROFILE%\.claude\settings.json`):
+   ```json
+   {
+     "statusLine": {
+       "command": "powershell -NoProfile -File \"%USERPROFILE%\\.claude\\statusline.ps1\""
+     }
+   }
+   ```
+
+3. Restart Claude Code.
+
+#### Troubleshooting
+
+**Raw escape codes visible** (e.g. `\033[0;33m` printed literally)
+
+This means something between the script and your terminal is re-encoding the ANSI escape bytes. The statusline scripts output real ESC bytes — they don't rely on the shell to interpret `\033` literals.
+
+- **Don't paste the output into `PS1`/`PROMPT` manually.** The `statusLine.command` setting handles rendering — you just point it at the script.
+- **tmux / screen users:** ensure your multiplexer isn't stripping escape sequences. Try `set -g default-terminal "xterm-256color"` in `.tmux.conf`.
+- **Check your terminal emulator** supports 24-bit (truecolor) ANSI. Most modern terminals do (iTerm2, Windows Terminal, Ghostty, Alacritty, Kitty, WezTerm). The macOS default Terminal.app has limited truecolor support.
+
+**"statusline: jq required" error (macOS/Linux)**
+
+Install jq: `brew install jq` (macOS) or `sudo apt install jq` (Debian/Ubuntu).
+
+**No rate limit bars showing**
+
+Rate limits are read from stdin JSON — requires Claude Code v2.1.80 or later. Run `claude --version` to check. Bars also only appear when usage is above display thresholds (80%+ for 5h, 80%+ for 7d) or on the first render of a new session.
 
 ---
 
@@ -81,11 +128,8 @@ claude-tools/
 │   └── marketplace.json        # plugin catalog
 ├── plugins/
 │   ├── taskmaster/             # AI task management
-│   ├── shader-nodes/           # UE5 shader pipeline
-│   ├── reality-reprojection/   # web design system
-│   ├── image-gen/              # image generation
-│   └── codex-dispatch/         # multi-model dispatch
-└── statusline/                 # standalone tool
+│   └── guard-hooks/            # safety guard hooks
+└── statusline/                 # standalone tool (not a plugin)
 ```
 
 ### Commands
