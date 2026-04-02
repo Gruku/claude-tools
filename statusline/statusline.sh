@@ -464,6 +464,8 @@ build_limit_bar() {
         fi
     }
 
+    local lpct100=$((lpct * 100))
+
     if $displayPct; then
         local pStr
         if (( lpct >= 100 )); then pStr="100"
@@ -480,7 +482,6 @@ build_limit_bar() {
             fi
             local pipStart=$((i * pipW))
             local pipEnd=$(((i + 1) * pipW))
-            local lpct100=$((lpct * 100))
             if (( lpct100 >= pipEnd )); then
                 pip_base_rgb "$i"
                 result+="${E}[38;2;${PBR};${PBG};${PBB}m▰"
@@ -500,7 +501,6 @@ build_limit_bar() {
         for (( i=0; i<bW; i++ )); do
             local pipStart=$((i * pipW))
             local pipEnd=$(((i + 1) * pipW))
-            local lpct100=$((lpct * 100))
             if (( lpct100 >= pipEnd )); then
                 pip_base_rgb "$i"
                 result+="${E}[38;2;${PBR};${PBG};${PBB}m▰"
