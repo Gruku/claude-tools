@@ -379,23 +379,53 @@ if ($data.PSObject.Properties['rate_limits'] -and $data.rate_limits) {
 # --- Build limit bars (brightness-based, gradient only on last pip) ---
 $fc = [char]0x25B0  # ▰
 $ec = [char]0x25B1  # ▱
-$barW = 5
+# Amber/red waypoints for overspend gradient
+$amberR = 235; $amberG = 195; $amberB = 80
+$warnRedR = 210; $warnRedG = 95; $warnRedB = 85
 
-function Build-LimitBar([int]$lpct, [int[]]$barRGB, [bool]$forceShowPct) {
+function Build-LimitBar([int]$lpct, [int]$barWidth, [int[]]$barRGB, [int]$budgetCount, [bool]$forceShowPct) {
     $lpct = [math]::Max(0, [math]::Min(100, $lpct))
     $gradColor = Get-LimitGradColor $lpct
     $barColor = "$esc[38;2;$($barRGB[0]);$($barRGB[1]);$($barRGB[2])m"
     $displayPct = $forceShowPct -or ($lpct -ge 80)
-    $pipW = 100.0 / $barW
+    $pipW = 100.0 / $barWidth
+
+    # Compute overspend color for a pip past budget
+    # t: 0.0 (just past budget) → 1.0 (last pip), identity → amber → red
+    function Get-OverspendRGB([double]$t) {
+        $t = [math]::Max(0.0, [math]::Min(1.0, $t))
+        if ($t -le 0.5) {
+            $s = $t / 0.5
+            $r = [int]($barRGB[0] + ($amberR - $barRGB[0]) * $s)
+            $g = [int]($barRGB[1] + ($amberG - $barRGB[1]) * $s)
+            $b = [int]($barRGB[2] + ($amberB - $barRGB[2]) * $s)
+        } else {
+            $s = ($t - 0.5) / 0.5
+            $r = [int]($amberR + ($warnRedR - $amberR) * $s)
+            $g = [int]($amberG + ($warnRedG - $amberG) * $s)
+            $b = [int]($amberB + ($warnRedB - $amberB) * $s)
+        }
+        return @($r, $g, $b)
+    }
+
+    # Determine pip base color: identity if within budget, overspend gradient if past
+    function Get-PipBaseRGB([int]$pipIdx) {
+        if ($pipIdx -lt $budgetCount) {
+            return $barRGB
+        }
+        $pastCount = $barWidth - $budgetCount
+        if ($pastCount -le 0) { return $barRGB }
+        $t = ($pipIdx - $budgetCount) / [double]$pastCount
+        return (Get-OverspendRGB $t)
+    }
 
     if ($displayPct) {
-        # Percentage text centered; flanking pips render naturally
         if ($lpct -ge 100) { $pStr = "100" }
         else { $pStr = "${lpct}%" }
         $txtColor = Get-LimitGradColor $lpct
-        $tStart = [math]::Ceiling(($barW - $pStr.Length) / 2)
+        $tStart = [math]::Ceiling(($barWidth - $pStr.Length) / 2)
         $result = ""
-        for ($i = 0; $i -lt $barW; $i++) {
+        for ($i = 0; $i -lt $barWidth; $i++) {
             $tIdx = $i - $tStart
             if ($tIdx -ge 0 -and $tIdx -lt $pStr.Length) {
                 $result += "${txtColor}$($pStr[$tIdx])"
@@ -403,23 +433,16 @@ function Build-LimitBar([int]$lpct, [int[]]$barRGB, [bool]$forceShowPct) {
             }
             $pipStart = $i * $pipW
             $pipEnd = ($i + 1) * $pipW
-            $isLastPip = ($i -eq ($barW - 1))
             if ($lpct -ge $pipEnd) {
-                if ($isLastPip) { $result += "${gradColor}${fc}" }
-                else { $result += "${barColor}${fc}" }
+                $pRGB = Get-PipBaseRGB $i
+                $result += "$esc[38;2;$($pRGB[0]);$($pRGB[1]);$($pRGB[2])m${fc}"
             } elseif ($lpct -gt $pipStart) {
                 $fill = [math]::Min(1.0, ($lpct - $pipStart) / $pipW)
                 $bri = 0.25 + 0.75 * $fill
-                if ($isLastPip) {
-                    $gRGB = Get-LimitGradRGB $lpct
-                    $lr = [math]::Round($dimR + ($gRGB[0] - $dimR) * $bri)
-                    $lg = [math]::Round($dimG + ($gRGB[1] - $dimG) * $bri)
-                    $lb = [math]::Round($dimB + ($gRGB[2] - $dimB) * $bri)
-                } else {
-                    $lr = [math]::Round($dimR + ($barRGB[0] - $dimR) * $bri)
-                    $lg = [math]::Round($dimG + ($barRGB[1] - $dimG) * $bri)
-                    $lb = [math]::Round($dimB + ($barRGB[2] - $dimB) * $bri)
-                }
+                $pRGB = Get-PipBaseRGB $i
+                $lr = [math]::Round($dimR + ($pRGB[0] - $dimR) * $bri)
+                $lg = [math]::Round($dimG + ($pRGB[1] - $dimG) * $bri)
+                $lb = [math]::Round($dimB + ($pRGB[2] - $dimB) * $bri)
                 $result += "$esc[38;2;${lr};${lg};${lb}m${fc}"
             } else {
                 $result += "${cDim}${ec}"
@@ -427,30 +450,20 @@ function Build-LimitBar([int]$lpct, [int[]]$barRGB, [bool]$forceShowPct) {
         }
         return "${result}${R}"
     } else {
-        # 5 pips: identity color, last pip = limit gradient
         $result = ""
-        for ($i = 0; $i -lt $barW; $i++) {
+        for ($i = 0; $i -lt $barWidth; $i++) {
             $pipStart = $i * $pipW
             $pipEnd = ($i + 1) * $pipW
-            $isLastPip = ($i -eq ($barW - 1))
-
             if ($lpct -ge $pipEnd) {
-                if ($isLastPip) { $result += "${gradColor}${fc}" }
-                else { $result += "${barColor}${fc}" }
+                $pRGB = Get-PipBaseRGB $i
+                $result += "$esc[38;2;$($pRGB[0]);$($pRGB[1]);$($pRGB[2])m${fc}"
             } elseif ($lpct -gt $pipStart) {
-                # Leading pip — brightness interpolation
                 $fill = [math]::Min(1.0, ($lpct - $pipStart) / $pipW)
                 $bri = 0.25 + 0.75 * $fill
-                if ($isLastPip) {
-                    $gRGB = Get-LimitGradRGB $lpct
-                    $lr = [math]::Round($dimR + ($gRGB[0] - $dimR) * $bri)
-                    $lg = [math]::Round($dimG + ($gRGB[1] - $dimG) * $bri)
-                    $lb = [math]::Round($dimB + ($gRGB[2] - $dimB) * $bri)
-                } else {
-                    $lr = [math]::Round($dimR + ($barRGB[0] - $dimR) * $bri)
-                    $lg = [math]::Round($dimG + ($barRGB[1] - $dimG) * $bri)
-                    $lb = [math]::Round($dimB + ($barRGB[2] - $dimB) * $bri)
-                }
+                $pRGB = Get-PipBaseRGB $i
+                $lr = [math]::Round($dimR + ($pRGB[0] - $dimR) * $bri)
+                $lg = [math]::Round($dimG + ($pRGB[1] - $dimG) * $bri)
+                $lb = [math]::Round($dimB + ($pRGB[2] - $dimB) * $bri)
                 $result += "$esc[38;2;${lr};${lg};${lb}m${fc}"
             } else {
                 $result += "${cDim}${ec}"
@@ -460,14 +473,30 @@ function Build-LimitBar([int]$lpct, [int[]]$barRGB, [bool]$forceShowPct) {
     }
 }
 
-$fhBar = Build-LimitBar $fhPct @(135, 180, 160) $showLimitPct   # sage RGB
-$sdBar = Build-LimitBar $sdPct @(185, 140, 160) $showLimitPct   # mauve RGB
+# Compute budget: how many pips' worth of time has elapsed in each window
+$now = [DateTimeOffset]::Now
+$fhBudget = 0; $sdBudget = 0
+if ($fhResetEpoch -gt 0) {
+    $fhResetDt = [DateTimeOffset]::FromUnixTimeSeconds($fhResetEpoch)
+    $fhElapsed = 5.0 - ($fhResetDt - $now).TotalHours
+    $fhElapsed = [math]::Max(0, [math]::Min(5, $fhElapsed))
+    $fhBudget = [math]::Floor($fhElapsed)
+}
+if ($sdResetEpoch -gt 0) {
+    $sdResetDt = [DateTimeOffset]::FromUnixTimeSeconds($sdResetEpoch)
+    $sdElapsed = 7.0 - ($sdResetDt - $now).TotalDays
+    $sdElapsed = [math]::Max(0, [math]::Min(7, $sdElapsed))
+    $sdBudget = [math]::Floor($sdElapsed)
+}
 
-# Show 5h reset time if usage >= 75% OR within 15 minutes of reset
+$fhBar = Build-LimitBar $fhPct 5 @(135, 180, 160) $fhBudget $showLimitPct   # 5 pips, sage
+$sdBar = Build-LimitBar $sdPct 7 @(185, 140, 160) $sdBudget $showLimitPct   # 7 pips, mauve
+
+# Show 5h reset time if usage >= 75% OR within 30 minutes of reset
 $fhShowReset = ($fhPct -ge 75)
 if (-not $fhShowReset -and $fhResetEpoch -gt 0) {
     $fhMinLeft = ([DateTimeOffset]::FromUnixTimeSeconds($fhResetEpoch).LocalDateTime - (Get-Date)).TotalMinutes
-    if ($fhMinLeft -ge 0 -and $fhMinLeft -le 15) { $fhShowReset = $true }
+    if ($fhMinLeft -ge 0 -and $fhMinLeft -le 30) { $fhShowReset = $true }
 }
 $fhResetTxt = if ($fhShowReset -and $fhReset) { " ${cSage}${fhReset}${R}" } else { "" }
 # Show 7d reset time if usage >= 80% OR within 4 hours of reset
