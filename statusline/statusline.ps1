@@ -385,8 +385,6 @@ $warnRedR = 210; $warnRedG = 95; $warnRedB = 85
 
 function Build-LimitBar([int]$lpct, [int]$barWidth, [int[]]$barRGB, [int]$budgetCount, [bool]$forceShowPct) {
     $lpct = [math]::Max(0, [math]::Min(100, $lpct))
-    $gradColor = Get-LimitGradColor $lpct
-    $barColor = "$esc[38;2;$($barRGB[0]);$($barRGB[1]);$($barRGB[2])m"
     $displayPct = $forceShowPct -or ($lpct -ge 80)
     $pipW = 100.0 / $barWidth
 
