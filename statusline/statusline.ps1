@@ -98,6 +98,11 @@ $projName = Split-Path -Leaf $projDir
 
 if ($curDir -ne $projDir -and $curDir.StartsWith($projDir)) {
     $relPath = $curDir.Substring($projDir.Length).TrimStart('\', '/')
+    # Shorten: first\...\last when 3+ segments
+    $relParts = $relPath -split '[/\\]'
+    if ($relParts.Count -ge 3) {
+        $relPath = "$($relParts[0])\...\$($relParts[-1])"
+    }
     $dirDisplay = "${projName}${cDim}:${cSand}${relPath}"
 } elseif ($curDir -ne $projDir) {
     $dirDisplay = "${projName}${cDim}:${cSand}$(Split-Path -Leaf $curDir)"
@@ -550,7 +555,7 @@ if ($activeExtra) {
 
 # --- Output ---
 # Line 1: dir  model  context  [cost]  [agent]  [vim]  [extra msg]  [update]
-$line1 = "${cSand}${dirDisplay}${R}  ${cPeach}${model}${R}  ${ctxText}"
+$line1 = "${ctxText}  ${cSand}${dirDisplay}${R}  ${cPeach}${model}${R}"
 # Show session cost when approaching or on extra usage
 if ($costTxt -and ($nearExtra -or $activeExtra)) { $line1 += "  ${costTxt}" }
 if ($agentName) { $line1 += "  ${cLav}$([char]0x2699) ${agentName}${R}" }

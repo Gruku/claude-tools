@@ -184,6 +184,11 @@ projName=$(basename "$projDir")
 
 if [[ "$curDir" != "$projDir" && "$curDir" == "$projDir"/* ]]; then
     relPath="${curDir#"$projDir"/}"
+    # Shorten: first/.../last when 3+ segments
+    IFS='/' read -ra _rparts <<< "$relPath"
+    if (( ${#_rparts[@]} >= 3 )); then
+        relPath="${_rparts[0]}/.../${_rparts[${#_rparts[@]}-1]}"
+    fi
     dirDisplay="${projName}${cDim}:${cSand}${relPath}"
 elif [[ "$curDir" != "$projDir" ]]; then
     dirDisplay="${projName}${cDim}:${cSand}$(basename "$curDir")"
@@ -586,7 +591,7 @@ fi
 
 # --- Output ---
 # Line 1: dir  model  context  [cost]  [agent]  [vim]  [extra msg]  [update]
-line1="${cSand}${dirDisplay}${R}  ${cPeach}${J_MODEL}${R}  ${ctxText}"
+line1="${ctxText}  ${cSand}${dirDisplay}${R}  ${cPeach}${J_MODEL}${R}"
 # Show session cost when approaching or on extra usage
 if [[ -n "$costTxt" ]] && ($nearExtra || $activeExtra); then line1+="  ${costTxt}"; fi
 [[ -n "${J_AGENT:-}" ]] && line1+="  ${cLav}⚙ ${J_AGENT}${R}"
