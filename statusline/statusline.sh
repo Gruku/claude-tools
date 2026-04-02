@@ -45,7 +45,9 @@ R="${E}[0m"
 dimR=50 dimG=48 dimB=45
 neuR=195 neuG=180 neuB=165
 
-barW=5
+# Amber/red waypoints for overspend gradient
+amberR=235 amberG=195 amberB=80
+warnRedR=210 warnRedG=95 warnRedB=85
 TMPD="${TMPDIR:-/tmp}"
 
 # --- OS-aware helpers ---
@@ -415,30 +417,62 @@ else
     limitsFailed=true
 fi
 
-# --- Build limit bars (brightness-based, gradient only on last pip) ---
-# Renders pip at each position: text overlay when showing %, natural pips otherwise
-# Uses integer math scaled ×100 (pipW=2000 for 5 pips over 10000)
+# Compute overspend color for pip past budget
+# Args: $1=t_x1000 (0-1000), $2=barR, $3=barG, $4=barB
+# Sets: OSR OSG OSB
+overspend_rgb() {
+    local t=$1 bR=$2 bG=$3 bB=$4
+    (( t < 0 )) && t=0; (( t > 1000 )) && t=1000
+    if (( t <= 500 )); then
+        local s=$((t * 1000 / 500))
+        OSR=$((bR + (amberR - bR) * s / 1000))
+        OSG=$((bG + (amberG - bG) * s / 1000))
+        OSB=$((bB + (amberB - bB) * s / 1000))
+    else
+        local s=$(((t - 500) * 1000 / 500))
+        OSR=$((amberR + (warnRedR - amberR) * s / 1000))
+        OSG=$((amberG + (warnRedG - amberG) * s / 1000))
+        OSB=$((amberB + (warnRedB - amberB) * s / 1000))
+    fi
+}
+
+# Args: $1=lpct, $2=barWidth, $3=barR, $4=barG, $5=barB, $6=budgetCount, $7=forceShowPct
 build_limit_bar() {
-    local lpct=$1 barR=$2 barG=$3 barB=$4 forceShow=$5
+    local lpct=$1 bW=$2 barR=$3 barG=$4 barB=$5 budgetCount=$6 forceShow=$7
     (( lpct < 0 )) && lpct=0; (( lpct > 100 )) && lpct=100
-    local gradC=$(limit_grad_color "$lpct")
-    local barC="${E}[38;2;${barR};${barG};${barB}m"
     local displayPct=false
     $forceShow && displayPct=true
     (( lpct >= 80 )) && displayPct=true
-    local pipW=$((10000 / barW))
+    local pipW=$((10000 / bW))
     local result=""
 
+    # Get pip base color: identity if within budget, overspend if past
+    # Sets: PBR PBG PBB
+    pip_base_rgb() {
+        local idx=$1
+        if (( idx < budgetCount )); then
+            PBR=$barR; PBG=$barG; PBB=$barB
+        else
+            local pastCount=$((bW - budgetCount))
+            if (( pastCount <= 0 )); then
+                PBR=$barR; PBG=$barG; PBB=$barB
+                return
+            fi
+            local t=$(( (idx - budgetCount) * 1000 / pastCount ))
+            overspend_rgb "$t" "$barR" "$barG" "$barB"
+            PBR=$OSR; PBG=$OSG; PBB=$OSB
+        fi
+    }
+
     if $displayPct; then
-        # Percentage text centered; flanking pips render naturally
         local pStr
         if (( lpct >= 100 )); then pStr="100"
         else pStr="${lpct}%"; fi
         local txtC=$(limit_grad_color "$lpct")
         local tLen=${#pStr}
-        local tStart=$(( (barW - tLen + 1) / 2 ))   # Ceiling division
+        local tStart=$(( (bW - tLen + 1) / 2 ))
 
-        for (( i=0; i<barW; i++ )); do
+        for (( i=0; i<bW; i++ )); do
             local tIdx=$((i - tStart))
             if (( tIdx >= 0 && tIdx < tLen )); then
                 result+="${txtC}${pStr:$tIdx:1}"
@@ -448,50 +482,35 @@ build_limit_bar() {
             local pipEnd=$(((i + 1) * pipW))
             local lpct100=$((lpct * 100))
             if (( lpct100 >= pipEnd )); then
-                if (( i == barW - 1 )); then result+="${gradC}▰"
-                else result+="${barC}▰"; fi
+                pip_base_rgb "$i"
+                result+="${E}[38;2;${PBR};${PBG};${PBB}m▰"
             elif (( lpct100 > pipStart )); then
                 local fill=$(( (lpct100 - pipStart) * 1000 / pipW ))
                 local bri=$((250 + 750 * fill / 1000))
-                local lr lg lb
-                if (( i == barW - 1 )); then
-                    limit_grad_rgb "$lpct"
-                    lr=$((dimR + (LR - dimR) * bri / 1000))
-                    lg=$((dimG + (LG - dimG) * bri / 1000))
-                    lb=$((dimB + (LB - dimB) * bri / 1000))
-                else
-                    lr=$((dimR + (barR - dimR) * bri / 1000))
-                    lg=$((dimG + (barG - dimG) * bri / 1000))
-                    lb=$((dimB + (barB - dimB) * bri / 1000))
-                fi
+                pip_base_rgb "$i"
+                local lr=$((dimR + (PBR - dimR) * bri / 1000))
+                local lg=$((dimG + (PBG - dimG) * bri / 1000))
+                local lb=$((dimB + (PBB - dimB) * bri / 1000))
                 result+="${E}[38;2;${lr};${lg};${lb}m▰"
             else
                 result+="${cDim}▱"
             fi
         done
     else
-        # 5 pips: identity color, last pip = limit gradient
-        for (( i=0; i<barW; i++ )); do
+        for (( i=0; i<bW; i++ )); do
             local pipStart=$((i * pipW))
             local pipEnd=$(((i + 1) * pipW))
             local lpct100=$((lpct * 100))
             if (( lpct100 >= pipEnd )); then
-                if (( i == barW - 1 )); then result+="${gradC}▰"
-                else result+="${barC}▰"; fi
+                pip_base_rgb "$i"
+                result+="${E}[38;2;${PBR};${PBG};${PBB}m▰"
             elif (( lpct100 > pipStart )); then
                 local fill=$(( (lpct100 - pipStart) * 1000 / pipW ))
                 local bri=$((250 + 750 * fill / 1000))
-                local lr lg lb
-                if (( i == barW - 1 )); then
-                    limit_grad_rgb "$lpct"
-                    lr=$((dimR + (LR - dimR) * bri / 1000))
-                    lg=$((dimG + (LG - dimG) * bri / 1000))
-                    lb=$((dimB + (LB - dimB) * bri / 1000))
-                else
-                    lr=$((dimR + (barR - dimR) * bri / 1000))
-                    lg=$((dimG + (barG - dimG) * bri / 1000))
-                    lb=$((dimB + (barB - dimB) * bri / 1000))
-                fi
+                pip_base_rgb "$i"
+                local lr=$((dimR + (PBR - dimR) * bri / 1000))
+                local lg=$((dimG + (PBG - dimG) * bri / 1000))
+                local lb=$((dimB + (PBB - dimB) * bri / 1000))
                 result+="${E}[38;2;${lr};${lg};${lb}m▰"
             else
                 result+="${cDim}▱"
@@ -501,16 +520,36 @@ build_limit_bar() {
     printf '%s' "${result}${R}"
 }
 
-fhBar=$(build_limit_bar "$fhPct" 135 180 160 "$showLimitPct")
-sdBar=$(build_limit_bar "$sdPct" 185 140 160 "$showLimitPct")
+# Compute budget: how many pips' worth of time has elapsed in each window
+nowEpoch=$(date +%s)
+fhBudget=0; sdBudget=0
+if (( fhResetEpoch > 0 )); then
+    fhSecsLeft=$((fhResetEpoch - nowEpoch))
+    (( fhSecsLeft < 0 )) && fhSecsLeft=0
+    fhElapsedSecs=$((5 * 3600 - fhSecsLeft))
+    (( fhElapsedSecs < 0 )) && fhElapsedSecs=0
+    fhBudget=$((fhElapsedSecs / 3600))
+    (( fhBudget > 5 )) && fhBudget=5
+fi
+if (( sdResetEpoch > 0 )); then
+    sdSecsLeft=$((sdResetEpoch - nowEpoch))
+    (( sdSecsLeft < 0 )) && sdSecsLeft=0
+    sdElapsedSecs=$((7 * 86400 - sdSecsLeft))
+    (( sdElapsedSecs < 0 )) && sdElapsedSecs=0
+    sdBudget=$((sdElapsedSecs / 86400))
+    (( sdBudget > 7 )) && sdBudget=7
+fi
 
-# 5h reset: show if >=75% or within 15 min of reset
+fhBar=$(build_limit_bar "$fhPct" 5 135 180 160 "$fhBudget" "$showLimitPct")
+sdBar=$(build_limit_bar "$sdPct" 7 185 140 160 "$sdBudget" "$showLimitPct")
+
+# 5h reset: show if >=75% or within 30 min of reset
 fhShowReset=false fhResetTxt=""
 (( fhPct >= 75 )) && fhShowReset=true
 if ! $fhShowReset && (( fhResetEpoch > 0 )); then
     now=$(date +%s)
     minLeft=$(( (fhResetEpoch - now) / 60 ))
-    (( minLeft >= 0 && minLeft <= 15 )) && fhShowReset=true
+    (( minLeft >= 0 && minLeft <= 30 )) && fhShowReset=true
 fi
 $fhShowReset && [[ -n "$fhReset" ]] && fhResetTxt=" ${cSage}${fhReset}${R}"
 
