@@ -1,8 +1,19 @@
 #!/usr/bin/env bash
-# check-version-bump.sh — PreToolUse hook for git push
-# Checks if any plugin files changed since remote HEAD without a version bump.
+# check-version-bump.sh — PreToolUse hook for Bash commands
+# Only acts on git push commands. Checks if any plugin files changed
+# since remote HEAD without a version bump.
+# Outputs JSON {"decision":"block","reason":"..."} to block the push.
 
 set -euo pipefail
+
+# --- Only run on git push commands ---
+INPUT=$(cat)
+COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null) || exit 0
+
+# Check if this is a git push command (anywhere in the command string)
+if ! echo "$COMMAND" | grep -qE 'git\s+.*push'; then
+  exit 0
+fi
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
