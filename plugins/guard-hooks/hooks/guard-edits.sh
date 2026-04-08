@@ -53,11 +53,9 @@ block() {
 Reason: $1
 File: $FILE_PATH
 
-ACTION REQUIRED: Ask the user for permission. Either:
-  1. Use AskUserQuestion and check if they respond with "approve"
-  2. Tell the user to type "approve" directly into the chat
-Once approval is confirmed, retry the ORIGINAL edit unchanged.
-Do NOT re-run automatically without user approval.
+ACTION REQUIRED: You MUST use the AskUserQuestion tool to ask the user for explicit permission before proceeding.
+Do NOT re-run automatically. Do NOT assume approval.
+If the user denies or does not respond, do NOT write to this file.
 EOF
   exit 2
 }
@@ -69,7 +67,10 @@ if echo "$FILE_PATH" | grep -qE '\.claude/guard-approve$'; then
 fi
 
 # --- Environment / secrets files ---
-if echo "$FILE_PATH" | grep -qEi '(\.env$|\.env\.|credentials|secrets|\.pem$|\.key$|id_rsa)'; then
+# Allow template/example env files (they contain only placeholders, not real secrets)
+if echo "$FILE_PATH" | grep -qEi '\.(example|sample|template|defaults)$'; then
+  : # safe template file — fall through
+elif echo "$FILE_PATH" | grep -qEi '(\.env$|\.env\.|credentials|secrets|\.pem$|\.key$|id_rsa)'; then
   block "This looks like a sensitive file containing secrets."
 fi
 

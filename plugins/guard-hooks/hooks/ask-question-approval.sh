@@ -30,7 +30,8 @@ if [ -z "$ANSWER" ]; then
 fi
 
 # Check if the user's answer is an approval
-if echo "$ANSWER" | grep -qiE '(^|\s)approve(\s|$)'; then
+# Accept common affirmative responses: "approve", "yes", "allow", "ok", "go ahead", etc.
+if echo "$ANSWER" | grep -qiE '(^|\s)(approve|yes|allow|ok|okay|go ahead|do it|confirmed|permit|granted)(\s|[,.]|$)'; then
   APPROVE_FILE="$HOME/.claude/guard-approve"
   mkdir -p "$(dirname "$APPROVE_FILE")"
   touch "$APPROVE_FILE"

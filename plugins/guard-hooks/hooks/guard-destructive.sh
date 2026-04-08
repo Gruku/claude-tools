@@ -13,6 +13,10 @@ APPROVE_FILE="$HOME/.claude/guard-approve"
 INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 
+# Debug logging — uncomment to diagnose hook bypass issues
+# LOG_FILE="$HOME/.claude/guard-debug.log"
+# echo "[$(date '+%Y-%m-%d %H:%M:%S')] COMMAND: $COMMAND" >> "$LOG_FILE"
+
 if [ -z "$COMMAND" ]; then
   exit 0
 fi
@@ -58,12 +62,9 @@ block() {
 Reason: $1
 Command: $COMMAND
 
-ACTION REQUIRED: Ask the user for permission. Either:
-  1. Use AskUserQuestion and check if they respond with "approve"
-  2. Tell the user to type "approve" directly into the chat
-Once approval is confirmed, retry the ORIGINAL command unchanged.
-Do NOT attempt to create the approval file yourself.
-Do NOT re-run automatically without user approval.
+ACTION REQUIRED: You MUST use the AskUserQuestion tool to ask the user for explicit permission before proceeding.
+Do NOT re-run automatically. Do NOT assume approval.
+If the user denies or does not respond, do NOT run this command.
 EOF
   exit 2
 }
@@ -77,7 +78,8 @@ fi
 # Extract the git push portion, accounting for global flags like -C <path>
 # between 'git' and 'push'. Stops at && | or ; to avoid false positives
 # from words like "main/master" appearing in commit messages.
-PUSH_CMD=$(echo "$COMMAND" | grep -oE 'git\s+(-[a-zA-Z]+\s+\S+\s+)*push(\s+[^;&|]+)?' | head -1)
+# Uses two patterns: one for flags-with-args (like -C path), one for simpler forms.
+PUSH_CMD=$(echo "$COMMAND" | grep -oE 'git\s+((-[a-zA-Z]+\s+\S+|--[a-z-]+)\s+)*push(\s+[^;&|]+)?' | head -1)
 if [ -n "$PUSH_CMD" ]; then
   # Extract just the args after "push" for cleaner matching
   PUSH_ARGS=$(echo "$PUSH_CMD" | sed 's/.*push//')
