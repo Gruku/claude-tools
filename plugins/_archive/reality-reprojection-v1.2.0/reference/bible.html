@@ -1,0 +1,2495 @@
+<!DOCTYPE html>
+<html lang="en" data-polarity="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reality's Reprojection — Exploration v3 Materials</title>
+  <link rel="stylesheet" href="../css/system.css">
+  <link rel="stylesheet" href="exploration.css">
+  <style>
+    :root {
+      --signature: #00d3fa;
+      --signature-vivid: #3de6ff;
+      --signature-muted: #0c8ea4;
+      --signature-dim: rgba(0, 211, 250, 0.24);
+      --v3-accent-lime: #64fa00;
+      --v3-accent-pink: #fa017b;
+      --v3-accent-blue-dim: rgba(0, 211, 250, 0.22);
+    }
+
+    html[data-polarity="light"] {
+      --signature: #00b6d6;
+      --signature-vivid: #00d3fa;
+      --signature-muted: #0f7f93;
+      --signature-dim: rgba(0, 182, 214, 0.2);
+    }
+
+    .v3-upgrade-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: var(--space-md);
+      margin-top: var(--space-lg);
+    }
+
+    .v3-upgrade-card {
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-default);
+      background: rgba(13, 13, 12, 0.72);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow: var(--shadow-elevated), var(--shadow-inner-glow);
+      padding: var(--space-md);
+      min-height: 170px;
+      transition:
+        border-color var(--dur-micro) var(--ease-bell),
+        box-shadow var(--dur-standard) var(--ease-hourglass);
+    }
+
+    .v3-upgrade-card:hover {
+      border-color: rgba(0, 211, 250, 0.25);
+    }
+
+    html[data-polarity="light"] .v3-upgrade-card {
+      background: rgba(226, 223, 218, 0.82);
+    }
+
+    .v3-upgrade-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      background-image: var(--grain-texture);
+      background-size: 420px 420px;
+      opacity: 0.16;
+      mix-blend-mode: overlay;
+      filter: contrast(0.8);
+    }
+
+    .v3-upgrade-card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      background-image: radial-gradient(circle at center, rgba(255,255,255,1) 0 1.5px, transparent 2.3px);
+      background-size: 11px 11px;
+      opacity: 0.12;
+      mix-blend-mode: soft-light;
+      -webkit-mask-image: radial-gradient(ellipse at center, transparent calc(100% - 72px), black 100%);
+      mask-image: radial-gradient(ellipse at center, transparent calc(100% - 72px), black 100%);
+    }
+
+    .v3-upgrade-card > * {
+      position: relative;
+      z-index: 3;
+    }
+
+    .v3-chip-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: var(--space-sm);
+    }
+
+    .v3-chip {
+      border-radius: var(--radius-sm);
+      min-height: 28px;
+      padding: 0 10px;
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid transparent;
+      font-family: var(--font-technical);
+      font-size: 12px;
+      font-weight: 700;
+      color: #0d0d0c;
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wide);
+    }
+
+    .v3-chip--blue { background: #00d3fa; }
+    .v3-chip--lime { background: #64fa00; }
+    .v3-chip--pink { background: #fa017b; }
+
+    .v3-surface-stack {
+      display: grid;
+      gap: 8px;
+      margin-top: var(--space-sm);
+    }
+
+    .v3-surface {
+      min-height: 40px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-default);
+      display: flex;
+      align-items: center;
+      padding: 0 var(--space-sm);
+      font-family: var(--font-technical);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .v3-surface--frost {
+      background: rgba(13, 13, 12, 0.75);
+      backdrop-filter: blur(15px);
+      -webkit-backdrop-filter: blur(15px);
+      box-shadow: var(--shadow-sm);
+    }
+
+    html[data-polarity="light"] .v3-surface--frost {
+      background: rgba(226, 223, 218, 0.8);
+    }
+
+    .v3-surface--concrete {
+      background: var(--surface-recessed);
+      box-shadow: var(--shadow-recessed);
+    }
+
+    .v3-accent-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: var(--space-md);
+    }
+
+    .v3-frost-arena {
+      position: relative;
+      margin-top: var(--space-lg);
+      padding: var(--space-md);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-subtle);
+      overflow: hidden;
+      background: var(--surface-ground);
+    }
+
+    .v3-frost-arena::before,
+    .v3-frost-arena::after {
+      content: "";
+      position: absolute;
+      inset: -12%;
+      pointer-events: none;
+    }
+
+    .v3-frost-arena::before {
+      background:
+        radial-gradient(circle at 16% 24%, rgba(0, 211, 250, 0.4), transparent 42%),
+        radial-gradient(circle at 82% 74%, rgba(250, 1, 123, 0.34), transparent 46%),
+        radial-gradient(circle at 48% 86%, rgba(100, 250, 0, 0.28), transparent 40%);
+      filter: blur(2px);
+    }
+
+    .v3-frost-arena::after {
+      background-image: var(--grain-texture);
+      background-size: 560px 560px;
+      opacity: 0.07;
+      mix-blend-mode: soft-light;
+    }
+
+    .v3-frost-arena > * {
+      position: relative;
+      z-index: 2;
+    }
+
+    .v3-frost-card {
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+      min-height: 176px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(13, 13, 12, 0.62);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow: var(--shadow-sm);
+      padding: var(--space-md);
+    }
+
+    html[data-polarity="light"] .v3-frost-card {
+      border-color: rgba(255, 255, 255, 0.62);
+      background: rgba(226, 223, 218, 0.72);
+    }
+
+    .v3-frost-card__content {
+      position: relative;
+      z-index: 3;
+      display: grid;
+      gap: 6px;
+    }
+
+    .v3-frost-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      border-radius: inherit;
+      z-index: 1;
+      background-image: var(--grain-texture);
+      background-size: 512px 512px;
+      opacity: 0.055;
+      mix-blend-mode: soft-light;
+      filter: contrast(0.84);
+    }
+
+    .v3-frost-card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      border-radius: inherit;
+      z-index: 2;
+      background-image: radial-gradient(circle at center, rgba(255, 255, 255, 1) 0 1.50px, transparent 2.30px);
+      background-size: 11px 11px;
+      opacity: 0.06;
+      mix-blend-mode: soft-light;
+      -webkit-mask-image: radial-gradient(ellipse at center, transparent calc(100% - 80px), black 100%);
+      mask-image: radial-gradient(ellipse at center, transparent calc(100% - 80px), black 100%);
+    }
+
+    .v3-frost-card--blue { background-color: rgba(0, 211, 250, 0.09); }
+    .v3-frost-card--lime { background-color: rgba(100, 250, 0, 0.08); }
+    .v3-frost-card--pink { background-color: rgba(250, 1, 123, 0.08); }
+
+    html[data-polarity="light"] .v3-frost-card--blue { background-color: rgba(0, 182, 214, 0.1); }
+    html[data-polarity="light"] .v3-frost-card--lime { background-color: rgba(100, 250, 0, 0.08); }
+    html[data-polarity="light"] .v3-frost-card--pink { background-color: rgba(250, 1, 123, 0.08); }
+
+    .v3-treatment-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: var(--space-md);
+    }
+
+    .v3-treatment-card {
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+      min-height: 188px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(13, 13, 12, 0.62);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow: var(--shadow-elevated), var(--shadow-inner-glow);
+      padding: var(--space-md);
+      transition:
+        border-color var(--dur-micro) var(--ease-bell),
+        box-shadow var(--dur-standard) var(--ease-hourglass);
+    }
+
+    .v3-treatment-card:hover {
+      border-color: rgba(255, 255, 255, 0.28);
+    }
+
+    html[data-polarity="light"] .v3-treatment-card {
+      border-color: rgba(255, 255, 255, 0.62);
+      background: rgba(226, 223, 218, 0.72);
+    }
+
+    .v3-treatment-card__content { position: relative; z-index: 3; }
+
+    .v3-treatment-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      z-index: 1;
+      background-image: var(--grain-texture);
+      background-size: var(--v3-grain-scale, 512px) var(--v3-grain-scale, 512px);
+      opacity: var(--v3-grain-opacity, 0.185);
+      mix-blend-mode: var(--v3-grain-blend, overlay);
+      filter: contrast(var(--v3-grain-contrast, 0.75));
+      pointer-events: none;
+    }
+
+    .v3-treatment-card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      border-radius: inherit;
+      z-index: 2;
+      background-image: radial-gradient(circle at center, rgba(255, 255, 255, 1) 0 var(--v3-dot-size, 1.5px), transparent var(--v3-dot-falloff, 2.3px));
+      background-size: var(--v3-dot-gap, 11px) var(--v3-dot-gap, 11px);
+      opacity: var(--v3-dot-opacity, 0.13);
+      mix-blend-mode: soft-light;
+      -webkit-mask-image: radial-gradient(ellipse at center, transparent calc(100% - var(--v3-dot-band, 80px)), black 100%);
+      mask-image: radial-gradient(ellipse at center, transparent calc(100% - var(--v3-dot-band, 80px)), black 100%);
+    }
+
+    .v3-treatment-card--fine {
+      --v3-grain-scale: 420px;
+      --v3-grain-opacity: 0.045;
+      --v3-grain-contrast: 0.9;
+      --v3-dot-gap: 13px;
+      --v3-dot-opacity: 0.055;
+      --v3-dot-band: 66px;
+    }
+
+    .v3-treatment-card--coarse {
+      --v3-grain-scale: 512px;
+      --v3-grain-opacity: 0.065;
+      --v3-grain-contrast: 0.8;
+      --v3-dot-gap: 11px;
+      --v3-dot-opacity: 0.07;
+      --v3-dot-band: 80px;
+    }
+
+    .v3-treatment-card--concrete {
+      --v3-grain-scale: 360px;
+      --v3-grain-opacity: 0.08;
+      --v3-grain-contrast: 1.05;
+      --v3-grain-blend: multiply;
+      --v3-dot-gap: 15px;
+      --v3-dot-opacity: 0.05;
+      --v3-dot-band: 90px;
+    }
+
+    .v3-treatment-card--edge {
+      --v3-grain-scale: 384px;
+      --v3-grain-opacity: 0.06;
+      --v3-grain-contrast: 0.88;
+      --v3-dot-gap: 10px;
+      --v3-dot-opacity: 0.06;
+      --v3-dot-band: 56px;
+    }
+
+    html[data-polarity="light"] .hero__title-line--accent,
+    html[data-polarity="light"] .hero__badge--accent,
+    html[data-polarity="light"] .btn--primary,
+    html[data-polarity="light"] .badge--accent,
+    html[data-polarity="light"] .badge--lg.badge--accent,
+    html[data-polarity="light"] .tag--signature,
+    html[data-polarity="light"] .tab.is-active,
+    html[data-polarity="light"] .chart__bar-fill--accent {
+      color: #0d0d0c;
+    }
+
+    html[data-polarity="light"] .btn--primary,
+    html[data-polarity="light"] .badge--accent,
+    html[data-polarity="light"] .tag--signature,
+    html[data-polarity="light"] .tab.is-active,
+    html[data-polarity="light"] .chart__bar-fill--accent {
+      background-color: var(--signature);
+      border-color: transparent;
+    }
+
+    html[data-polarity="light"] .hero__title-line--accent,
+    html[data-polarity="light"] a,
+    html[data-polarity="light"] .section-label,
+    html[data-polarity="light"] .technical--label {
+      color: var(--signature-muted);
+    }
+
+    /* ================================================================
+       TASK 1 — Narrator readability: whisper too thin at small sizes
+       ================================================================ */
+    .narrator--whisper {
+      font-weight: var(--font-narrator-weight-medium);
+      letter-spacing: 0.005em;
+    }
+
+    .narrator--small {
+      font-weight: var(--font-narrator-weight-medium);
+    }
+
+    /* Section labels — 10px technical at 600 reads thin. Bump weight. */
+    .section-label {
+      font-weight: 800;
+      font-size: 11px;
+    }
+
+    /* ================================================================
+       TASK 2 — Light mode theming tokens (from materials.html)
+       ================================================================ */
+    :root {
+      --signature-fill: var(--signature);
+      --signature-fill-hover: var(--signature-vivid);
+      --on-signature: #f5f3ed;
+      --signature-text: var(--signature);
+    }
+
+    html[data-polarity="light"] {
+      --signature-fill: #00b5d1;
+      --signature-fill-hover: #00c7e4;
+      --on-signature: #04212a;
+      --signature-text: #4f7f89;
+    }
+
+    html[data-polarity="light"] .btn--primary {
+      background: var(--signature-fill);
+      color: var(--on-signature);
+      border-color: var(--signature-fill);
+    }
+
+    html[data-polarity="light"] .btn--primary:hover {
+      background: var(--signature-fill-hover);
+      color: var(--on-signature);
+    }
+
+    html[data-polarity="light"] .badge--accent {
+      background: var(--signature-fill);
+      color: var(--on-signature);
+      border-color: transparent;
+    }
+
+    html[data-polarity="light"] .tag--signature {
+      background: var(--signature-fill);
+      color: var(--on-signature);
+      border-color: transparent;
+    }
+
+    html[data-polarity="light"] .tab.is-active {
+      color: var(--on-signature);
+      background: var(--signature-fill);
+    }
+
+    html[data-polarity="light"] .hero__badge--accent {
+      color: var(--on-signature);
+      background: var(--signature-fill);
+      border-color: transparent;
+    }
+
+    html[data-polarity="light"] .section-label {
+      color: var(--signature-text);
+    }
+
+    html[data-polarity="light"] .hero__title-line--accent {
+      color: var(--signature);
+    }
+
+    /* ================================================================
+       TASK 3 — Hourglass easing: smooth flow, not quintic snap
+       ================================================================ */
+    :root {
+      --ease-hourglass: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* ================================================================
+       TASK 4 — Small button hover: reduce lift for btn--sm
+       ================================================================ */
+    .btn--sm:hover {
+      transform: none;
+    }
+
+    .btn--sm:active {
+      transform: translateY(1px);
+    }
+
+    /* ================================================================
+       TASK 5 — Frosted background behind card sections
+       ================================================================ */
+    .frost-backdrop {
+      position: relative;
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      padding: var(--space-xl);
+    }
+
+    .frost-backdrop::before {
+      content: "";
+      position: absolute;
+      inset: -15%;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 20% 30%, rgba(0, 211, 250, 0.32), transparent 45%),
+        radial-gradient(circle at 80% 70%, rgba(250, 1, 123, 0.26), transparent 48%),
+        radial-gradient(circle at 50% 85%, rgba(100, 250, 0, 0.2), transparent 42%);
+      filter: blur(4px);
+      z-index: 0;
+    }
+
+    .frost-backdrop::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+      background-image: var(--grain-texture);
+      background-size: 512px 512px;
+      opacity: 0.06;
+      mix-blend-mode: soft-light;
+    }
+
+    .frost-backdrop > * {
+      position: relative;
+      z-index: 2;
+    }
+
+    /* Section-level frost backdrop for system architecture cards */
+    .section-frost-bg {
+      position: relative;
+    }
+
+    .section-frost-bg::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse at 25% 20%, rgba(0, 211, 250, 0.12), transparent 50%),
+        radial-gradient(ellipse at 75% 80%, rgba(250, 1, 123, 0.08), transparent 50%);
+    }
+
+    .section-frost-bg > .container {
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ================================================================
+       TASK 6 — Mouse-tracking glow for cards
+       ================================================================ */
+    /* ---- Mouse glow: two modes ---- */
+    .card-glow {
+      --glow-x: 50%;
+      --glow-y: 50%;
+      --glow-opacity: 0;
+    }
+
+    /* Mode A: Full area glow — very faint on frosted surfaces */
+    .card-glow__light {
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      z-index: 5;
+      background: radial-gradient(
+        300px circle at var(--glow-x) var(--glow-y),
+        rgba(0, 211, 250, 0.04) 0%,
+        transparent 55%
+      );
+      opacity: var(--glow-opacity);
+      transition: opacity var(--dur-standard) var(--ease-hourglass);
+    }
+
+    html[data-polarity="light"] .card-glow__light {
+      background: radial-gradient(
+        300px circle at var(--glow-x) var(--glow-y),
+        rgba(0, 182, 214, 0.05) 0%,
+        transparent 55%
+      );
+    }
+
+    /* Mode B: Border-only glow — snappy highlight that traces edges */
+    .card-glow__border {
+      position: absolute;
+      inset: -1px;
+      border-radius: inherit;
+      pointer-events: none;
+      z-index: 5;
+      background: radial-gradient(
+        250px circle at var(--glow-x) var(--glow-y),
+        rgba(0, 211, 250, 0.35) 0%,
+        transparent 50%
+      );
+      opacity: var(--glow-opacity);
+      transition: opacity var(--dur-micro) var(--ease-bell);
+      -webkit-mask-image:
+        linear-gradient(black, black),
+        linear-gradient(black, black);
+      -webkit-mask-clip: content-box, border-box;
+      -webkit-mask-composite: xor;
+      mask-image:
+        linear-gradient(black, black),
+        linear-gradient(black, black);
+      mask-clip: content-box, border-box;
+      mask-composite: exclude;
+      padding: 1px;
+    }
+
+    html[data-polarity="light"] .card-glow__border {
+      background: radial-gradient(
+        250px circle at var(--glow-x) var(--glow-y),
+        rgba(0, 182, 214, 0.4) 0%,
+        transparent 50%
+      );
+    }
+
+    /* ================================================================
+       TASK 7 — Spinner: slower, smoother rotation
+       ================================================================ */
+    .is-loading::after {
+      animation: spin-smooth 1s var(--ease-hourglass) infinite !important;
+    }
+
+    @keyframes spin-smooth {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* ================================================================
+       TASK 8 — Accordion caret with depth
+       ================================================================ */
+    .accordion__caret {
+      width: 20px;
+      height: 20px;
+      background: var(--ground-15);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-xs);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 1px 2px rgba(0, 0, 0, 0.15);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition:
+        transform var(--dur-standard) var(--ease-hourglass),
+        background-color var(--dur-standard) var(--ease-hourglass),
+        border-color var(--dur-standard) var(--ease-hourglass);
+    }
+
+    .accordion__caret::after {
+      content: '' !important;
+      display: block;
+      width: 6px;
+      height: 6px;
+      border-right: 2px solid var(--foreground-subtle);
+      border-bottom: 2px solid var(--foreground-subtle);
+      transform: rotate(-45deg);
+      margin-left: -1px;
+      font-size: 0 !important;
+      transition: border-color var(--dur-standard) var(--ease-hourglass);
+    }
+
+    .accordion__item.is-expanded .accordion__caret {
+      background: var(--signature-dim);
+      border-color: var(--signature-muted);
+    }
+
+    .accordion__item.is-expanded .accordion__caret::after {
+      border-color: var(--signature-vivid);
+    }
+
+    html[data-polarity="light"] .accordion__caret {
+      background: var(--ground-80);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.3),
+        0 1px 2px rgba(0, 0, 0, 0.08);
+    }
+
+    html[data-polarity="light"] .accordion__item.is-expanded .accordion__caret {
+      background: rgba(0, 211, 250, 0.15);
+      border-color: var(--signature-muted);
+    }
+
+    /* ================================================================
+       TASK 9 — Material animations
+       ================================================================ */
+
+    /* Shimmer pass on treatment cards */
+    .v3-treatment-card {
+      overflow: hidden;
+    }
+
+    .v3-treatment-card .shimmer-pass {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      pointer-events: none;
+      background: linear-gradient(
+        105deg,
+        transparent 40%,
+        rgba(255, 255, 255, 0.04) 45%,
+        rgba(255, 255, 255, 0.08) 50%,
+        rgba(255, 255, 255, 0.04) 55%,
+        transparent 60%
+      );
+      background-size: 250% 100%;
+      animation: shimmer-sweep 6s var(--ease-hourglass) infinite;
+    }
+
+    @keyframes shimmer-sweep {
+      0%   { background-position: 200% 0; }
+      40%  { background-position: -50% 0; }
+      100% { background-position: -50% 0; }
+    }
+
+    /* Breathing glow for the hero neon line */
+    .hero__neon {
+      animation: neon-breathe-deep 5s var(--ease-hourglass) infinite;
+    }
+
+    @keyframes neon-breathe-deep {
+      0%, 100% {
+        opacity: 0.7;
+        box-shadow:
+          0 0 6px var(--signature),
+          0 0 16px rgba(0, 211, 250, 0.3),
+          0 0 32px rgba(0, 211, 250, 0.1),
+          -0.7px 0 4px rgba(250, 1, 123, 0.06),
+          0.7px 0 4px rgba(100, 250, 0, 0.05);
+      }
+      50% {
+        opacity: 1;
+        box-shadow:
+          0 0 10px var(--signature),
+          0 0 28px rgba(0, 211, 250, 0.45),
+          0 0 56px rgba(0, 211, 250, 0.2),
+          -0.7px 0 6px rgba(250, 1, 123, 0.10),
+          0.7px 0 6px rgba(100, 250, 0, 0.08);
+      }
+    }
+
+    /* Entrance float for upgrade cards */
+    .v3-upgrade-card.is-visible {
+      animation: material-float-in 0.6s var(--ease-hourglass) both;
+      animation-delay: calc(var(--i, 0) * 80ms);
+    }
+
+    @keyframes material-float-in {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+        filter: blur(2px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+        filter: blur(0);
+      }
+    }
+
+    /* Grain: GPU-promote to prevent scroll flicker */
+    .v3-upgrade-card::before,
+    .v3-treatment-card::before,
+    .v3-frost-card::before,
+    .mat-grain-fine::before,
+    .mat-grain-coarse::before,
+    .mat-grain-concrete::before {
+      will-change: opacity;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      transform: translateZ(0);
+    }
+
+    /* Accent border pulse on stat cards hover */
+    .stat-card {
+      transition:
+        border-color var(--dur-standard) var(--ease-hourglass),
+        box-shadow var(--dur-standard) var(--ease-hourglass),
+        transform var(--dur-standard) var(--ease-hourglass);
+    }
+
+    .stat-card:hover {
+      transform: translateY(-1px);
+      border-color: rgba(0, 211, 250, 0.3);
+      box-shadow: 0 4px 16px rgba(0, 211, 250, 0.1), 0 0 0 1px rgba(0, 211, 250, 0.06);
+    }
+
+    /* Material entrance for frost arena cards — snappy border, smooth lift */
+    .v3-frost-card {
+      transition:
+        transform var(--dur-standard) var(--ease-hourglass),
+        box-shadow var(--dur-standard) var(--ease-hourglass),
+        border-color var(--dur-micro) var(--ease-bell);
+    }
+
+    .v3-frost-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-elevated);
+    }
+
+    /* Progress bar fill animation */
+    .progress__fill {
+      transition: width 0.8s var(--ease-hourglass);
+    }
+
+    .progress__fill--animated {
+      animation: progress-grow 1.2s var(--ease-hourglass) both;
+    }
+
+    @keyframes progress-grow {
+      from { width: 0%; }
+    }
+
+    /* Easing dot trail glow */
+    .easing-dot {
+      box-shadow: 0 0 8px rgba(0, 211, 250, 0.5), 0 0 16px rgba(0, 211, 250, 0.2);
+    }
+
+    .easing-dot::after {
+      content: "";
+      position: absolute;
+      width: 24px;
+      height: 4px;
+      top: 3px;
+      right: 8px;
+      background: linear-gradient(to left, rgba(0, 211, 250, 0.4), transparent);
+      border-radius: var(--radius-full);
+      pointer-events: none;
+    }
+
+    /* ================================================================
+       TASK 10 — Accent integration: weave accents deeper
+       ================================================================ */
+
+    /* Accent-tinted section dividers */
+    .section + .section::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 10%;
+      right: 10%;
+      height: 1px;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(0, 211, 250, 0.3) 30%,
+        rgba(250, 1, 123, 0.2) 50%,
+        rgba(100, 250, 0, 0.15) 70%,
+        transparent
+      );
+      z-index: 2;
+    }
+
+    /* Accent glow on component-block focus-within */
+    .component-block:hover {
+      border-color: rgba(0, 211, 250, 0.15);
+      box-shadow: 0 0 0 1px rgba(0, 211, 250, 0.04);
+    }
+
+    /* Accent tint for the chart accent bars */
+    .chart__bar-fill--accent {
+      background: linear-gradient(to top, var(--signature), var(--signature-vivid));
+      box-shadow: 0 0 8px rgba(0, 211, 250, 0.2);
+    }
+
+    /* Accent border shimmer on navigation active item */
+    .nav-item.is-active {
+      position: relative;
+    }
+
+    .nav-item.is-active::after {
+      content: "";
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--signature), rgba(0, 211, 250, 0.3));
+      border-radius: var(--radius-full);
+    }
+
+    .nav--vertical .nav-item.is-active::after {
+      bottom: auto;
+      top: 0;
+      left: -1px;
+      right: auto;
+      width: 2px;
+      height: 100%;
+      background: linear-gradient(to bottom, var(--signature), rgba(0, 211, 250, 0.3));
+    }
+
+    /* Accent glow for active toggles */
+    .toggle.is-active .toggle__track {
+      box-shadow: 0 0 8px rgba(0, 211, 250, 0.2);
+    }
+
+    /* Accent-tinted footer */
+    .footer {
+      border-top: 1px solid rgba(0, 211, 250, 0.12);
+    }
+
+    .footer::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 60px;
+      pointer-events: none;
+      background: linear-gradient(
+        to bottom,
+        rgba(0, 211, 250, 0.03),
+        transparent
+      );
+    }
+
+    /* Accent dot on hero meta */
+    .hero__meta-dot {
+      background: var(--signature);
+      box-shadow: 0 0 4px rgba(0, 211, 250, 0.3);
+    }
+
+    /* Badge pulse glow uses accent */
+    .badge--pulse {
+      box-shadow: 0 0 0 0 rgba(0, 211, 250, 0.4);
+      animation: accent-pulse 2s var(--ease-pendulum) infinite;
+    }
+
+    @keyframes accent-pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(0, 211, 250, 0.4); }
+      70%  { box-shadow: 0 0 0 8px rgba(0, 211, 250, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(0, 211, 250, 0); }
+    }
+
+    /* Frost card accent tint on hover */
+    .v3-frost-card--blue:hover {
+      border-color: rgba(0, 211, 250, 0.3);
+      box-shadow: var(--shadow-elevated), 0 0 24px rgba(0, 211, 250, 0.08);
+    }
+
+    .v3-frost-card--lime:hover {
+      border-color: rgba(100, 250, 0, 0.25);
+      box-shadow: var(--shadow-elevated), 0 0 24px rgba(100, 250, 0, 0.06);
+    }
+
+    .v3-frost-card--pink:hover {
+      border-color: rgba(250, 1, 123, 0.25);
+      box-shadow: var(--shadow-elevated), 0 0 24px rgba(250, 1, 123, 0.06);
+    }
+
+    /* Signature underline for declaration h2 in section headers */
+    .section__header .declaration--h2 {
+      position: relative;
+      display: inline-block;
+    }
+
+    .section__header .declaration--h2::after {
+      content: "";
+      position: absolute;
+      bottom: -6px;
+      left: 0;
+      width: 48px;
+      height: 2px;
+      background: var(--signature);
+      border-radius: var(--radius-full);
+      opacity: 0.5;
+    }
+
+    /* ================================================================
+       Frost overlay showcase — cards over visible content
+       ================================================================ */
+    .frost-overlay-showcase {
+      position: relative;
+      min-height: 340px;
+      overflow: hidden;
+      border-radius: var(--radius-lg);
+    }
+
+    .frost-overlay-showcase__bg {
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(135deg, var(--surface-ground) 0%, var(--ground-15) 50%, var(--surface-ground) 100%);
+      padding: var(--space-xl);
+      display: flex;
+      align-items: center;
+    }
+
+    .frost-overlay-showcase__content {
+      position: relative;
+      z-index: 1;
+    }
+
+    .frost-overlay-showcase__cards {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      gap: var(--space-lg);
+      padding: var(--space-xl);
+      padding-left: 40%;
+      min-height: 340px;
+      align-items: center;
+    }
+
+    .frost-overlay-card {
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+      flex: 0 0 220px;
+      min-height: 200px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(13, 13, 12, 0.6);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      box-shadow: var(--shadow-elevated), var(--shadow-inner-glow);
+      padding: var(--space-md);
+      transition:
+        border-color var(--dur-micro) var(--ease-bell),
+        box-shadow var(--dur-standard) var(--ease-hourglass),
+        transform var(--dur-standard) var(--ease-hourglass);
+    }
+
+    .frost-overlay-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(0, 211, 250, 0.3);
+      box-shadow: var(--shadow-elevated), 0 0 20px rgba(0, 211, 250, 0.08);
+    }
+
+    .frost-overlay-card--tinted {
+      background: rgba(0, 211, 250, 0.08);
+      border-color: rgba(0, 211, 250, 0.18);
+    }
+
+    html[data-polarity="light"] .frost-overlay-card {
+      background: rgba(226, 223, 218, 0.65);
+      border-color: rgba(255, 255, 255, 0.5);
+    }
+
+    html[data-polarity="light"] .frost-overlay-card--tinted {
+      background: rgba(0, 182, 214, 0.1);
+      border-color: rgba(0, 182, 214, 0.25);
+    }
+
+    .frost-overlay-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      border-radius: inherit;
+      z-index: 1;
+      background-image: var(--grain-texture);
+      background-size: 512px 512px;
+      opacity: 0.04;
+      mix-blend-mode: soft-light;
+      filter: contrast(0.85);
+      will-change: opacity;
+      backface-visibility: hidden;
+      transform: translateZ(0);
+    }
+
+    .frost-overlay-card__inner {
+      position: relative;
+      z-index: 3;
+      display: grid;
+      gap: var(--space-xs);
+    }
+
+    @media (max-width: 768px) {
+      .frost-overlay-showcase__cards {
+        padding-left: var(--space-xl);
+        flex-direction: column;
+      }
+      .frost-overlay-card {
+        flex: none;
+        width: 100%;
+      }
+    }
+
+    /* ================================================================
+       CHROMATIC ABERRATION — Lens-split on accent elements.
+       Faint RGB channel offset using accent palette.
+       Pink shifts left, lime shifts right — like a prism edge.
+       ================================================================ */
+
+    /* Override system chromatic fringes with page accent palette */
+    :root {
+      --chromatic-a: rgba(250, 1, 123, 1);
+      --chromatic-b: rgba(100, 250, 0, 1);
+    }
+
+    /* Hero neon — chromatic glow baked into breathing animation */
+    .hero__neon {
+      box-shadow:
+        0 0 6px var(--signature),
+        0 0 16px rgba(0, 211, 250, 0.3),
+        0 0 32px rgba(0, 211, 250, 0.1),
+        calc(var(--chromatic-offset-lg) * -1) 0 4px rgba(250, 1, 123, 0.10),
+        var(--chromatic-offset-lg) 0 4px rgba(100, 250, 0, 0.08);
+    }
+
+    /* Frost card hover — chromatic edge layered with existing shadows */
+    .v3-frost-card--blue:hover {
+      box-shadow:
+        var(--shadow-elevated),
+        0 0 24px rgba(0, 211, 250, 0.08),
+        calc(var(--chromatic-offset-sm) * -1) 0 0 rgba(250, 1, 123, 0.10),
+        var(--chromatic-offset-sm) 0 0 rgba(100, 250, 0, 0.08);
+    }
+
+    /* Section dividers — chromatic vertical split */
+    .section + .section::before {
+      box-shadow:
+        0 calc(var(--chromatic-offset-sm) * -1) 0 rgba(250, 1, 123, 0.10),
+        0 var(--chromatic-offset-sm) 0 rgba(100, 250, 0, 0.08);
+    }
+
+    /* Primary button hover — prism edge */
+    .btn--primary:hover {
+      box-shadow:
+        var(--highlight-inner),
+        var(--shadow-hover-signature),
+        calc(var(--chromatic-offset-sm) * -1) 0 0 rgba(250, 1, 123, 0.10),
+        var(--chromatic-offset-sm) 0 0 rgba(100, 250, 0, 0.08);
+    }
+
+    /* Reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      .v3-treatment-card .shimmer-pass { animation: none; display: none; }
+      .hero__neon { animation: none; opacity: 1; }
+      .v3-upgrade-card.is-visible { animation: none; }
+      .badge--pulse { animation: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Edge grid (fixed background) -->
+  <div class="edge-grid" aria-hidden="true"></div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- HEADER                                              -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <header class="header header--sticky header--frost">
+    <div class="header__brand">
+      <span class="header__brand-name">Reality's Reprojection</span>
+    </div>
+    <nav class="header__nav">
+      <div class="nav nav--horizontal">
+        <a href="#hero" class="nav-item is-active">Origin</a>
+        <a href="#materials-update" class="nav-item">Materials</a>
+        <a href="#colors" class="nav-item">Colors</a>
+        <a href="#system" class="nav-item">System</a>
+        <a href="#halftone" class="nav-item">Halftone</a>
+        <a href="#components" class="nav-item">Components</a>
+        <a href="#showcases" class="nav-item">Showcases</a>
+        <a href="#motion" class="nav-item">Motion</a>
+        <a href="#info" class="nav-item">Info</a>
+      </div>
+    </nav>
+    <div class="header__actions">
+      <button class="polarity-toggle" id="polarityToggle" aria-label="Toggle light/dark mode">◐</button>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- HERO — Left-aligned, geometric, neon accent         -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <section class="hero" id="hero">
+    <!-- Geometric background elements -->
+    <div class="hero__grid-bg" aria-hidden="true"></div>
+    <div class="hero__geo-circle" aria-hidden="true"></div>
+    <div class="hero__geo-cross" aria-hidden="true"></div>
+    <div class="hero__geo-diag" aria-hidden="true"></div>
+    <div class="hero__grain mat-grain-coarse" aria-hidden="true"></div>
+
+    <!-- Coordinate annotations -->
+    <span class="hero__coord hero__coord--tl" aria-hidden="true">0, 0</span>
+    <span class="hero__coord hero__coord--tr" aria-hidden="true">1440, 0</span>
+    <span class="hero__coord hero__coord--br" aria-hidden="true">1440, 900</span>
+
+    <div class="hero__content">
+      <div class="hero__badge-row reveal" style="--i:0">
+        <span class="hero__badge hero__badge--accent mat-chromatic-edge">Design System</span>
+        <span class="hero__badge">v2.0</span>
+        <span class="hero__badge">35 Modules</span>
+      </div>
+
+      <h1 class="hero__title">
+        <span class="hero__title-line reveal" style="--i:1">Reality's</span>
+        <span class="hero__title-line hero__title-line--accent mat-chromatic-text reveal" style="--i:2">Reprojection</span>
+      </h1>
+
+      <div class="hero__neon reveal" style="--i:3" aria-hidden="true"></div>
+
+      <p class="narrator narrator--large hero__subtitle reveal" style="--i:4">
+        A design system built from the conviction that interfaces should feel
+        <em>manufactured</em> — precise, warm, and engineered with purpose.
+      </p>
+
+      <div class="hero__actions reveal" style="--i:5">
+        <a href="#system" class="btn btn--primary btn--lg">Explore the System</a>
+        <a href="#components" class="btn btn--secondary btn--lg">View Components</a>
+      </div>
+
+      <div class="hero__meta reveal" style="--i:6">
+        <span class="technical technical--small">3 voices</span>
+        <span class="hero__meta-dot"></span>
+        <span class="technical technical--small">2 polarities</span>
+        <span class="hero__meta-dot"></span>
+        <span class="technical technical--small">80+ tokens</span>
+      </div>
+    </div>
+
+    <div class="hero__scroll-cue reveal" style="--i:7">
+      <div class="hero__scroll-line"></div>
+      <span class="technical technical--label">Scroll</span>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- MATERIALS UPDATE v3                                 -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <section class="section section--alt" id="materials-update">
+    <div class="container">
+      <div class="section__header reveal">
+        <span class="section-label">Updated Materials</span>
+        <h2 class="declaration declaration--h2 mat-chromatic-text--subtle">Color + Surface Treatment Upgrade</h2>
+        <p class="narrator narrator--default section__desc">
+          This variant applies the new accent direction and surface logic from
+          <code>materials.html</code>: custom color control, differentiated grain profiles,
+          inner-rim halftone treatment, and corrected inner-shadow composition.
+        </p>
+      </div>
+
+      <div class="v3-upgrade-grid reveal-stagger">
+        <article class="v3-upgrade-card card-glow reveal" style="--i:0">
+          <h3 class="declaration declaration--h5">Accent Set</h3>
+          <p class="narrator narrator--small">Primary blue with complementary lime and pink.</p>
+          <div class="v3-chip-row">
+            <span class="v3-chip v3-chip--blue">#00D3FA</span>
+            <span class="v3-chip v3-chip--lime">#64FA00</span>
+            <span class="v3-chip v3-chip--pink">#FA017B</span>
+          </div>
+        </article>
+
+        <article class="v3-upgrade-card card-glow reveal" style="--i:1">
+          <h3 class="declaration declaration--h5">Surface Treatments</h3>
+          <p class="narrator narrator--small">Frost and concrete now feel distinct by profile.</p>
+          <div class="v3-surface-stack">
+            <div class="v3-surface v3-surface--frost">Frost: blur + tint + inner shadow</div>
+            <div class="v3-surface v3-surface--concrete">Concrete: recessed + heavier grain response</div>
+          </div>
+        </article>
+
+        <article class="v3-upgrade-card card-glow reveal" style="--i:2">
+          <h3 class="declaration declaration--h5">Customizer Output</h3>
+          <p class="narrator narrator--small">Full snippet output with reusable CSS + markup blocks.</p>
+          <div class="list list--compact" style="margin-top: var(--space-sm);">
+            <div class="list-item"><span class="technical technical--label">Grain</span><span class="narrator narrator--whisper" style="margin-left: var(--space-xs)">type + opacity + scale + contrast</span></div>
+            <div class="list-item"><span class="technical technical--label">Halftone</span><span class="narrator narrator--whisper" style="margin-left: var(--space-xs)">dot size + gap + opacity + band</span></div>
+            <div class="list-item"><span class="technical technical--label">Shadow</span><span class="narrator narrator--whisper" style="margin-left: var(--space-xs)">outer + inner composition fixed</span></div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- COLOR EXPLORATION                                   -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <section class="section" id="colors">
+    <div class="container">
+      <div class="section__header reveal">
+        <span class="section-label">Palette Exploration</span>
+        <h2 class="declaration declaration--h2 mat-chromatic-text--subtle">Updated Accent System</h2>
+        <p class="narrator narrator--default section__desc">
+          The palette now centers around signature blue with two deliberate complementary accents
+          for state contrast, emphasis, and motion cues.
+        </p>
+      </div>
+
+      <div class="v3-accent-grid reveal">
+        <article class="v3-frost-card v3-frost-card--blue">
+          <div class="v3-frost-card__content">
+            <span class="section-label">Primary Frost</span>
+            <h3 class="declaration declaration--h5">Blue Command Surface</h3>
+            <p class="narrator narrator--small">Signature frost tint for active actions and focused panes.</p>
+            <div class="cluster">
+              <button class="btn btn--primary btn--sm">Active</button>
+              <span class="badge badge--accent">#00D3FA</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="v3-frost-card v3-frost-card--lime">
+          <div class="v3-frost-card__content">
+            <span class="section-label">Support Frost</span>
+            <h3 class="declaration declaration--h5">Lime Status Surface</h3>
+            <p class="narrator narrator--small">Support treatment for positive/live states without over-saturating text.</p>
+            <div class="cluster">
+              <span class="badge badge--success">Live</span>
+              <span class="tag tag--success">#64FA00</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="v3-frost-card v3-frost-card--pink">
+          <div class="v3-frost-card__content">
+            <span class="section-label">Critical Frost</span>
+            <h3 class="declaration declaration--h5">Pink Alert Surface</h3>
+            <p class="narrator narrator--small">Complementary critical emphasis for editorial or alert contexts.</p>
+            <div class="cluster">
+              <span class="badge badge--critical">Critical</span>
+              <span class="tag tag--critical">#FA017B</span>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <!-- Signature palette reference -->
+      <div class="component-block reveal" style="margin-top: var(--space-xl)">
+        <h3 class="declaration declaration--h5 mb-sm">Signature Scale — Cyan</h3>
+        <div class="signature-scale">
+          <div class="signature-step" style="background: var(--signature-dim)">
+            <span class="technical technical--label" style="color: var(--signature-vivid); font-weight: 800">Dim</span>
+          </div>
+          <div class="signature-step" style="background: var(--signature-muted)">
+            <span class="technical technical--label" style="color: #f5f3ed; font-weight: 800">Muted</span>
+          </div>
+          <div class="signature-step" style="background: var(--signature)">
+            <span class="technical technical--label" style="color: #04161c; font-weight: 800">Signature</span>
+          </div>
+          <div class="signature-step" style="background: var(--signature-vivid)">
+            <span class="technical technical--label" style="color: #04161c; font-weight: 800">Vivid</span>
+          </div>
+        </div>
+
+        <h3 class="declaration declaration--h5 mb-sm" style="margin-top: var(--space-md)">Accent Scale — Lime</h3>
+        <div class="signature-scale">
+          <div class="signature-step" style="background: rgba(100, 250, 0, 0.22)">
+            <span class="technical technical--label" style="color: #7dff33; font-weight: 800">Dim</span>
+          </div>
+          <div class="signature-step" style="background: #3d8a0a">
+            <span class="technical technical--label" style="color: #f5f3ed; font-weight: 800">Muted</span>
+          </div>
+          <div class="signature-step" style="background: #64fa00">
+            <span class="technical technical--label" style="color: #0d0d0c; font-weight: 800">Accent</span>
+          </div>
+          <div class="signature-step" style="background: #7dff33">
+            <span class="technical technical--label" style="color: #0d0d0c; font-weight: 800">Vivid</span>
+          </div>
+        </div>
+
+        <h3 class="declaration declaration--h5 mb-sm" style="margin-top: var(--space-md)">Accent Scale — Pink</h3>
+        <div class="signature-scale">
+          <div class="signature-step" style="background: rgba(250, 1, 123, 0.22)">
+            <span class="technical technical--label" style="color: #ff4da0; font-weight: 800">Dim</span>
+          </div>
+          <div class="signature-step" style="background: #a3014f">
+            <span class="technical technical--label" style="color: #f5f3ed; font-weight: 800">Muted</span>
+          </div>
+          <div class="signature-step" style="background: #fa017b">
+            <span class="technical technical--label" style="color: #f5f3ed; font-weight: 800">Accent</span>
+          </div>
+          <div class="signature-step" style="background: #ff4da0">
+            <span class="technical technical--label" style="color: #0d0d0c; font-weight: 800">Vivid</span>
+          </div>
+        </div>
+        <div class="ground-scale" style="margin-top: var(--space-md)">
+          <div class="ground-step" style="background: var(--ground-0)"><span>0</span></div>
+          <div class="ground-step" style="background: var(--ground-5)"><span>5</span></div>
+          <div class="ground-step" style="background: var(--ground-10)"><span>10</span></div>
+          <div class="ground-step" style="background: var(--ground-15)"><span>15</span></div>
+          <div class="ground-step" style="background: var(--ground-20)"><span>20</span></div>
+          <div class="ground-step" style="background: var(--ground-30)"><span>30</span></div>
+          <div class="ground-step" style="background: var(--ground-40)"><span>40</span></div>
+          <div class="ground-step ground-step--light" style="background: var(--ground-50)"><span>50</span></div>
+          <div class="ground-step ground-step--light" style="background: var(--ground-60)"><span>60</span></div>
+          <div class="ground-step ground-step--light" style="background: var(--ground-70)"><span>70</span></div>
+          <div class="ground-step ground-step--light" style="background: var(--ground-80)"><span>80</span></div>
+          <div class="ground-step ground-step--light" style="background: var(--ground-90)"><span>90</span></div>
+          <div class="ground-step ground-step--light" style="background: var(--ground-100)"><span>100</span></div>
+        </div>
+      </div>
+
+      <!-- Frost overlay showcase — cards over content -->
+      <div class="component-block reveal" style="margin-top: var(--space-xl); padding: 0; overflow: hidden;">
+        <div class="frost-overlay-showcase">
+          <div class="frost-overlay-showcase__bg" aria-hidden="true">
+            <div class="frost-overlay-showcase__content">
+              <h3 class="declaration declaration--h3" style="color: var(--signature-vivid); margin-bottom: var(--space-sm);">Underlying Content</h3>
+              <p class="narrator narrator--default" style="max-width: 520px; color: var(--foreground-default);">
+                This text sits behind frosted glass cards. The backdrop-filter blur reveals
+                just enough to prove the surface material is real, not faked.
+              </p>
+              <div class="cluster" style="margin-top: var(--space-md);">
+                <span class="badge badge--accent">System Token</span>
+                <span class="badge badge--success">Active</span>
+                <span class="badge badge--warning">Pending</span>
+                <span class="badge badge--critical">Alert</span>
+              </div>
+              <div style="margin-top: var(--space-lg); display: flex; gap: var(--space-md);">
+                <div style="width: 80px; height: 80px; border-radius: var(--radius-md); background: var(--signature); opacity: 0.8;"></div>
+                <div style="width: 80px; height: 80px; border-radius: var(--radius-md); background: var(--v3-accent-lime); opacity: 0.7;"></div>
+                <div style="width: 80px; height: 80px; border-radius: var(--radius-md); background: var(--v3-accent-pink); opacity: 0.7;"></div>
+              </div>
+            </div>
+          </div>
+          <div class="frost-overlay-showcase__cards">
+            <div class="frost-overlay-card card-glow">
+              <div class="frost-overlay-card__inner">
+                <span class="section-label">Frost Overlay</span>
+                <h4 class="declaration declaration--h5">Blurred Surface</h4>
+                <p class="narrator narrator--whisper">Content behind this card is visible but diffused through the frosted glass material.</p>
+              </div>
+            </div>
+            <div class="frost-overlay-card frost-overlay-card--tinted card-glow">
+              <div class="frost-overlay-card__inner">
+                <span class="section-label">Tinted Frost</span>
+                <h4 class="declaration declaration--h5">Accent Surface</h4>
+                <p class="narrator narrator--whisper">Accent-tinted frost adds color depth while maintaining readability of layered content.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- SYSTEM OVERVIEW                                     -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <section class="section section--alt section-frost-bg" id="system">
+    <div class="container">
+      <div class="section__header reveal">
+        <span class="section-label">System Architecture</span>
+        <h2 class="declaration declaration--h2 mat-chromatic-text--subtle">Built in Layers</h2>
+        <p class="narrator narrator--default section__desc">
+          Foundations define the physics. Materials give texture.
+          Components compose the interface.
+        </p>
+      </div>
+
+      <div class="grid grid--3 mb-2xl">
+        <div class="card card--interactive mat-grain-fine card-glow reveal" style="--i:0">
+          <div class="card__header">
+            <span class="section-label">Layer 01</span>
+            <h3 class="declaration declaration--h4">Foundations</h3>
+          </div>
+          <div class="card__body">
+            <p class="narrator narrator--small">
+              Reset, fonts, colors, typography, spacing, and motion.
+              The bedrock physics that every element inherits.
+            </p>
+            <div class="cluster" style="margin-top: var(--space-md)">
+              <span class="tag tag--default">Colors</span>
+              <span class="tag tag--default">Typography</span>
+              <span class="tag tag--default">Spacing</span>
+              <span class="tag tag--default">Motion</span>
+              <span class="tag tag--default">Fonts</span>
+              <span class="tag tag--default">Reset</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card--interactive mat-grain-fine card-glow reveal" style="--i:1">
+          <div class="card__header">
+            <span class="section-label">Layer 02</span>
+            <h3 class="declaration declaration--h4">Materials</h3>
+          </div>
+          <div class="card__body">
+            <p class="narrator narrator--small">
+              Grain, frost, shadows, and radii. Tactile textures
+              that give surfaces their manufactured feel.
+            </p>
+            <div class="cluster" style="margin-top: var(--space-md)">
+              <span class="tag tag--signature">Grain</span>
+              <span class="tag tag--signature">Frost</span>
+              <span class="tag tag--signature">Shadows</span>
+              <span class="tag tag--signature">Radii</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card--interactive mat-grain-fine card-glow reveal" style="--i:2">
+          <div class="card__header">
+            <span class="section-label">Layer 03</span>
+            <h3 class="declaration declaration--h4">Components</h3>
+          </div>
+          <div class="card__body">
+            <p class="narrator narrator--small">
+              22 component modules — buttons, cards, forms, navigation,
+              and more. Each carrying the system's DNA.
+            </p>
+            <div class="cluster" style="margin-top: var(--space-md)">
+              <span class="tag tag--default">Buttons</span>
+              <span class="tag tag--default">Cards</span>
+              <span class="tag tag--default">Forms</span>
+              <span class="tag tag--default">+19 more</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Typography Showcase -->
+      <div class="showcase reveal">
+        <span class="section-label">Three Voices</span>
+        <div class="showcase__voices">
+          <div class="showcase__voice">
+            <h3 class="declaration declaration--h1 showcase__voice-sample">Declaration</h3>
+            <p class="technical technical--small">Syne 800 — Commands attention. Headlines and identity.</p>
+          </div>
+          <div class="showcase__voice">
+            <p class="narrator narrator--large showcase__voice-sample">Narrator carries meaning through the body. It speaks with warmth and weight, guiding reading at comfortable rhythm.</p>
+            <p class="technical technical--small">DM Sans 600 — Carries meaning. Body and interface.</p>
+          </div>
+          <div class="showcase__voice">
+            <code class="technical technical--default showcase__voice-sample">Technical marks data with precision: 14px, #00d3fa, 200ms</code>
+            <p class="technical technical--small">JetBrains Mono 600 — Marks data. Labels and metadata.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- HALFTONE COMPARISON                                 -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <section class="section" id="halftone">
+    <div class="container">
+      <div class="section__header reveal">
+        <span class="section-label">Material Treatment Set</span>
+        <h2 class="declaration declaration--h2 mat-chromatic-text--subtle">Halftone + Grain Frost Variants</h2>
+        <p class="narrator narrator--default section__desc">
+          These variants implement the frosted glass structure with grain on <code>::before</code>
+          and inner-rim halftone dots on <code>::after</code>, then tune each profile by density,
+          blend behavior, and edge banding.
+        </p>
+      </div>
+
+      <div class="frost-backdrop">
+        <div class="v3-treatment-grid reveal-stagger">
+          <article class="v3-treatment-card v3-treatment-card--fine reveal" style="--i:0">
+            <div class="shimmer-pass" aria-hidden="true"></div>
+            <div class="v3-treatment-card__content">
+              <span class="section-label">Profile A</span>
+              <h3 class="declaration declaration--h5 mb-xs">Fine Frost</h3>
+              <p class="narrator narrator--small">Low-opacity grain, wider dot spacing, softer rim.</p>
+              <p class="technical technical--small">scale 420 / grain 0.11 / dots 13px / band 66px</p>
+            </div>
+          </article>
+
+          <article class="v3-treatment-card v3-treatment-card--coarse reveal" style="--i:1">
+            <div class="shimmer-pass" aria-hidden="true"></div>
+            <div class="v3-treatment-card__content">
+              <span class="section-label">Profile B</span>
+              <h3 class="declaration declaration--h5 mb-xs">Coarse Frost</h3>
+              <p class="narrator narrator--small">Matches the baseline recipe with stronger texture body.</p>
+              <p class="technical technical--small">scale 512 / grain 0.185 / dots 11px / band 80px</p>
+            </div>
+          </article>
+
+          <article class="v3-treatment-card v3-treatment-card--concrete reveal" style="--i:2">
+            <div class="shimmer-pass" aria-hidden="true"></div>
+            <div class="v3-treatment-card__content">
+              <span class="section-label">Profile C</span>
+              <h3 class="declaration declaration--h5 mb-xs">Concrete Frost</h3>
+              <p class="narrator narrator--small">Heavier contrast, multiply grain blend, quieter halftone.</p>
+              <p class="technical technical--small">scale 360 / grain 0.215 / contrast 1.25 / dots 15px</p>
+            </div>
+          </article>
+
+          <article class="v3-treatment-card v3-treatment-card--edge reveal" style="--i:3">
+            <div class="shimmer-pass" aria-hidden="true"></div>
+            <div class="v3-treatment-card__content">
+              <span class="section-label">Profile D</span>
+              <h3 class="declaration declaration--h5 mb-xs">Edge-Rim Frost</h3>
+              <p class="narrator narrator--small">Tighter band with visible perimeter and cleaner center.</p>
+              <p class="technical technical--small">scale 384 / grain 0.165 / dots 10px / band 56px</p>
+            </div>
+          </article>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- COMPONENT STRESS TEST                               -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <section class="section section--alt" id="components">
+    <div class="container">
+      <div class="section__header reveal">
+        <span class="section-label">Component Library</span>
+        <h2 class="declaration declaration--h2 mat-chromatic-text--subtle">Every Piece, Working</h2>
+      </div>
+
+      <!-- Buttons -->
+      <div class="component-block reveal">
+        <h3 class="declaration declaration--h5 mb-md">Buttons</h3>
+        <div class="cluster">
+          <button class="btn btn--primary">Primary</button>
+          <button class="btn btn--secondary">Secondary</button>
+          <button class="btn btn--ghost">Ghost</button>
+          <button class="btn btn--critical">Critical</button>
+          <button class="btn btn--primary btn--sm">Small</button>
+          <button class="btn btn--primary btn--lg">Large</button>
+          <button class="btn btn--primary" disabled>Disabled</button>
+          <button class="btn btn--primary btn--icon btn--sm" aria-label="Add">+</button>
+        </div>
+      </div>
+
+      <!-- Badges & Tags -->
+      <div class="grid grid--2 mb-lg">
+        <div class="component-block reveal" style="--i:0">
+          <h3 class="declaration declaration--h5 mb-md">Badges</h3>
+          <div class="cluster">
+            <span class="badge badge--success">Deployed</span>
+            <span class="badge badge--warning">Pending</span>
+            <span class="badge badge--critical">Failed</span>
+            <span class="badge badge--info">In Review</span>
+            <span class="badge badge--accent">Featured</span>
+            <span class="badge badge--critical badge--pulse">Alert</span>
+            <span class="badge badge--sm">Tiny</span>
+            <span class="badge badge--lg badge--accent">Large</span>
+          </div>
+        </div>
+        <div class="component-block reveal" style="--i:1">
+          <h3 class="declaration declaration--h5 mb-md">Tags</h3>
+          <div class="cluster">
+            <span class="tag tag--default">Default</span>
+            <span class="tag tag--signature">Signature</span>
+            <span class="tag tag--success">Success</span>
+            <span class="tag tag--warning">Warning</span>
+            <span class="tag tag--critical">Critical</span>
+            <span class="tag tag--interactive tag--signature">Interactive <button class="tag__dismiss" aria-label="Remove">&times;</button></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Alerts -->
+      <div class="component-block reveal">
+        <h3 class="declaration declaration--h5 mb-md">Alerts</h3>
+        <div class="stack--sm">
+          <div class="alert alert--success">
+            <div class="alert__icon"></div>
+            <div class="alert__content">
+              <div class="alert__title">Build Succeeded</div>
+              <div class="alert__body narrator narrator--small">All 35 modules compiled. System integrity verified.</div>
+            </div>
+            <span class="alert__meta">2s ago</span>
+          </div>
+          <div class="alert alert--warning">
+            <div class="alert__icon"></div>
+            <div class="alert__content">
+              <div class="alert__title">Deprecation Notice</div>
+              <div class="alert__body narrator narrator--small"><code class="technical technical--small">ease-in-out</code> will be removed. Use system curves only.</div>
+            </div>
+          </div>
+          <div class="alert alert--critical">
+            <div class="alert__icon"></div>
+            <div class="alert__content">
+              <div class="alert__title">Cascade Conflict</div>
+              <div class="alert__body narrator narrator--small">Specificity collision detected in layer 03.</div>
+            </div>
+            <button class="alert__dismiss" aria-label="Dismiss">&times;</button>
+          </div>
+          <div class="alert alert--info">
+            <div class="alert__icon"></div>
+            <div class="alert__content">
+              <div class="alert__title">Documentation Updated</div>
+              <div class="alert__body narrator narrator--small">40+ reference files now live in <code class="technical technical--small">updated-documentation/</code></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Progress + Forms -->
+      <div class="grid grid--2 mb-lg">
+        <div class="component-block reveal" style="--i:0">
+          <h3 class="declaration declaration--h5 mb-md">Progress</h3>
+          <div class="stack--sm">
+            <div class="progress-group">
+              <div class="progress-group__header">
+                <span class="progress__label">System Coverage</span>
+                <span class="progress__value">87%</span>
+              </div>
+              <div class="progress"><div class="progress__fill" style="width: 87%"></div></div>
+            </div>
+            <div class="progress-group">
+              <div class="progress-group__header">
+                <span class="progress__label">Component Tests</span>
+                <span class="progress__value">64%</span>
+              </div>
+              <div class="progress progress--success"><div class="progress__fill" style="width: 64%"></div></div>
+            </div>
+            <div class="progress-group">
+              <div class="progress-group__header"><span class="progress__label">Building...</span></div>
+              <div class="progress progress--indeterminate"><div class="progress__fill"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="component-block reveal" style="--i:1">
+          <h3 class="declaration declaration--h5 mb-md">Forms</h3>
+          <div class="stack--sm">
+            <div class="form-group">
+              <label class="form-label">System Name</label>
+              <input class="input" type="text" value="Reality's Reprojection" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Error State</label>
+              <input class="input input--error" type="text" value="ease-in-out" />
+              <span class="form-error">Forbidden easing. Use system curves only.</span>
+            </div>
+            <div class="flex gap-md">
+              <label class="checkbox"><input type="checkbox" checked /> <span>Grain</span></label>
+              <label class="checkbox"><input type="checkbox" /> <span>Survivalist</span></label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Toggles, Avatars, Tabs -->
+      <div class="grid grid--3 mb-lg">
+        <div class="component-block reveal" style="--i:0">
+          <h3 class="declaration declaration--h5 mb-md">Toggles</h3>
+          <div class="stack--md">
+            <div class="flex items-center justify-between">
+              <span class="narrator narrator--small">Dark Polarity</span>
+              <div class="toggle is-active"><div class="toggle__track"><div class="toggle__thumb"></div></div></div>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="narrator narrator--small">Grain Textures</span>
+              <div class="toggle is-active"><div class="toggle__track"><div class="toggle__thumb"></div></div></div>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="narrator narrator--small">Survivalist</span>
+              <div class="toggle"><div class="toggle__track"><div class="toggle__thumb"></div></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="component-block reveal" style="--i:1">
+          <h3 class="declaration declaration--h5 mb-md">Avatars</h3>
+          <div class="flex items-center gap-md flex-wrap" style="padding: var(--space-sm) 0;">
+            <div class="avatar avatar--sm avatar--initials">S</div>
+            <div class="avatar avatar--initials">RR</div>
+            <div class="avatar avatar--lg avatar--initials">
+              DS
+              <span class="avatar__status avatar__status--online"></span>
+            </div>
+            <div class="avatar avatar--xl avatar--initials">
+              AV
+              <span class="avatar__status avatar__status--away"></span>
+            </div>
+          </div>
+          <div class="avatar-group" style="margin-top: var(--space-md); padding: var(--space-xs) 0;">
+            <div class="avatar avatar--initials">A</div>
+            <div class="avatar avatar--initials">B</div>
+            <div class="avatar avatar--initials">C</div>
+            <div class="avatar avatar--initials" style="background: var(--ground-30); color: var(--foreground-subtle)">+3</div>
+          </div>
+        </div>
+
+        <div class="component-block reveal" style="--i:2">
+          <h3 class="declaration declaration--h5 mb-md">Tabs</h3>
+          <div style="padding: var(--space-xs) 0;">
+            <div class="tabs" role="tablist">
+              <button class="tab is-active" role="tab" data-tab="tab-f2">Foundations</button>
+              <button class="tab" role="tab" data-tab="tab-m2">Materials</button>
+              <button class="tab" role="tab" data-tab="tab-c2">Components</button>
+            </div>
+            <div class="tab-panel is-active" id="tab-f2">
+              <p class="narrator narrator--whisper" style="padding: var(--space-sm) 0;">6 foundational modules define the physics of every interface element.</p>
+            </div>
+            <div class="tab-panel" id="tab-m2">
+              <p class="narrator narrator--whisper" style="padding: var(--space-sm) 0;">4 material modules give surfaces their tactile quality.</p>
+            </div>
+            <div class="tab-panel" id="tab-c2">
+              <p class="narrator narrator--whisper" style="padding: var(--space-sm) 0;">22 component modules compose the full interface vocabulary.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Accordion + Table -->
+      <div class="grid grid--2 mb-lg">
+        <div class="component-block reveal" style="--i:0">
+          <h3 class="declaration declaration--h5 mb-md">Accordion</h3>
+          <div class="accordion">
+            <div class="accordion__item is-expanded">
+              <button class="accordion__header">What easing curves are permitted?<span class="accordion__caret"></span></button>
+              <div class="accordion__content"><div class="accordion__body"><div class="accordion__body-inner">
+                <p class="narrator narrator--small">Only system tokens: <code class="technical technical--small">hourglass</code>, <code class="technical technical--small">pendulum</code>, and <code class="technical technical--small">bell</code>.</p>
+              </div></div></div>
+            </div>
+            <div class="accordion__item">
+              <button class="accordion__header">When can scale() be used?<span class="accordion__caret"></span></button>
+              <div class="accordion__content"><div class="accordion__body"><div class="accordion__body-inner">
+                <p class="narrator narrator--small">Only in the Bell impact animation. Never on hover.</p>
+              </div></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="component-block reveal" style="--i:1">
+          <h3 class="declaration declaration--h5 mb-md">Navigation</h3>
+          <nav class="nav nav--vertical" style="padding: var(--space-xs) 0;">
+            <span class="nav-label">Foundations</span>
+            <a href="#" class="nav-item is-active">Colors</a>
+            <a href="#" class="nav-item">Typography</a>
+            <a href="#" class="nav-item">Spacing</a>
+            <div class="nav-divider"></div>
+            <span class="nav-label">Materials</span>
+            <a href="#" class="nav-item">Grain</a>
+            <a href="#" class="nav-item">Frost</a>
+          </nav>
+        </div>
+      </div>
+
+      <!-- Breadcrumbs, Pagination, Tooltips -->
+      <div class="grid grid--3 mb-lg">
+        <div class="component-block reveal" style="--i:0">
+          <h3 class="declaration declaration--h5 mb-md">Breadcrumbs</h3>
+          <nav class="breadcrumbs" style="padding: var(--space-xs) 0;">
+            <span class="breadcrumb"><a href="#" class="breadcrumb__link">System</a></span>
+            <span class="breadcrumb"><a href="#" class="breadcrumb__link">Components</a></span>
+            <span class="breadcrumb is-current">Buttons</span>
+          </nav>
+        </div>
+
+        <div class="component-block reveal" style="--i:1">
+          <h3 class="declaration declaration--h5 mb-md">Pagination</h3>
+          <nav class="pagination" style="padding: var(--space-xs) 0;">
+            <span class="pagination__item"><button class="pagination__link pagination__prev">&larr;</button></span>
+            <span class="pagination__item"><button class="pagination__link">1</button></span>
+            <span class="pagination__item"><button class="pagination__link is-current" aria-current="page">2</button></span>
+            <span class="pagination__item"><button class="pagination__link">3</button></span>
+            <span class="pagination__item"><span class="pagination__ellipsis">&hellip;</span></span>
+            <span class="pagination__item"><button class="pagination__link">12</button></span>
+            <span class="pagination__item"><button class="pagination__link pagination__next">&rarr;</button></span>
+          </nav>
+        </div>
+
+        <div class="component-block reveal" style="--i:2">
+          <h3 class="declaration declaration--h5 mb-md">Tooltips</h3>
+          <div class="cluster" style="padding: var(--space-sm) 0;">
+            <span class="tooltip tooltip--top">
+              <button class="btn btn--secondary btn--sm">Top</button>
+              <span class="tooltip__content">Tooltip on top</span>
+            </span>
+            <span class="tooltip tooltip--bottom">
+              <button class="btn btn--secondary btn--sm">Bottom</button>
+              <span class="tooltip__content">Tooltip on bottom</span>
+            </span>
+            <span class="tooltip tooltip--right">
+              <button class="btn btn--secondary btn--sm">Right</button>
+              <span class="tooltip__content">Tooltip on right</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Skeleton Loading -->
+      <div class="component-block reveal">
+        <h3 class="declaration declaration--h5 mb-md">Skeleton Loading</h3>
+        <div class="grid grid--3">
+          <div class="skeleton skeleton--card" style="padding: var(--space-md)">
+            <div class="skeleton skeleton--heading"></div>
+            <div class="skeleton skeleton--text-full" style="margin-top: var(--space-sm)"></div>
+            <div class="skeleton skeleton--text-medium" style="margin-top: var(--space-xs)"></div>
+            <div class="skeleton skeleton--text-short" style="margin-top: var(--space-xs)"></div>
+          </div>
+          <div style="display: flex; gap: var(--space-md); align-items: center; padding: var(--space-lg);">
+            <div class="skeleton skeleton--avatar-lg skeleton--circle"></div>
+            <div class="flex-1 stack--sm">
+              <div class="skeleton skeleton--text-medium"></div>
+              <div class="skeleton skeleton--text-short"></div>
+            </div>
+          </div>
+          <div style="padding: var(--space-md)">
+            <div class="skeleton skeleton--button" style="margin-bottom: var(--space-sm)"></div>
+            <div class="skeleton skeleton--text-full" style="margin-bottom: var(--space-xs)"></div>
+            <div class="skeleton skeleton--text-full" style="margin-bottom: var(--space-xs)"></div>
+            <div class="skeleton skeleton--text-medium"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- SHOWCASES — Dashboard, Side Panel, Loading          -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <section class="section" id="showcases">
+    <div class="container">
+      <div class="section__header reveal">
+        <span class="section-label">Real-World Patterns</span>
+        <h2 class="declaration declaration--h2 mat-chromatic-text--subtle">Full Showcases</h2>
+        <p class="narrator narrator--default section__desc">
+          Dashboard, side panel, and loading patterns —
+          components composed into real interfaces.
+        </p>
+      </div>
+
+      <!-- Dashboard Mini-App -->
+      <div class="component-block reveal" style="padding: 0; overflow: hidden;">
+        <div class="dashboard">
+          <aside class="dashboard__sidebar">
+            <div class="dashboard__sidebar-brand">
+              <span class="declaration declaration--h5">RR</span>
+              <span class="technical technical--label" style="display: block; color: var(--foreground-disabled); margin-top: 2px;">Monitor</span>
+            </div>
+            <nav class="nav nav--vertical">
+              <a href="#" class="nav-item is-active">Overview</a>
+              <a href="#" class="nav-item">Modules</a>
+              <a href="#" class="nav-item">Tokens</a>
+              <a href="#" class="nav-item">Tests</a>
+              <div class="nav-divider"></div>
+              <a href="#" class="nav-item">Settings</a>
+            </nav>
+          </aside>
+          <main class="dashboard__main">
+            <div class="flex items-center justify-between">
+              <h3 class="declaration declaration--h4">System Overview</h3>
+              <span class="badge badge--success">All Systems Nominal</span>
+            </div>
+
+            <!-- Stats -->
+            <div class="dashboard__stats">
+              <div class="stat-card">
+                <div class="stat-card__value">35</div>
+                <div class="stat-card__label">Modules</div>
+                <div class="stat-card__trend stat-card__trend--up">+9 this release</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-card__value">80+</div>
+                <div class="stat-card__label">Tokens</div>
+                <div class="stat-card__trend stat-card__trend--up">+24 soul pass</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-card__value">22</div>
+                <div class="stat-card__label">Components</div>
+                <div class="stat-card__trend stat-card__trend--up">+9 new</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-card__value">0</div>
+                <div class="stat-card__label">Conflicts</div>
+                <div class="stat-card__trend" style="color: var(--foreground-disabled)">Clean cascade</div>
+              </div>
+            </div>
+
+            <!-- Chart -->
+            <div>
+              <div class="flex items-center justify-between mb-xs">
+                <span class="technical technical--small">Module Complexity</span>
+                <span class="technical technical--label" style="color: var(--foreground-disabled)">Lines of CSS</span>
+              </div>
+              <div class="chart">
+                <div class="chart__bar"><div class="chart__bar-fill" style="height: 45%"></div><span class="chart__bar-label">Btn</span></div>
+                <div class="chart__bar"><div class="chart__bar-fill" style="height: 68%"></div><span class="chart__bar-label">Card</span></div>
+                <div class="chart__bar"><div class="chart__bar-fill chart__bar-fill--accent" style="height: 92%"></div><span class="chart__bar-label">Form</span></div>
+                <div class="chart__bar"><div class="chart__bar-fill" style="height: 55%"></div><span class="chart__bar-label">Nav</span></div>
+                <div class="chart__bar"><div class="chart__bar-fill" style="height: 78%"></div><span class="chart__bar-label">Modal</span></div>
+                <div class="chart__bar"><div class="chart__bar-fill" style="height: 85%"></div><span class="chart__bar-label">Table</span></div>
+                <div class="chart__bar"><div class="chart__bar-fill chart__bar-fill--accent" style="height: 95%"></div><span class="chart__bar-label">Alert</span></div>
+                <div class="chart__bar"><div class="chart__bar-fill" style="height: 42%"></div><span class="chart__bar-label">Tag</span></div>
+                <div class="chart__bar"><div class="chart__bar-fill" style="height: 60%"></div><span class="chart__bar-label">Drop</span></div>
+                <div class="chart__bar"><div class="chart__bar-fill" style="height: 38%"></div><span class="chart__bar-label">Badge</span></div>
+              </div>
+            </div>
+
+            <!-- Recent events table -->
+            <div class="table-wrap">
+              <table class="table table--striped table--hoverable table--compact">
+                <thead>
+                  <tr><th>Module</th><th>Status</th><th>Size</th><th class="text-right">Updated</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code class="technical technical--small">alerts.css</code></td>
+                    <td><span class="badge badge--success badge--sm">OK</span></td>
+                    <td>4.2kb</td>
+                    <td class="text-right">2m ago</td>
+                  </tr>
+                  <tr>
+                    <td><code class="technical technical--small">accordion.css</code></td>
+                    <td><span class="badge badge--success badge--sm">OK</span></td>
+                    <td>2.8kb</td>
+                    <td class="text-right">2m ago</td>
+                  </tr>
+                  <tr>
+                    <td><code class="technical technical--small">polarity.css</code></td>
+                    <td><span class="badge badge--warning badge--sm">Review</span></td>
+                    <td>3.1kb</td>
+                    <td class="text-right">5m ago</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </main>
+        </div>
+      </div>
+
+      <!-- Side Panel Demo -->
+      <div class="component-block reveal" style="padding: 0; overflow: hidden; margin-top: var(--space-lg);">
+        <div class="sidepanel-demo">
+          <div class="sidepanel-demo__main">
+            <h3 class="declaration declaration--h4 mb-md">Module Editor</h3>
+            <p class="narrator narrator--small mb-lg" style="color: var(--foreground-subtle)">
+              Select a module from the sidebar to configure its properties.
+              Changes are applied in real-time to the design system.
+            </p>
+            <div class="card card--compact mat-grain-fine mb-md">
+              <div class="card__body">
+                <div class="flex items-center justify-between mb-sm">
+                  <span class="declaration declaration--h5">colors.css</span>
+                  <span class="badge badge--success badge--sm">Active</span>
+                </div>
+                <p class="narrator narrator--whisper">Defines the signature hue, ground scale, semantic colors, and all foreground/surface/border tokens.</p>
+                <div class="progress-group" style="margin-top: var(--space-md)">
+                  <div class="progress-group__header">
+                    <span class="progress__label">Token Coverage</span>
+                    <span class="progress__value">94%</span>
+                  </div>
+                  <div class="progress"><div class="progress__fill" style="width: 94%"></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="card card--compact mb-md">
+              <div class="card__body">
+                <div class="flex items-center justify-between mb-sm">
+                  <span class="declaration declaration--h5">motion.css</span>
+                  <span class="badge badge--info badge--sm">Review</span>
+                </div>
+                <p class="narrator narrator--whisper">3 easing curves, 3 durations, stagger system. Zero forbidden keywords.</p>
+              </div>
+            </div>
+          </div>
+
+          <aside class="sidepanel-demo__panel">
+            <h4 class="declaration declaration--h5">Configuration</h4>
+
+            <div class="sidepanel-section">
+              <span class="section-label">Identity</span>
+              <div class="form-group" style="margin-top: var(--space-sm)">
+                <label class="form-label">Signature Hue</label>
+                <input class="input" type="text" value="#00d3fa" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Signature Vivid</label>
+                <input class="input" type="text" value="#3de6ff" />
+              </div>
+            </div>
+
+            <div class="sidepanel-section">
+              <span class="section-label">Behavior</span>
+              <div class="flex items-center justify-between" style="margin-top: var(--space-sm); padding: var(--space-xs) 0;">
+                <span class="narrator narrator--whisper">Enable grain</span>
+                <div class="toggle toggle--sm is-active"><div class="toggle__track"><div class="toggle__thumb"></div></div></div>
+              </div>
+              <div class="flex items-center justify-between" style="padding: var(--space-xs) 0;">
+                <span class="narrator narrator--whisper">Enable frost</span>
+                <div class="toggle toggle--sm is-active"><div class="toggle__track"><div class="toggle__thumb"></div></div></div>
+              </div>
+              <div class="flex items-center justify-between" style="padding: var(--space-xs) 0;">
+                <span class="narrator narrator--whisper">Survivalist</span>
+                <div class="toggle toggle--sm"><div class="toggle__track"><div class="toggle__thumb"></div></div></div>
+              </div>
+            </div>
+
+            <div style="margin-top: auto; display: flex; gap: var(--space-sm);">
+              <button class="btn btn--primary btn--sm flex-1">Save</button>
+              <button class="btn btn--ghost btn--sm">Reset</button>
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      <!-- Loading States -->
+      <div class="component-block reveal" style="margin-top: var(--space-lg);">
+        <h3 class="declaration declaration--h5 mb-md">Loading States</h3>
+        <div class="loading-grid">
+          <!-- Pulse dots -->
+          <div class="loading-card">
+            <span class="section-label loading-card__title">Pulse Loader</span>
+            <div class="pulse-loader">
+              <div class="pulse-loader__dot"></div>
+              <div class="pulse-loader__dot"></div>
+              <div class="pulse-loader__dot"></div>
+            </div>
+            <p class="narrator narrator--whisper" style="text-align: center">Pendulum-timed dot pulse</p>
+          </div>
+
+          <!-- Spinner -->
+          <div class="loading-card">
+            <span class="section-label loading-card__title">Spinner</span>
+            <div class="center" style="padding: var(--space-xl) 0;">
+              <button class="btn btn--primary is-loading" style="width: 120px;">Loading</button>
+            </div>
+            <p class="narrator narrator--whisper" style="text-align: center">System spinner state</p>
+          </div>
+
+          <!-- Stagger reveal -->
+          <div class="loading-card">
+            <span class="section-label loading-card__title">Stagger Reveal</span>
+            <div class="stagger-demo" style="padding: var(--space-md) 0;">
+              <div class="stagger-demo__row"></div>
+              <div class="stagger-demo__row"></div>
+              <div class="stagger-demo__row"></div>
+              <div class="stagger-demo__row"></div>
+              <div class="stagger-demo__row"></div>
+            </div>
+            <p class="narrator narrator--whisper" style="text-align: center">Hourglass stagger-in</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- MOTION COLLECTION                                   -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <section class="section section--alt" id="motion">
+    <div class="container">
+      <div class="section__header reveal">
+        <span class="section-label">Motion DNA</span>
+        <h2 class="declaration declaration--h2 mat-chromatic-text--subtle">Easing & Animation</h2>
+        <p class="narrator narrator--default section__desc">
+          Three curves. Three durations. Every state transition
+          follows physical easing that feels manufactured.
+        </p>
+      </div>
+
+      <!-- Easing dot tracks -->
+      <div class="component-block reveal">
+        <h3 class="declaration declaration--h5 mb-md">Easing Curves</h3>
+        <div class="easing-demo">
+          <div class="easing-track">
+            <span class="technical technical--small">Hourglass</span>
+            <div class="easing-rail"><div class="easing-dot easing-dot--hourglass"></div></div>
+          </div>
+          <p class="narrator narrator--whisper" style="padding-left: 112px;">Smoothest flow. Gentle acceleration, gentle deceleration — sand through glass. 4s cycle.</p>
+
+          <div class="easing-track">
+            <span class="technical technical--small">Pendulum</span>
+            <div class="easing-rail"><div class="easing-dot easing-dot--pendulum"></div></div>
+          </div>
+          <p class="narrator narrator--whisper" style="padding-left: 112px;">Even, metered swing. Staggered reveals and sequential motion. 2.4s cycle.</p>
+
+          <div class="easing-track">
+            <span class="technical technical--small">Bell</span>
+            <div class="easing-rail"><div class="easing-dot easing-dot--bell"></div></div>
+          </div>
+          <p class="narrator narrator--whisper" style="padding-left: 112px;">Sharp impact, holds presence. Snappiest feedback. 1.6s cycle.</p>
+        </div>
+      </div>
+
+      <!-- Interactive hover demos -->
+      <div class="component-block reveal">
+        <h3 class="declaration declaration--h5 mb-md">Hover Behaviors — Try Each</h3>
+        <div class="motion-grid">
+          <div class="motion-demo motion-demo--lift">
+            <div class="motion-demo__target"></div>
+            <span class="technical technical--label">Lift</span>
+            <span class="narrator narrator--whisper">translateY(-4px)</span>
+          </div>
+          <div class="motion-demo motion-demo--glow">
+            <div class="motion-demo__target"></div>
+            <span class="technical technical--label">Glow</span>
+            <span class="narrator narrator--whisper">Signature glow</span>
+          </div>
+          <div class="motion-demo motion-demo--shift">
+            <div class="motion-demo__target"></div>
+            <span class="technical technical--label">Shift</span>
+            <span class="narrator narrator--whisper">translateX(4px)</span>
+          </div>
+          <div class="motion-demo motion-demo--settle">
+            <div class="motion-demo__target"></div>
+            <span class="technical technical--label">Settle</span>
+            <span class="narrator narrator--whisper">Overshoot bounce</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Duration scale -->
+      <div class="component-block reveal">
+        <h3 class="declaration declaration--h5 mb-md">Duration Scale</h3>
+        <div class="grid grid--3">
+          <div class="card card--compact" style="text-align: center; padding: var(--space-lg);">
+            <span class="declaration declaration--h3">80ms</span>
+            <span class="technical technical--label" style="display: block; margin-top: var(--space-xs);">Micro</span>
+            <span class="narrator narrator--whisper" style="display: block; margin-top: var(--space-micro);">Snappy feedback</span>
+          </div>
+          <div class="card card--compact" style="text-align: center; padding: var(--space-lg);">
+            <span class="declaration declaration--h3">200ms</span>
+            <span class="technical technical--label" style="display: block; margin-top: var(--space-xs);">Standard</span>
+            <span class="narrator narrator--whisper" style="display: block; margin-top: var(--space-micro);">Considered transition</span>
+          </div>
+          <div class="card card--compact" style="text-align: center; padding: var(--space-lg);">
+            <span class="declaration declaration--h3">400ms</span>
+            <span class="technical technical--label" style="display: block; margin-top: var(--space-xs);">Macro</span>
+            <span class="narrator narrator--whisper" style="display: block; margin-top: var(--space-micro);">Spatial journey</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- MATERIALS                                           -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <section class="section" id="materials">
+    <div class="container">
+      <div class="section__header reveal">
+        <span class="section-label">Tactile Language</span>
+        <h2 class="declaration declaration--h2 mat-chromatic-text--subtle">Materials & Textures</h2>
+      </div>
+
+      <div class="grid grid--2 mb-lg">
+        <!-- Grain -->
+        <div class="component-block reveal" style="--i:0">
+          <h3 class="declaration declaration--h5 mb-md">Grain Intensities</h3>
+          <div class="grid grid--auto">
+            <div class="material-swatch mat-grain-fine"><span class="technical technical--label">Fine</span><span class="narrator narrator--whisper">0.025</span></div>
+            <div class="material-swatch mat-grain-concrete"><span class="technical technical--label">Concrete</span><span class="narrator narrator--whisper">0.03</span></div>
+            <div class="material-swatch mat-grain-coarse"><span class="technical technical--label">Coarse</span><span class="narrator narrator--whisper">0.04</span></div>
+          </div>
+        </div>
+
+        <!-- Frost -->
+        <div class="component-block reveal" style="--i:1">
+          <h3 class="declaration declaration--h5 mb-md">Frost Depths</h3>
+          <div class="frost-demo">
+            <div class="frost-demo__bg"></div>
+            <div class="grid grid--3 frost-demo__panels">
+              <div class="frost-panel mat-frost-light"><span class="technical technical--label">Light</span><span class="narrator narrator--whisper">8px</span></div>
+              <div class="frost-panel mat-frost-medium"><span class="technical technical--label">Medium</span><span class="narrator narrator--whisper">16px</span></div>
+              <div class="frost-panel mat-frost-heavy"><span class="technical technical--label">Heavy</span><span class="narrator narrator--whisper">24px</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid--2 mb-lg">
+        <!-- Shadows -->
+        <div class="component-block reveal" style="--i:0">
+          <h3 class="declaration declaration--h5 mb-md">Shadow Scale</h3>
+          <div class="grid grid--auto">
+            <div class="shadow-swatch mat-shadow-sm"><span class="technical technical--label">Small</span></div>
+            <div class="shadow-swatch mat-shadow-md"><span class="technical technical--label">Medium</span></div>
+            <div class="shadow-swatch mat-shadow-lg"><span class="technical technical--label">Large</span></div>
+            <div class="shadow-swatch mat-shadow-elevated"><span class="technical technical--label">Elevated</span></div>
+          </div>
+        </div>
+
+        <!-- Radii -->
+        <div class="component-block reveal" style="--i:1">
+          <h3 class="declaration declaration--h5 mb-md">Radius Scale</h3>
+          <div class="flex items-end gap-lg flex-wrap" style="padding: var(--space-sm) 0;">
+            <div class="radius-swatch rounded-xs"><span class="technical technical--label">2px</span></div>
+            <div class="radius-swatch rounded-sm"><span class="technical technical--label">3px</span></div>
+            <div class="radius-swatch rounded-md"><span class="technical technical--label">4px</span></div>
+            <div class="radius-swatch rounded-lg"><span class="technical technical--label">6px</span></div>
+            <div class="radius-swatch rounded-xl"><span class="technical technical--label">8px</span></div>
+            <div class="radius-swatch rounded-full" style="width: 64px; height: 64px;"><span class="technical technical--label">Full</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- INFO PANEL                                          -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <section class="section section--alt" id="info">
+    <div class="container">
+      <div class="section__header reveal">
+        <span class="section-label">System Identity</span>
+        <h2 class="declaration declaration--h2 mat-chromatic-text--subtle">Design Philosophy</h2>
+      </div>
+
+      <div class="info-grid reveal">
+        <div class="info-main">
+          <div class="card card--spacious mat-grain-fine">
+            <div class="card__body">
+              <h3 class="declaration declaration--h4 mb-md">Manufactured, Not Designed</h3>
+              <p class="narrator narrator--default mb-lg">
+                Reality's Reprojection rejects the soft, pillowy aesthetic that dominates modern interfaces.
+                Every radius is machined to 2, 3, 4, 6, or 8 pixels. Every shadow has mass. Every
+                transition follows physical easing curves named for the objects they emulate:
+                hourglasses, pendulums, and bells.
+              </p>
+              <p class="narrator narrator--default mb-lg">
+                The system speaks in three distinct voices. <strong>Declaration</strong> commands attention
+                with Syne at 800 weight. <strong>Narrator</strong> carries meaning through DM Sans.
+                <strong>Technical</strong> marks data with JetBrains Mono.
+              </p>
+              <p class="narrator narrator--default">
+                Color lives on a warm-neutral ground scale centered on a signature cyan hue
+                (#00d3fa). The system flips between dark and light polarities while maintaining
+                a survivalist mode that strips all decoration to pure function.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <aside class="info-sidebar">
+          <div class="card card--compact mat-grain-fine mb-md">
+            <div class="card__header"><span class="section-label">Quick Stats</span></div>
+            <div class="card__body">
+              <div class="stat-row"><span class="narrator narrator--small">CSS Modules</span><span class="declaration declaration--h4">35</span></div>
+              <div class="stat-row"><span class="narrator narrator--small">Design Tokens</span><span class="declaration declaration--h4">80+</span></div>
+              <div class="stat-row"><span class="narrator narrator--small">Components</span><span class="declaration declaration--h4">22</span></div>
+              <div class="stat-row"><span class="narrator narrator--small">Voices</span><span class="declaration declaration--h4">3</span></div>
+              <div class="stat-row"><span class="narrator narrator--small">Ground Steps</span><span class="declaration declaration--h4">13</span></div>
+            </div>
+          </div>
+
+          <div class="card card--compact mat-grain-fine mb-md">
+            <div class="card__header"><span class="section-label">Non-Negotiable</span></div>
+            <div class="card__body">
+              <div class="list list--compact">
+                <div class="list-item"><span class="badge badge--critical badge--sm">Never</span><span class="narrator narrator--whisper" style="margin-left: var(--space-xs)">scale() on hover</span></div>
+                <div class="list-item"><span class="badge badge--critical badge--sm">Never</span><span class="narrator narrator--whisper" style="margin-left: var(--space-xs)">ease-in-out keyword</span></div>
+                <div class="list-item"><span class="badge badge--critical badge--sm">Never</span><span class="narrator narrator--whisper" style="margin-left: var(--space-xs)">Fractional font sizes</span></div>
+                <div class="list-item"><span class="badge badge--critical badge--sm">Never</span><span class="narrator narrator--whisper" style="margin-left: var(--space-xs)">Global grain overlay</span></div>
+                <div class="list-item"><span class="badge badge--critical badge--sm">Never</span><span class="narrator narrator--whisper" style="margin-left: var(--space-xs)">Pillowy radii (&gt;8px)</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card card--compact mat-grain-fine">
+            <div class="card__header"><span class="section-label">Architecture</span></div>
+            <div class="card__body">
+              <div class="list list--compact">
+                <div class="list-item"><span class="badge badge--accent badge--sm">L1</span><span class="narrator narrator--whisper" style="margin-left: var(--space-xs)">Foundations</span></div>
+                <div class="list-item"><span class="badge badge--accent badge--sm">L2</span><span class="narrator narrator--whisper" style="margin-left: var(--space-xs)">Materials</span></div>
+                <div class="list-item"><span class="badge badge--accent badge--sm">L3</span><span class="narrator narrator--whisper" style="margin-left: var(--space-xs)">Modes</span></div>
+                <div class="list-item"><span class="badge badge--accent badge--sm">L4</span><span class="narrator narrator--whisper" style="margin-left: var(--space-xs)">Components</span></div>
+                <div class="list-item"><span class="badge badge--accent badge--sm">L5</span><span class="narrator narrator--whisper" style="margin-left: var(--space-xs)">Utilities</span></div>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- MODAL (Hidden)                                      -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <div class="modal__header"><h3 class="declaration declaration--h4">System Information</h3></div>
+      <div class="modal__body">
+        <p class="narrator narrator--default mb-md">Modal dialog with frost backdrop, elevated shadow, and hourglass entry animation.</p>
+        <div class="alert alert--info">
+          <div class="alert__icon"></div>
+          <div class="alert__content"><div class="alert__body narrator narrator--small">Components nest cleanly. This alert lives inside the modal.</div></div>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn btn--ghost" onclick="document.getElementById('modalOverlay').classList.remove('is-active')">Cancel</button>
+        <button class="btn btn--primary" onclick="document.getElementById('modalOverlay').classList.remove('is-active')">Understood</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- FOOTER                                              -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer__content">
+        <div>
+          <span class="declaration declaration--h5">Reality's Reprojection</span>
+          <p class="narrator narrator--whisper" style="margin-top: var(--space-xs)">Design system exploration v2 — stress testing every module.</p>
+        </div>
+        <div class="footer__links">
+          <button class="footer__link" onclick="document.getElementById('modalOverlay').classList.add('is-active')">Open Modal</button>
+          <a href="../demo-3/index.html" class="footer__link">Open Demo 3</a>
+          <a href="#hero" class="footer__link">Back to Top</a>
+        </div>
+      </div>
+      <div class="footer__meta">
+        <span>35 modules &middot; 3 voices &middot; 2 polarities &middot; Built with conviction</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Polarity toggle
+    document.getElementById('polarityToggle').addEventListener('click', function() {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-polarity');
+      html.setAttribute('data-polarity', current === 'dark' ? 'light' : 'dark');
+      this.textContent = current === 'dark' ? '◑' : '◐';
+    });
+
+    // Scroll reveal
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) entry.target.classList.add('is-visible');
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const tabId = tab.getAttribute('data-tab');
+        const parent = tab.closest('.component-block') || tab.closest('[class*="component"]') || tab.closest('div');
+        const container = parent.closest('.component-block') || parent;
+        container.querySelectorAll('.tab').forEach(t => t.classList.remove('is-active'));
+        container.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('is-active'));
+        tab.classList.add('is-active');
+        document.getElementById(tabId).classList.add('is-active');
+      });
+    });
+
+    // Accordion
+    document.querySelectorAll('.accordion__header').forEach(header => {
+      header.addEventListener('click', () => header.closest('.accordion__item').classList.toggle('is-expanded'));
+    });
+
+    // Toggle switches
+    document.querySelectorAll('.toggle:not(.is-disabled)').forEach(tog => {
+      tog.addEventListener('click', () => tog.classList.toggle('is-active'));
+    });
+
+    // Dropdown close on outside click
+    document.addEventListener('click', (e) => {
+      document.querySelectorAll('.dropdown.is-open').forEach(dd => {
+        if (!dd.contains(e.target)) dd.classList.remove('is-open');
+      });
+    });
+
+    // Nav highlight on scroll
+    const sections = document.querySelectorAll('section[id]');
+    const navItems = document.querySelectorAll('.header__nav .nav-item');
+    window.addEventListener('scroll', () => {
+      let current = '';
+      sections.forEach(section => {
+        if (window.scrollY >= section.offsetTop - 120) current = section.getAttribute('id');
+      });
+      navItems.forEach(item => {
+        item.classList.remove('is-active');
+        if (item.getAttribute('href') === '#' + current) item.classList.add('is-active');
+      });
+    }, { passive: true });
+
+    // Mouse-tracking glow for cards — two modes: faint area glow + snappy border glow
+    document.querySelectorAll('.card-glow').forEach(card => {
+      // Inject both glow layers
+      const glowLight = document.createElement('div');
+      glowLight.className = 'card-glow__light';
+      glowLight.setAttribute('aria-hidden', 'true');
+      card.appendChild(glowLight);
+
+      const glowBorder = document.createElement('div');
+      glowBorder.className = 'card-glow__border';
+      glowBorder.setAttribute('aria-hidden', 'true');
+      card.appendChild(glowBorder);
+
+      card.addEventListener('mousemove', (e) => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        card.style.setProperty('--glow-x', x + 'px');
+        card.style.setProperty('--glow-y', y + 'px');
+        card.style.setProperty('--glow-opacity', '1');
+      });
+      card.addEventListener('mouseleave', () => {
+        card.style.setProperty('--glow-opacity', '0');
+      });
+    });
+
+    // TASK 9 — Animate progress bars on scroll into view
+    const progressObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const fill = entry.target;
+          const width = fill.style.width;
+          fill.style.width = '0%';
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              fill.style.width = width;
+            });
+          });
+          progressObserver.unobserve(fill);
+        }
+      });
+    }, { threshold: 0.3 });
+    document.querySelectorAll('.progress__fill[style*="width"]').forEach(fill => {
+      progressObserver.observe(fill);
+    });
+
+  </script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "name": "shader-nodes",
+  "description": "UE5.5 shader development: HLSL design (Opus) + Material Graph generation (Sonnet) + paste into Material Editor",
+  "version": "2.0.0",
+  "author": {
+    "name": "gruku"
+  }
+}

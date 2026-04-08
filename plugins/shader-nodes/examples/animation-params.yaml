@@ -1,0 +1,39 @@
+# Example: Animation Parameters Pack
+# This creates 4 constants packed into a MakeFloat4 node
+# for use as animation input parameters.
+
+material_path: "/Script/UnrealEd.PreviewMaterial'/Engine/Transient.M_UI_MVP_Screen'"
+position_start: [6240, 192]
+spacing_x: 256
+spacing_y: 96
+
+nodes:
+  - name: EnterStart
+    type: Constant
+    value: -1.0
+    desc: "Time to start enter animation (-1 = inactive)"
+
+  - name: ExitStart
+    type: Constant
+    value: -1.0
+    desc: "Time to start exit animation (-1 = inactive)"
+
+  - name: Duration
+    type: Constant
+    value: 0.5
+    desc: "Animation duration in seconds"
+
+  - name: Overshoot
+    type: Constant
+    value: 0.8
+    desc: "Elastic overshoot amount (0-1)"
+
+  - name: AnimParams
+    type: MakeFloat4
+    desc: "In1_Anim : float4 (EnterStart, ExitStart, Duration, Overshoot)"
+
+connections:
+  - EnterStart -> AnimParams.X
+  - ExitStart -> AnimParams.Y
+  - Duration -> AnimParams.Z
+  - Overshoot -> AnimParams.A

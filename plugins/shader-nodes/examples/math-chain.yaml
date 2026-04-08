@@ -1,0 +1,58 @@
+# Example: Math Node Chain
+# Demonstrates registry nodes: Multiply, Add, Lerp, Saturate
+
+material_path: "/Script/UnrealEd.PreviewMaterial'/Engine/Transient.M_Math_Test'"
+position_start: [1000, 100]
+spacing_x: 280
+spacing_y: 100
+
+nodes:
+  # Input values
+  - name: ValueA
+    type: Constant
+    value: 0.5
+
+  - name: ValueB
+    type: Constant
+    value: 2.0
+
+  - name: Alpha
+    type: Constant
+    value: 0.3
+
+  # Multiply A * B
+  - name: MultResult
+    type: Multiply
+    desc: "A * B"
+
+  # Add result + 0.1
+  - name: AddResult
+    type: Add
+    const_b: 0.1
+    desc: "Mult + 0.1"
+
+  # Lerp between 0 and AddResult
+  - name: LerpResult
+    type: Lerp
+    const_a: 0.0
+    desc: "Lerp(0, AddResult, Alpha)"
+
+  # Clamp to 0-1
+  - name: FinalResult
+    type: Saturate
+    desc: "Final clamped output"
+
+  # Store result
+  - name: OutputVar
+    type: NamedRerouteDeclaration
+    var_name: "MathResult"
+    color: [0.8, 0.4, 0.1]
+
+connections:
+  - ValueA -> MultResult.A
+  - ValueB -> MultResult.B
+  - MultResult -> AddResult.A
+  - AddResult -> LerpResult.B
+  - Alpha -> LerpResult.Alpha
+  - LerpResult -> FinalResult
+  - FinalResult -> OutputVar

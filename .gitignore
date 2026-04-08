@@ -22,5 +22,8 @@ Thumbs.db
 # Stale/empty directories
 codex-dispatch/
 
+# Superpowers docs (local-only specs and plans)
+docs/superpowers/
+
 # Logs
 *.log

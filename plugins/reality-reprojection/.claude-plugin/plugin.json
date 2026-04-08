@@ -1,0 +1,6 @@
+{
+  "name": "reality-reprojection",
+  "description": "Apply the Reality Reprojection design system to any web project — generate components, convert existing code, review compliance",
+  "version": "1.3.0",
+  "author": { "name": "gruku" }
+}

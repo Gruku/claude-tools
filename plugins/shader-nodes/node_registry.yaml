@@ -1,0 +1,897 @@
+# UE5 Material Node Registry
+# Add new node types here to extend the generator's capabilities.
+#
+# Each node definition specifies:
+#   expression_class: The UE5 MaterialExpression class name
+#   graph_node_class: (optional) Override for the graph node class
+#   inputs: List of input pins with their properties
+#   outputs: List of output pins
+#   properties: Default properties for the expression
+#   property_mappings: Maps YAML property names to UE5 property format
+#
+# When you need a node type that doesn't exist, ask Claude to add it here!
+
+# =============================================================================
+# MATH NODES
+# =============================================================================
+
+Add:
+  expression_class: MaterialExpressionAdd
+  inputs:
+    - name: A
+      category: optional
+    - name: B
+      category: optional
+  outputs:
+    - name: Output
+  properties:
+    ConstA: 0.0
+    ConstB: 1.0
+  property_mappings:
+    const_a: ConstA
+    const_b: ConstB
+
+Subtract:
+  expression_class: MaterialExpressionSubtract
+  inputs:
+    - name: A
+      category: optional
+    - name: B
+      category: optional
+  outputs:
+    - name: Output
+  properties:
+    ConstA: 1.0
+    ConstB: 0.0
+
+Multiply:
+  expression_class: MaterialExpressionMultiply
+  inputs:
+    - name: A
+      category: optional
+    - name: B
+      category: optional
+  outputs:
+    - name: Output
+  properties:
+    ConstA: 0.0
+    ConstB: 1.0
+
+Divide:
+  expression_class: MaterialExpressionDivide
+  inputs:
+    - name: A
+      category: optional
+    - name: B
+      category: optional
+  outputs:
+    - name: Output
+  properties:
+    ConstA: 1.0
+    ConstB: 2.0
+
+OneMinus:
+  expression_class: MaterialExpressionOneMinus
+  inputs:
+    - name: Input
+      category: required
+  outputs:
+    - name: Output
+
+Abs:
+  expression_class: MaterialExpressionAbs
+  inputs:
+    - name: Input
+      category: required
+  outputs:
+    - name: Output
+
+Negate:
+  expression_class: MaterialExpressionNegate
+  inputs:
+    - name: Input
+      category: required
+  outputs:
+    - name: Output
+
+Power:
+  expression_class: MaterialExpressionPower
+  inputs:
+    - name: Base
+      category: optional
+    - name: Exp
+      category: optional
+      pin_name: Exponent
+  outputs:
+    - name: Output
+  properties:
+    ConstBase: 2.0
+    ConstExponent: 2.0
+
+SquareRoot:
+  expression_class: MaterialExpressionSquareRoot
+  inputs:
+    - name: Input
+      category: required
+  outputs:
+    - name: Output
+
+# =============================================================================
+# INTERPOLATION & CLAMPING
+# =============================================================================
+
+Lerp:
+  expression_class: MaterialExpressionLinearInterpolate
+  inputs:
+    - name: A
+      category: optional
+    - name: B
+      category: optional
+    - name: Alpha
+      category: optional
+  outputs:
+    - name: Output
+  properties:
+    ConstA: 0.0
+    ConstB: 1.0
+    ConstAlpha: 0.5
+
+Clamp:
+  expression_class: MaterialExpressionClamp
+  inputs:
+    - name: Input
+      category: required
+    - name: Min
+      category: optional
+    - name: Max
+      category: optional
+  outputs:
+    - name: Output
+  properties:
+    MinDefault: 0.0
+    MaxDefault: 1.0
+
+Saturate:
+  expression_class: MaterialExpressionSaturate
+  inputs:
+    - name: Input
+      category: required
+  outputs:
+    - name: Output
+
+Smoothstep:
+  expression_class: MaterialExpressionSmoothStep
+  inputs:
+    - name: Min
+      category: optional
+    - name: Max
+      category: optional
+    - name: Value
+      category: required
+  outputs:
+    - name: Output
+  properties:
+    ConstMin: 0.0
+    ConstMax: 1.0
+
+Step:
+  expression_class: MaterialExpressionStep
+  inputs:
+    - name: Y
+      category: optional
+    - name: X
+      category: required
+  outputs:
+    - name: Output
+  properties:
+    ConstY: 0.5
+
+# =============================================================================
+# TRIGONOMETRY
+# =============================================================================
+
+Sine:
+  expression_class: MaterialExpressionSine
+  inputs:
+    - name: Input
+      category: required
+  outputs:
+    - name: Output
+  properties:
+    Period: 1.0
+
+Cosine:
+  expression_class: MaterialExpressionCosine
+  inputs:
+    - name: Input
+      category: required
+  outputs:
+    - name: Output
+  properties:
+    Period: 1.0
+
+Tangent:
+  expression_class: MaterialExpressionTangent
+  inputs:
+    - name: Input
+      category: required
+  outputs:
+    - name: Output
+  properties:
+    Period: 1.0
+
+Arcsine:
+  expression_class: MaterialExpressionArcsine
+  inputs:
+    - name: Input
+      category: required
+  outputs:
+    - name: Output
+
+Arccosine:
+  expression_class: MaterialExpressionArccosine
+  inputs:
+    - name: Input
+      category: required
+  outputs:
+    - name: Output
+
+Arctangent:
+  expression_class: MaterialExpressionArctangent
+  inputs:
+    - name: Input
+      category: required
+  outputs:
+    - name: Output
+
+Arctangent2:
+  expression_class: MaterialExpressionArctangent2
+  inputs:
+    - name: Y
+      category: required
+    - name: X
+      category: required
+  outputs:
+    - name: Output
+
+# =============================================================================
+# VECTOR OPERATIONS
+# =============================================================================
+
+DotProduct:
+  expression_class: MaterialExpressionDotProduct
+  inputs:
+    - name: A
+      category: required
+    - name: B
+      category: required
+  outputs:
+    - name: Output
+
+CrossProduct:
+  expression_class: MaterialExpressionCrossProduct
+  inputs:
+    - name: A
+      category: required
+    - name: B
+      category: required
+  outputs:
+    - name: Output
+
+Normalize:
+  expression_class: MaterialExpressionNormalize
+  inputs:
+    - name: VectorInput
+      category: required
+  outputs:
+    - name: Output
+
+Length:
+  expression_class: MaterialExpressionLength
+  inputs:
+    - name: Input
+      category: required
+  outputs:
+    - name: Output
+
+Distance:
+  expression_class: MaterialExpressionDistance
+  inputs:
+    - name: A
+      category: required
+    - name: B
+      category: required
+  outputs:
+    - name: Output
+
+# =============================================================================
+# COMPONENT OPERATIONS
+# =============================================================================
+
+AppendVector:
+  expression_class: MaterialExpressionAppendVector
+  inputs:
+    - name: A
+      category: required
+    - name: B
+      category: required
+  outputs:
+    - name: Output
+
+ComponentMask:
+  expression_class: MaterialExpressionComponentMask
+  inputs:
+    - name: Input
+      category: required
+  outputs:
+    - name: Output
+  properties:
+    R: true
+    G: true
+    B: false
+    A: false
+  property_mappings:
+    r: R
+    g: G
+    b: B
+    a: A
+
+BreakOutFloat2Components:
+  expression_class: MaterialExpressionBreakMaterialAttributes
+  # Note: This is simplified, actual implementation may vary
+  inputs:
+    - name: Input
+      category: required
+  outputs:
+    - name: R
+      subcategory: red
+    - name: G
+      subcategory: green
+
+# =============================================================================
+# COMPARISON
+# =============================================================================
+
+If:
+  expression_class: MaterialExpressionIf
+  inputs:
+    - name: A
+      category: required
+    - name: B
+      category: optional
+    - name: AGreaterThanB
+      pin_name: A > B
+      category: required
+    - name: AEqualsB
+      pin_name: A == B
+      category: optional
+    - name: ALessThanB
+      pin_name: A < B
+      category: required
+  outputs:
+    - name: Output
+  properties:
+    ConstB: 0.0
+    EqualsThreshold: 0.00001
+
+Min:
+  expression_class: MaterialExpressionMin
+  inputs:
+    - name: A
+      category: optional
+    - name: B
+      category: optional
+  outputs:
+    - name: Output
+  properties:
+    ConstA: 0.0
+    ConstB: 1.0
+
+Max:
+  expression_class: MaterialExpressionMax
+  inputs:
+    - name: A
+      category: optional
+    - name: B
+      category: optional
+  outputs:
+    - name: Output
+  properties:
+    ConstA: 0.0
+    ConstB: 1.0
+
+# =============================================================================
+# FLOOR / CEIL / FRAC / ROUND
+# =============================================================================
+
+Floor:
+  expression_class: MaterialExpressionFloor
+  inputs:
+    - name: Input
+      category: required
+  outputs:
+    - name: Output
+
+Ceil:
+  expression_class: MaterialExpressionCeil
+  inputs:
+    - name: Input
+      category: required
+  outputs:
+    - name: Output
+
+Frac:
+  expression_class: MaterialExpressionFrac
+  inputs:
+    - name: Input
+      category: required
+  outputs:
+    - name: Output
+
+Round:
+  expression_class: MaterialExpressionRound
+  inputs:
+    - name: Input
+      category: required
+  outputs:
+    - name: Output
+
+Fmod:
+  expression_class: MaterialExpressionFmod
+  inputs:
+    - name: A
+      category: required
+    - name: B
+      category: required
+  outputs:
+    - name: Output
+
+# =============================================================================
+# COORDINATES & UV
+# =============================================================================
+
+TextureCoordinate:
+  expression_class: MaterialExpressionTextureCoordinate
+  outputs:
+    - name: Output
+  properties:
+    CoordinateIndex: 0
+    UTiling: 1.0
+    VTiling: 1.0
+  property_mappings:
+    uv_index: CoordinateIndex
+    u_tiling: UTiling
+    v_tiling: VTiling
+
+ScreenPosition:
+  expression_class: MaterialExpressionScreenPosition
+  outputs:
+    - name: Output
+
+ViewSize:
+  expression_class: MaterialExpressionViewSize
+  outputs:
+    - name: Output
+
+PixelPosition:
+  expression_class: MaterialExpressionPixelPosition
+  outputs:
+    - name: Output
+
+# =============================================================================
+# TEXTURE
+# =============================================================================
+
+TextureSample:
+  expression_class: MaterialExpressionTextureSample
+  inputs:
+    - name: UVs
+      category: optional
+    - name: Tex
+      category: optional
+  outputs:
+    - name: RGB
+      subcategory: mask
+    - name: R
+      subcategory: red
+    - name: G
+      subcategory: green
+    - name: B
+      subcategory: blue
+    - name: A
+      subcategory: alpha
+    - name: RGBA
+      subcategory: rgba
+  properties:
+    SamplerType: SAMPLERTYPE_Color
+  property_mappings:
+    texture: Texture
+    sampler_type: SamplerType
+
+TextureObject:
+  expression_class: MaterialExpressionTextureObject
+  outputs:
+    - name: Output
+  properties:
+    SamplerType: SAMPLERTYPE_Color
+  property_mappings:
+    texture: Texture
+    sampler_type: SamplerType
+
+# =============================================================================
+# PARAMETERS (for Material Instances)
+# =============================================================================
+
+ScalarParameter:
+  expression_class: MaterialExpressionScalarParameter
+  outputs:
+    - name: Output
+  properties:
+    DefaultValue: 0.0
+    ParameterName: "ScalarParam"
+  property_mappings:
+    default: DefaultValue
+    param_name: ParameterName
+
+VectorParameter:
+  expression_class: MaterialExpressionVectorParameter
+  outputs:
+    - name: Output
+    - name: R
+      subcategory: red
+    - name: G
+      subcategory: green
+    - name: B
+      subcategory: blue
+    - name: A
+      subcategory: alpha
+  properties:
+    DefaultValue: "(R=1.0,G=1.0,B=1.0,A=1.0)"
+    ParameterName: "VectorParam"
+
+# =============================================================================
+# WORLD POSITION & OBJECT
+# =============================================================================
+
+WorldPosition:
+  expression_class: MaterialExpressionWorldPosition
+  outputs:
+    - name: Output
+  properties:
+    WorldPositionShaderOffset: WPT_Default
+
+ObjectPosition:
+  expression_class: MaterialExpressionObjectPositionWS
+  outputs:
+    - name: Output
+
+ActorPosition:
+  expression_class: MaterialExpressionActorPositionWS
+  outputs:
+    - name: Output
+
+CameraPosition:
+  expression_class: MaterialExpressionCameraPositionWS
+  outputs:
+    - name: Output
+
+# =============================================================================
+# DDX / DDY (Derivatives for Antialiasing)
+# =============================================================================
+
+DDX:
+  expression_class: MaterialExpressionDDX
+  inputs:
+    - name: Value
+      category: required
+  outputs:
+    - name: Output
+
+DDY:
+  expression_class: MaterialExpressionDDY
+  inputs:
+    - name: Value
+      category: required
+  outputs:
+    - name: Output
+
+# =============================================================================
+# NOISE
+# =============================================================================
+
+Noise:
+  expression_class: MaterialExpressionNoise
+  inputs:
+    - name: Position
+      category: optional
+    - name: FilterWidth
+      category: optional
+  outputs:
+    - name: Output
+  properties:
+    Scale: 1.0
+    Quality: 1
+    NoiseFunction: NOISEFUNCTION_GradientALU
+    bTurbulence: false
+    Levels: 6
+    OutputMin: -1.0
+    OutputMax: 1.0
+    LevelScale: 2.0
+
+# =============================================================================
+# EFFECTS & SPECIAL
+# =============================================================================
+
+Fresnel:
+  expression_class: MaterialExpressionFresnel
+  inputs:
+    - name: ExponentIn
+      category: optional
+    - name: BaseReflectFractionIn
+      category: optional
+    - name: Normal
+      category: optional
+  outputs:
+    - name: Output
+  properties:
+    Exponent: 5.0
+    BaseReflectFraction: 0.04
+  property_mappings:
+    exponent: Exponent
+    base_reflect: BaseReflectFraction
+
+SphereMask:
+  expression_class: MaterialExpressionSphereMask
+  inputs:
+    - name: A
+      category: required
+    - name: B
+      category: required
+    - name: Radius
+      category: optional
+    - name: Hardness
+      category: optional
+  outputs:
+    - name: Output
+  properties:
+    AttenuationRadius: 256.0
+    HardnessPercent: 100.0
+  property_mappings:
+    radius: AttenuationRadius
+    hardness: HardnessPercent
+
+DepthFade:
+  expression_class: MaterialExpressionDepthFade
+  inputs:
+    - name: Opacity
+      category: optional
+    - name: FadeDistance
+      category: optional
+  outputs:
+    - name: Output
+  properties:
+    OpacityDefault: 1.0
+    FadeDistanceDefault: 100.0
+
+PixelDepth:
+  expression_class: MaterialExpressionPixelDepth
+  outputs:
+    - name: Output
+
+SceneDepth:
+  expression_class: MaterialExpressionSceneDepth
+  inputs:
+    - name: UV
+      category: optional
+  outputs:
+    - name: Output
+  properties:
+    InputMode: EMaterialSceneDepthInputMode_ScreenPosition
+
+# =============================================================================
+# UV MANIPULATION
+# =============================================================================
+
+Panner:
+  expression_class: MaterialExpressionPanner
+  inputs:
+    - name: Coordinate
+      category: optional
+    - name: Time
+      category: optional
+    - name: Speed
+      category: optional
+  outputs:
+    - name: Output
+  properties:
+    SpeedX: 0.0
+    SpeedY: 0.0
+    ConstCoordinate: 0
+    bFractionalPart: true
+  property_mappings:
+    speed_x: SpeedX
+    speed_y: SpeedY
+
+Rotator:
+  expression_class: MaterialExpressionRotator
+  inputs:
+    - name: Coordinate
+      category: optional
+    - name: Time
+      category: optional
+  outputs:
+    - name: Output
+  properties:
+    CenterX: 0.5
+    CenterY: 0.5
+    Speed: 0.25
+    ConstCoordinate: 0
+  property_mappings:
+    center_x: CenterX
+    center_y: CenterY
+    speed: Speed
+
+# =============================================================================
+# REFLECTION & CAMERA
+# =============================================================================
+
+CameraVector:
+  expression_class: MaterialExpressionCameraVectorWS
+  outputs:
+    - name: Output
+
+ReflectionVector:
+  expression_class: MaterialExpressionReflectionVectorWS
+  outputs:
+    - name: Output
+
+VertexNormal:
+  expression_class: MaterialExpressionVertexNormalWS
+  outputs:
+    - name: Output
+
+PixelNormal:
+  expression_class: MaterialExpressionPixelNormalWS
+  outputs:
+    - name: Output
+
+# =============================================================================
+# PARTICLE SYSTEMS
+# =============================================================================
+
+ParticleColor:
+  expression_class: MaterialExpressionParticleColor
+  outputs:
+    - name: RGB
+      subcategory: mask
+    - name: R
+      subcategory: red
+    - name: G
+      subcategory: green
+    - name: B
+      subcategory: blue
+    - name: A
+      subcategory: alpha
+
+ParticlePositionWS:
+  expression_class: MaterialExpressionParticlePositionWS
+  outputs:
+    - name: Output
+
+ParticleRadius:
+  expression_class: MaterialExpressionParticleRadius
+  outputs:
+    - name: Output
+
+ParticleRelativeTime:
+  expression_class: MaterialExpressionParticleRelativeTime
+  outputs:
+    - name: Output
+
+DynamicParameter:
+  expression_class: MaterialExpressionDynamicParameter
+  outputs:
+    - name: Output
+  properties:
+    ParamNames: "(\"Param1\",\"Param2\",\"Param3\",\"Param4\")"
+    DefaultValue: "(R=0.0,G=0.0,B=0.0,A=0.0)"
+    ParameterIndex: 0
+
+# =============================================================================
+# BUMP & NORMAL
+# =============================================================================
+
+BumpOffset:
+  expression_class: MaterialExpressionBumpOffset
+  inputs:
+    - name: Coordinate
+      category: optional
+    - name: Height
+      category: required
+    - name: HeightRatioInput
+      category: optional
+  outputs:
+    - name: Output
+  properties:
+    HeightRatio: 0.05
+    ReferencePlane: 0.5
+    ConstCoordinate: 0
+
+NormalFromHeightmap:
+  expression_class: MaterialExpressionNormalFromHeightmap
+  inputs:
+    - name: Input
+      category: required
+  outputs:
+    - name: Output
+  properties:
+    Intensity: 8.0
+
+# =============================================================================
+# TRANSFORM
+# =============================================================================
+
+Transform:
+  expression_class: MaterialExpressionTransform
+  inputs:
+    - name: Input
+      category: required
+  outputs:
+    - name: Output
+  properties:
+    TransformSourceType: TRANSFORMSOURCE_Tangent
+    TransformType: TRANSFORM_World
+
+TransformPosition:
+  expression_class: MaterialExpressionTransformPosition
+  inputs:
+    - name: Input
+      category: required
+  outputs:
+    - name: Output
+  properties:
+    TransformSourceType: TRANSFORMPOSSOURCE_Local
+    TransformType: TRANSFORMPOSSOURCE_World
+
+# =============================================================================
+# MISC UTILITIES
+# =============================================================================
+
+TwoSidedSign:
+  expression_class: MaterialExpressionTwoSidedSign
+  outputs:
+    - name: Output
+
+VertexColor:
+  expression_class: MaterialExpressionVertexColor
+  outputs:
+    - name: RGB
+      subcategory: mask
+    - name: R
+      subcategory: red
+    - name: G
+      subcategory: green
+    - name: B
+      subcategory: blue
+    - name: A
+      subcategory: alpha
+
+ObjectRadius:
+  expression_class: MaterialExpressionObjectRadius
+  outputs:
+    - name: Output
+
+ObjectBounds:
+  expression_class: MaterialExpressionObjectBounds
+  outputs:
+    - name: Output
+
+PreSkinnedPosition:
+  expression_class: MaterialExpressionPreSkinnedPosition
+  outputs:
+    - name: Output
+
+PreSkinnedNormal:
+  expression_class: MaterialExpressionPreSkinnedNormal
+  outputs:
+    - name: Output
