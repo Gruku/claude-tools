@@ -4,7 +4,7 @@
     "name": "gruku"
   },
   "metadata": {
-    "description": "Claude Code plugins for AI task management and safety guard hooks",
+    "description": "Claude Code plugins for AI task management, safety guard hooks, and UE5 material authoring",
     "pluginRoot": "./plugins"
   },
   "plugins": [
@@ -19,6 +19,12 @@
       "source": "./plugins/guard-hooks",
       "description": "Safety guard hooks that block destructive CLI commands and sensitive file edits, with in-flow user approval via UserPromptSubmit. Requires: jq (https://jqlang.github.io/jq/)",
       "version": "2.2.0"
+    },
+    {
+      "name": "ue5-materials",
+      "source": "./plugins/ue5-materials",
+      "description": "Author UE5 materials from YAML. Live mode drives the Material Editor via MCPBridge (localhost:13580); clipboard mode emits T3D paste text. HLSL Architect (Opus) + Node Generator (Sonnet) agent chain for complex designs, direct YAML for simple wiring. Requires: pyyaml.",
+      "version": "3.0.0"
     }
   ]
 }

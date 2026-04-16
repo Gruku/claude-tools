@@ -1,0 +1,94 @@
+# Example: Custom Animation Node with Time Input
+# This creates a complete animation system with:
+# - Time node
+# - Animation parameters (packed Float4)
+# - Custom HLSL animation logic
+# - Output reroute for reuse
+
+material_path: "/Script/UnrealEd.PreviewMaterial'/Engine/Transient.M_UI_Animation'"
+position_start: [5000, 100]
+spacing_x: 300
+spacing_y: 80
+
+nodes:
+  # Time source
+  - name: CurrentTime
+    type: Time
+    ignore_pause: false
+    desc: "Game time for animation"
+
+  # Animation trigger parameters
+  - name: EnterStart
+    type: Constant
+    value: -1.0
+
+  - name: ExitStart
+    type: Constant
+    value: -1.0
+
+  - name: Duration
+    type: Constant
+    value: 0.5
+
+  - name: Overshoot
+    type: Constant
+    value: 0.8
+
+  # Pack into Float4
+  - name: AnimParams
+    type: MakeFloat4
+    desc: "In1_Anim : float4 (EnterStart, ExitStart, Duration, Overshoot)"
+
+  # Custom HLSL animation logic
+  - name: AnimationLerp
+    type: Custom
+    output_type: CMOT_Float1
+    desc: "Calculates animation lerp value with elastic easing"
+    inputs:
+      - name: TimeSec
+        type: float
+      - name: AnimParams
+        type: float4
+    code: |
+      // Animation Lerp with Elastic Easing
+      // AnimParams: x=EnterStart, y=ExitStart, z=Duration, w=Overshoot
+
+      float enterStart = AnimParams.x;
+      float exitStart = AnimParams.y;
+      float duration = AnimParams.z;
+      float overshoot = AnimParams.w;
+
+      // Calculate enter progress
+      float enterProgress = saturate((TimeSec - enterStart) / duration);
+
+      // Calculate exit progress (reversed)
+      float exitProgress = 1.0 - saturate((TimeSec - exitStart) / duration);
+
+      // Use enter if active, otherwise use exit
+      float t = (enterStart >= 0) ? enterProgress :
+                (exitStart >= 0) ? exitProgress : 0;
+
+      // Apply elastic easing
+      float elasticT = t * (1 + overshoot * sin(t * 3.14159));
+
+      return saturate(elasticT);
+
+  # Output reroute for reuse
+  - name: AnimLerpOutput
+    type: NamedRerouteDeclaration
+    var_name: "AnimationLerp"
+    color: [0.2, 0.8, 0.3]  # Green
+
+connections:
+  # Pack constants into Float4
+  - EnterStart -> AnimParams.X
+  - ExitStart -> AnimParams.Y
+  - Duration -> AnimParams.Z
+  - Overshoot -> AnimParams.A
+
+  # Wire to custom node
+  - CurrentTime -> AnimationLerp.TimeSec
+  - AnimParams -> AnimationLerp.AnimParams
+
+  # Wire output to reroute
+  - AnimationLerp -> AnimLerpOutput

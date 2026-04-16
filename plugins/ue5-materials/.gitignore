@@ -1,0 +1,14 @@
+# Cached MCPBridge session ID (ephemeral, machine-specific)
+.cache/
+
+# Generated YAML archives from apply_material.py runs
+.ue5-materials-history/
+
+# Local working dir for ad-hoc experiments
+# (per-material outputs belong under <user-project>/ue5-materials/<name>/)
+scratch/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
