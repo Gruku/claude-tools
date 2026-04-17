@@ -62,9 +62,18 @@ block() {
 Reason: $1
 Command: $COMMAND
 
-ACTION REQUIRED: You MUST use the AskUserQuestion tool to ask the user for explicit permission before proceeding.
-Do NOT re-run automatically. Do NOT assume approval.
-If the user denies or does not respond, do NOT run this command.
+ACTION REQUIRED: Use the AskUserQuestion tool with EXACTLY this shape:
+  question: one short sentence describing the destructive action
+  options (use these labels verbatim — do not rename, translate, or add more):
+    - label: "Approve"  description: "Run the command as shown"
+    - label: "Deny"     description: "Cancel; do not run the command"
+
+After the user responds:
+  - "Approve" → rerun the ORIGINAL command unchanged
+  - "Deny" or no response → do NOT run the command
+
+Only the exact label "Approve" is recognized as authorization.
+Do NOT re-run automatically. Do NOT create the approval file yourself.
 EOF
   exit 2
 }

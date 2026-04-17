@@ -1,16 +1,21 @@
 #!/bin/bash
 # ask-question-approval.sh — PostToolUse hook for AskUserQuestion
-# When the user answers "approve" (case-insensitive) via AskUserQuestion,
-# creates a time-limited approval file that guard-destructive.sh will consume.
+# Creates a time-limited approval file when the user picks the "Approve" option.
 #
-# This complements guard-approve.sh (UserPromptSubmit) so approval works
-# regardless of whether the user types directly or answers a question.
+# Protocol: guard-destructive.sh and guard-edits.sh instruct the LLM (via their
+# block messages) to call AskUserQuestion with exactly two labels — "Approve"
+# and "Deny". This hook only recognizes the literal "Approve" label. Any other
+# answer (including free-form text, "Deny", or unrelated AskUserQuestion calls
+# that don't follow the protocol) is ignored — no approval file is created.
+#
+# Strict matching is intentional: the block message dictates the question shape,
+# so we don't have to guess whether a natural-language response is affirmative.
 #
 # PostToolUse payload uses .tool_response (not .tool_output).
 # For AskUserQuestion, tool_response may be:
 #   - A string directly
 #   - An object with .answers (map of question -> answer)
-# We flatten all values and check if any contain "approve".
+# We flatten all values and check if any equal "Approve".
 
 INPUT=$(cat)
 
@@ -29,9 +34,11 @@ if [ -z "$ANSWER" ]; then
   exit 0
 fi
 
-# Check if the user's answer is an approval
-# Accept common affirmative responses: "approve", "yes", "allow", "ok", "go ahead", etc.
-if echo "$ANSWER" | grep -qiE '(^|\s)(approve|yes|allow|ok|okay|go ahead|do it|confirmed|permit|granted)(\s|[,.]|$)'; then
+# Strict match: the answer must be exactly "Approve" (case-insensitive) as
+# its own token. Anything else — "Deny", free-form text, unrelated AskUserQuestion
+# responses — is ignored. The guard block messages dictate this label, so if the
+# LLM followed the protocol the answer will be exactly "Approve".
+if echo "$ANSWER" | grep -qiE '^[[:space:]]*approve([[:space:]:,.!?—-]|$)'; then
   APPROVE_FILE="$HOME/.claude/guard-approve"
   mkdir -p "$(dirname "$APPROVE_FILE")"
   touch "$APPROVE_FILE"

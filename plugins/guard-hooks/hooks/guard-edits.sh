@@ -53,9 +53,18 @@ block() {
 Reason: $1
 File: $FILE_PATH
 
-ACTION REQUIRED: You MUST use the AskUserQuestion tool to ask the user for explicit permission before proceeding.
-Do NOT re-run automatically. Do NOT assume approval.
-If the user denies or does not respond, do NOT write to this file.
+ACTION REQUIRED: Use the AskUserQuestion tool with EXACTLY this shape:
+  question: one short sentence describing what will be written and why it's sensitive
+  options (use these labels verbatim — do not rename, translate, or add more):
+    - label: "Approve"  description: "Write the file as proposed"
+    - label: "Deny"     description: "Cancel; do not write this file"
+
+After the user responds:
+  - "Approve" → rerun the ORIGINAL Write/Edit unchanged
+  - "Deny" or no response → do NOT write this file
+
+Only the exact label "Approve" is recognized as authorization.
+Do NOT re-run automatically. Do NOT create the approval file yourself.
 EOF
   exit 2
 }
