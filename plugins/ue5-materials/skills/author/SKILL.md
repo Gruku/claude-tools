@@ -14,7 +14,7 @@ Identify the scenario before starting:
 - **Direct YAML path** — user already knows the nodes ("wire a TextureCoordinate into a Lerp", "add a Multiply by 2"). Skip agents. Write YAML directly, run `apply_material.py`.
 - **Agent chain** — user describes a visual effect, asks for HLSL changes, or pastes HLSL. Dispatch Architect → Generator.
 
-If in doubt, use the agent chain — a minute of extra time is cheaper than a broken graph.
+If in doubt, use the agent chain — a minute of extra time is cheaper than a broken graph. In particular, when the user's phrasing sounds like an **idea** ("I want…", "make a…", "build a…") rather than a **wiring instruction** ("connect X to Y", "add a Multiply"), treat it as Entry Point A — which now means Phase 0a brainstorm before the Architect.
 
 ## Working Directory
 
@@ -72,7 +72,9 @@ All paths below are relative to THIS skill's base directory (the directory conta
 ```
 You describe a shader in plain text
     |
-[HLSL Architect Agent - Opus]    <- Creative design + HLSL code
+[Brainstorm — superpowers:brainstorming]   <- Interactive idea gate (Entry Point A only)
+    | material_brief.md
+[HLSL Architect Agent - Opus]    <- Creative design + HLSL code (reads brief first)
     | shader_design.md + shader_code.hlsl
 [Node Generator Agent - Sonnet]  <- YAML creation + Python converter
     | ue5_nodes.yaml + ue5_clipboard.txt
@@ -80,7 +82,7 @@ Report back to you
     |
 You paste full graph into UE5 Material Editor (Ctrl+V)
     |
-    +-- "Add a new output"       -> Full chain: Architect -> Generator (topology change)
+    +-- "Add a new output"       -> Full chain: Architect -> Generator (topology change, NO re-brainstorm)
     +-- "Make the edge softer"   -> HLSL-only: Architect updates shader_code.hlsl
                                     You paste just the code into Custom node
 ```
@@ -118,6 +120,32 @@ User pastes HLSL that references inputs from their existing reroute system. Both
 ---
 
 ## The Workflow
+
+### Phase 0a: Brainstorm Idea (Entry Point A only)
+
+For Entry Point A — **and only Entry Point A** — run an interactive brainstorm with the user BEFORE dispatching any silent agent. Entry Points B, C, D, the direct-YAML path, and all Phase 4 iterations skip this step.
+
+**Steps:**
+
+1. **Determine the material name.** Extract from the user's description or propose one (`M_<Purpose>` or `M_<Purpose>_VFX`). Confirm with the user if ambiguous.
+
+2. **Check for brief collision.** If `<cwd>/ue5-materials/<material-name>/material_brief.md` already exists:
+   - If the user's intent is iteration on an existing material, route to Phase 4 — do NOT re-brainstorm, do NOT overwrite the brief.
+   - If the user intends a NEW material with the same name, ask: *"`<material-name>` already has a brief at `<path>`. Rename the new material or overwrite?"* Wait for confirmation. Never silently overwrite.
+
+3. **Create the working directory** `<cwd>/ue5-materials/<material-name>/` if it doesn't exist.
+
+4. **Invoke `superpowers:brainstorming` via the `Skill` tool** with two in-context directives:
+   - **Spec location override:** *"Save the design doc to `<absolute-path-to-working-dir>/material_brief.md`. Do not use the default `docs/superpowers/specs/…` path."*
+   - **Terminal handoff override:** *"When the user approves the design, do NOT invoke `superpowers:writing-plans`. Return control to the `ue5-materials:author` skill — the HLSL Architect is the next step, not a general implementation plan."*
+
+5. **Wait for brainstorming to complete** and the user to approve the brief.
+
+6. **Fallback — if the brief landed at the default path** (`docs/superpowers/specs/YYYY-MM-DD-<name>-design.md`) despite the override, move it to `<working-dir>/material_brief.md` before proceeding.
+
+7. **User abandons mid-brainstorm** ("nevermind, just do it"): save whatever has been captured to `material_brief.md` with a one-line disclaimer at the top: *"User declined further brainstorming — proceeding with minimal brief."* Then proceed.
+
+8. **Hand off to Phase 0** (gather external reroutes / existing HLSL context) with the brief path available for Phase 1.
 
 ### Phase 0: Gather Context
 
@@ -282,6 +310,7 @@ Use when:
 ### Output Files (created in working directory)
 | File | Purpose | When to paste |
 |------|---------|---------------|
+| `material_brief.md` | Design brief from Phase 0a brainstorm (Entry Point A only) | Not pasted -- feeds HLSL Architect as authoritative design intent |
 | `shader_design.md` | Design spec -- inputs, outputs, topology | Not pasted -- reference only |
 | `shader_code.hlsl` | HLSL source code (standalone) | **HLSL-only updates:** paste into Custom node code field |
 | `ue5_nodes.yaml` | YAML node definition (editable, re-runnable) | Not pasted -- intermediate format |
@@ -310,11 +339,13 @@ Requires: `pip install pyyaml`. `<PLUGIN_DIR>` = plugin root (two levels above t
 
 | Thought | Reality |
 |---------|---------|
+| "I'll skip brainstorming, the user described it clearly" | Entry Point A always brainstorms. The Architect does silent design; brainstorming is the interactive gate. |
 | "I'll just write the HLSL inline" | Dispatch the Architect agent -- it reads the conventions |
 | "I'll generate YAML in the main context" | Dispatch the Generator agent -- keeps context clean |
 | "This shader is too simple for agents" | Use `ue5-materials:author (direct YAML path)` directly for simple cases |
 | "I'll skip the review" | Fine for simple shaders, but review complex ones |
 | "I'll fix the HLSL myself" | Re-dispatch Architect with adjustment context |
+| "I'll emit a Comment box for this section" | **NEVER.** UE5 crashes on `UMaterialGraphNode_Comment::ResizeNode()`. Use Named Reroutes + column positioning. |
 
 ## When NOT to Use This Workflow
 
