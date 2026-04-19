@@ -40,7 +40,7 @@ Read shader_design.md and shader_code.hlsl. Understand:
 - What outputs (Named Reroutes) to declare
 - The connection topology
 - **Which inputs are `source: external_reroute`** — these do NOT get source nodes
-- What comment groups to create and which nodes each contains
+- Which values deserve Named Reroutes — specifically, read `intermediate_reroutes:` from `shader_design.md` (see Named Reroute Strategy below)
 
 ### Step 2: Create YAML Definition
 
@@ -48,7 +48,7 @@ Write `ue5_nodes.yaml` in the working directory. Follow this structure:
 
 ```yaml
 material_path: "/Script/UnrealEd.PreviewMaterial'/Engine/Transient.M_[ShaderName]'"
-position_start: [5000, 200]
+position_start: [0, 0]
 spacing_x: 256
 spacing_y: 96
 
@@ -66,9 +66,19 @@ nodes:
   # ... all components ...
 
   # --- FLOAT4 PACKING ---
-  - name: In1_PackName
+  - name: In1_PackName_Raw
     type: MakeFloat4
-    desc: "In1_PackName : float4 (CompX, CompY, CompZ, CompW)"
+    desc: "In1_PackName_Raw : float4 (CompX, CompY, CompZ, CompW) — feeds In1_PackName declaration"
+
+  # --- INPUT NAMED REROUTES ---
+  # Every input pack gets a NamedRerouteDeclaration at the graph's left edge.
+  # Wiring `In1_PackName -> NodeName.In1_PackName` in the `connections:` section
+  # is enough — the Python converter resolves the reroute variable into the
+  # Custom node input pin. Do NOT emit explicit NamedRerouteUsage nodes in YAML.
+  - name: In1_PackName
+    type: NamedRerouteDeclaration
+    var_name: "In1_PackName"
+    color: [0.3, 0.5, 0.8]
 
   # --- STANDALONE INPUTS (source nodes created) ---
   # Only for inputs with source: TextureCoordinate, Time, etc.
@@ -108,36 +118,24 @@ nodes:
     var_name: "OutputVarName"
     color: [from design]
 
-  # --- COMMENT BOXES ---
-  # Comments auto-position around their contained nodes.
-  # ALWAYS specify `contains` with the list of node names this comment should wrap.
-  # Do NOT specify size_x/size_y — the generator computes these automatically.
-  - name: Comment_Inputs
-    type: Comment
-    text: "Shader Inputs"
-    contains: [In1_CompX, In1_CompY, In1_CompZ, In1_CompW, In1_PackName, UV, Time]
-    color: [0.15, 0.15, 0.15]
-
-  - name: Comment_CustomNode
-    type: Comment
-    text: "ShaderName Custom Node"
-    contains: [NodeName]
-    color: [0.15, 0.15, 0.15]
-
-  - name: Comment_Outputs
-    type: Comment
-    text: "Outputs"
-    contains: [Out_OutputVarName, Out_SomeOther]
-    color: [0.15, 0.15, 0.15]
+  # --- NO COMMENT BOXES ---
+  # Do NOT emit `Comment` / `MaterialExpressionComment` nodes.
+  # UE5 crashes in `UMaterialGraphNode_Comment::ResizeNode()` on mouse move.
+  # Use Named Reroutes (strategy below) and the Positioning Convention (below)
+  # for visual grouping instead.
 
 connections:
-  # Constants to MakeFloat4
-  - In1_CompX -> In1_PackName.X
-  - In1_CompY -> In1_PackName.Y
-  - In1_CompZ -> In1_PackName.Z
-  - In1_CompW -> In1_PackName.A
+  # Constants to MakeFloat4 (raw pack)
+  - In1_CompX -> In1_PackName_Raw.X
+  - In1_CompY -> In1_PackName_Raw.Y
+  - In1_CompZ -> In1_PackName_Raw.Z
+  - In1_CompW -> In1_PackName_Raw.A
+
+  # Raw pack → Named Reroute Declaration
+  - In1_PackName_Raw -> In1_PackName
 
   # Inputs to Custom node — ONLY for nodes we created
+  # (the declaration name is also the reroute variable — Custom node input resolves to it)
   - In1_PackName -> NodeName.In1_PackName
   - UV -> NodeName.UV
   - Time -> NodeName.Time
@@ -151,6 +149,38 @@ connections:
   # or for additional outputs:
   - NodeName.OutputName -> Out_SomeOther
 ```
+
+### Named Reroute Strategy
+
+Named Reroute Declarations (`NamedRerouteDeclaration`) are the preferred way to label and anchor values in the graph. They replace Comment boxes for visual grouping.
+
+**Emit a Named Reroute Declaration for:**
+- **Every Float4 input pack** — the output of each `MakeFloat4` goes through a declaration named after the pack (`In1_PackName`, `In2_AnimParams`, etc.). The raw `MakeFloat4` node is suffixed `_Raw` and never consumed directly by the Custom node.
+- **Standalone source nodes** — `TextureCoordinate` (UV), `Time`, and other non-pack source nodes are wired directly into the Custom node. Do NOT wrap them in reroute declarations — they are not packs.
+- **Every output** — already the existing pattern (`Out_OutputVarName`). Keep this.
+- **Intermediate values consumed in 2+ places** — read the `intermediate_reroutes:` key from `shader_design.md`. Every non-empty entry there is the Architect's authoritative list of graph-level values to promote to Named Reroute Declarations. If the key is missing, empty, or null, emit no intermediate reroutes. Do NOT invent additional ones based on your own judgment — trust the Architect's enumeration.
+
+**Do NOT emit a declaration for:**
+- **External reroute inputs** — user already has these in their graph. Leave the Custom node pin unconnected as before.
+- **Single-use intermediates** — wire them directly, keep the graph simple.
+
+### Node Positioning Convention
+
+Use a fixed column-based layout. Tall graphs stay in single columns — no dynamic flow.
+
+| Column | X | Contents |
+|--------|---|----------|
+| 0 | 0 | Input `NamedRerouteDeclaration` nodes |
+| 1 | 400 | Input source nodes (Constants, `TextureCoordinate`, `Time`, `MakeFloat4` raw packs) |
+| 2 | 800 | Packing / intermediate nodes |
+| 3 | 1200 | Custom HLSL node (centerpiece) |
+| 4 | 1600 | Output `NamedRerouteDeclaration` nodes |
+
+**Vertical rule:** each column stacks top-to-bottom, 200px per row, no overlaps. Related values (e.g. RGBA components of one pack) sit contiguously. Set `position_start: [0, 0]` and let column X values drive horizontal placement; each node's Y increments by 200 within its column.
+
+**Why declarations sit leftmost:** declarations are the "public interface" the Custom node reads from. Source nodes (Constants, `MakeFloat4`) feeding declarations visually trail to the right of them. This keeps the Custom node's input side clean — the consumer reads left-to-right from declarations, not from upstream plumbing.
+
+When emitting node positions in YAML, set each node's `x` explicitly to the column value above and `y` to the next free 200px slot in that column.
 
 ### Step 3: Embed HLSL Code
 
@@ -223,6 +253,14 @@ If there are unconnected pins listed above, wire your existing Named Reroutes to
 - [What was tried to fix it]
 - [Suggested next steps]
 ```
+
+## Red Flags
+
+| Thought | Reality |
+|---------|---------|
+| "A Comment box would make this cleaner" | **NEVER** emit `Comment` nodes. UE5 crashes on `UMaterialGraphNode_Comment::ResizeNode()`. Use Named Reroutes + positioning. |
+| "Single-use intermediate deserves a reroute for clarity" | Single-use stays as direct wire. Reroutes are for 2+ consumers or pack/output boundaries. |
+| "I'll let nodes stack anywhere" | Use the 5-column convention. 200px rows, no overlaps. |
 
 ## What This Agent Does NOT Do
 

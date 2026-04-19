@@ -39,7 +39,9 @@ The `author` skill produces YAML; the user or Claude then runs `apply_material.p
 
 ## Key Principles
 
+- **Brainstorm before build** — new shaders (Entry Point A inside `author`) start with `superpowers:brainstorming` to lock the idea before silent agents design it. Entry Points B, C, D, Phase 4 iterations, and direct-YAML path skip the gate.
 - **Opus for shader design**, Sonnet for node mechanics, agent subprocesses keep the main context clean.
-- **File-based handoff** — agents write `shader_design.md`, `shader_code.hlsl`, `ue5_nodes.yaml`. The main context only sees summary tables.
+- **File-based handoff** — agents write `material_brief.md`, `shader_design.md`, `shader_code.hlsl`, `ue5_nodes.yaml`. The main context only sees summary tables.
 - **YAML is the durable artifact** — it survives edits, diffs cleanly, replays in either mode.
 - **Live and clipboard modes are interchangeable outputs** of the same YAML; pick based on what's running.
+- **No Comment boxes** — Generator never emits `Comment` nodes; they crash UE5 on resize. Named Reroutes + column positioning replace them.

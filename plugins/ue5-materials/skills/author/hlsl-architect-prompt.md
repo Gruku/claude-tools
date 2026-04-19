@@ -56,6 +56,17 @@ If `edit_existing: true`:
 
 [USER'S PLAIN TEXT DESCRIPTION]
 
+## Material Brief (only if Entry Point A — new shader from description)
+
+material_brief: [path to material_brief.md, or "none"]
+
+If a `material_brief` path is provided:
+- Read that file FIRST, BEFORE interpreting the user's plain-text description.
+- Treat the brief as the **authoritative design intent** — it was produced by interactive brainstorming with the user and reflects their confirmed decisions on look, motion, inputs, scope, and target use.
+- Use the raw user description only to resolve ambiguities not covered by the brief.
+- If the brief and the raw description contradict, the brief wins.
+- If `material_brief` is `"none"`, no brief exists — interpret the raw description directly.
+
 ## Existing Code (only if edit_existing: true)
 
 existing_code_file: [path to file with user's HLSL code]
@@ -109,6 +120,7 @@ Think through:
 - What outputs? (as Named Reroutes for clean graph readability)
 - Which outputs are raw SDF values? (these get `MF_UI_SDF_AntiAliasedStep` in the graph)
 - Any animation behavior? (time-triggered enter/exit)
+- **Which Custom node outputs (or additional outputs) are consumed by 2+ downstream graph nodes?** — list these explicitly in `shader_design.md` under `intermediate_reroutes`. The Node Generator will promote them to Named Reroute Declarations. Single-use graph-level values do NOT need this treatment. (This is about graph-level reuse, not HLSL-internal variables.)
 
 ### Step 2: Write the HLSL Code
 
@@ -205,6 +217,15 @@ custom_nodes:
       - name: OutputName
         type: CMOT_Float1
     code_file: shader_code.hlsl
+
+# Intermediate values consumed in 2+ downstream graph nodes — promoted to Named
+# Reroutes by the Node Generator. Omit or leave empty when all such values are
+# single-use. Populated entries have the shape shown in the example below.
+intermediate_reroutes:
+  # - name: "ShapeMask"
+  #   source: "NodeName.ShapeMask"
+  #   type: float
+  #   description: "Used by body fill and border AA"
 
 outputs:
   - name: "OutputVarName"
