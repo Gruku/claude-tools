@@ -40,7 +40,7 @@ Read shader_design.md and shader_code.hlsl. Understand:
 - What outputs (Named Reroutes) to declare
 - The connection topology
 - **Which inputs are `source: external_reroute`** — these do NOT get source nodes
-- Which values deserve Named Reroutes (see Named Reroute Strategy below)
+- Which values deserve Named Reroutes — specifically, read `intermediate_reroutes:` from `shader_design.md` (see Named Reroute Strategy below)
 
 ### Step 2: Create YAML Definition
 
@@ -158,7 +158,7 @@ Named Reroute Declarations (`NamedRerouteDeclaration`) are the preferred way to 
 - **Every Float4 input pack** — the output of each `MakeFloat4` goes through a declaration named after the pack (`In1_PackName`, `In2_AnimParams`, etc.). The raw `MakeFloat4` node is suffixed `_Raw` and never consumed directly by the Custom node.
 - **Standalone source nodes** — `TextureCoordinate` (UV), `Time`, and other non-pack source nodes are wired directly into the Custom node. Do NOT wrap them in reroute declarations — they are not packs.
 - **Every output** — already the existing pattern (`Out_OutputVarName`). Keep this.
-- **Intermediate values consumed in 2+ places** — if the shader design lists a value as used multiple times downstream, promote it to a declaration. Single-use intermediates stay as direct wires.
+- **Intermediate values consumed in 2+ places** — read the `intermediate_reroutes:` key from `shader_design.md`. Every non-empty entry there is the Architect's authoritative list of graph-level values to promote to Named Reroute Declarations. If the key is missing, empty, or null, emit no intermediate reroutes. Do NOT invent additional ones based on your own judgment — trust the Architect's enumeration.
 
 **Do NOT emit a declaration for:**
 - **External reroute inputs** — user already has these in their graph. Leave the Custom node pin unconnected as before.
