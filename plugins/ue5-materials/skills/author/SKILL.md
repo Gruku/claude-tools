@@ -92,7 +92,7 @@ You paste full graph into UE5 Material Editor (Ctrl+V)
 This skill handles several starting scenarios. Before dispatching agents, identify which applies:
 
 ### A. New Shader from Description (default)
-User describes what they want in plain text. Full chain: Architect -> Generator.
+User describes what they want in plain text. Full chain: **Phase 0a brainstorm** (see below) → Architect → Generator.
 
 ### B. Edit Existing HLSL
 User pastes or links existing HLSL code and asks for changes. Dispatch Architect in `edit_existing` mode -- it reads the provided code, makes the requested changes, and saves updated `shader_code.hlsl`. Then decide:
@@ -135,13 +135,15 @@ For Entry Point A — **and only Entry Point A** — run an interactive brainsto
 
 3. **Create the working directory** `<cwd>/ue5-materials/<material-name>/` if it doesn't exist.
 
-4. **Invoke `superpowers:brainstorming` via the `Skill` tool** with two in-context directives:
+4. **Invoke `superpowers:brainstorming` via the `Skill` tool**, passing both override directives below verbatim as part of the initial user message to the skill (not as a paraphrased summary). The quoted strings are the exact text to include:
    - **Spec location override:** *"Save the design doc to `<absolute-path-to-working-dir>/material_brief.md`. Do not use the default `docs/superpowers/specs/…` path."*
    - **Terminal handoff override:** *"When the user approves the design, do NOT invoke `superpowers:writing-plans`. Return control to the `ue5-materials:author` skill — the HLSL Architect is the next step, not a general implementation plan."*
 
+   If `superpowers:brainstorming` does not honor either override (you see it writing to the default path, or it invokes `writing-plans`), steps 6 and 7 below cover the recovery paths.
+
 5. **Wait for brainstorming to complete** and the user to approve the brief.
 
-6. **Fallback — if the brief landed at the default path** (`docs/superpowers/specs/YYYY-MM-DD-<name>-design.md`) despite the override, move it to `<working-dir>/material_brief.md` before proceeding.
+6. **Fallback — if the brief landed at the default path** (`docs/superpowers/specs/YYYY-MM-DD-<name>-design.md`) despite the override, glob `docs/superpowers/specs/*-<material-name>-design.md` to find the exact filename, then move it to `<working-dir>/material_brief.md` before proceeding.
 
 7. **User abandons mid-brainstorm** ("nevermind, just do it"): save whatever has been captured to `material_brief.md` with a one-line disclaimer at the top: *"User declined further brainstorming — proceeding with minimal brief."* Then proceed.
 
@@ -172,6 +174,7 @@ Read the agent prompt template:
 Dispatch a `general-purpose` agent with `model: opus`:
 - Pass the user's plain text shader description (or `edit_existing: true` + path to existing code)
 - Pass `external_reroutes` list if the user has existing Named Reroutes
+- Pass `material_brief: <absolute-path-to-brief>` if Phase 0a ran (Entry Point A); set `material_brief: "none"` otherwise
 - Agent reads `./hlsl-conventions.md` and `./antialiasing-reference.md`
 - Agent designs shader architecture and writes HLSL code
 - Agent saves `shader_design.md` + `shader_code.hlsl` in working directory
