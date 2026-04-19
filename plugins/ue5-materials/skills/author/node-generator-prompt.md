@@ -48,7 +48,7 @@ Write `ue5_nodes.yaml` in the working directory. Follow this structure:
 
 ```yaml
 material_path: "/Script/UnrealEd.PreviewMaterial'/Engine/Transient.M_[ShaderName]'"
-position_start: [5000, 200]
+position_start: [0, 0]
 spacing_x: 256
 spacing_y: 96
 
@@ -68,12 +68,13 @@ nodes:
   # --- FLOAT4 PACKING ---
   - name: In1_PackName_Raw
     type: MakeFloat4
-    desc: "In1_PackName : float4 (CompX, CompY, CompZ, CompW)"
+    desc: "In1_PackName_Raw : float4 (CompX, CompY, CompZ, CompW) — feeds In1_PackName declaration"
 
   # --- INPUT NAMED REROUTES ---
   # Every input pack gets a NamedRerouteDeclaration at the graph's left edge.
-  # The Custom node reads from a NamedRerouteUsage co-located with it (handled
-  # by the connection topology — declarations flow into usages via the graph).
+  # Wiring `In1_PackName -> NodeName.In1_PackName` in the `connections:` section
+  # is enough — the Python converter resolves the reroute variable into the
+  # Custom node input pin. Do NOT emit explicit NamedRerouteUsage nodes in YAML.
   - name: In1_PackName
     type: NamedRerouteDeclaration
     var_name: "In1_PackName"
@@ -154,7 +155,8 @@ connections:
 Named Reroute Declarations (`NamedRerouteDeclaration`) are the preferred way to label and anchor values in the graph. They replace Comment boxes for visual grouping.
 
 **Emit a Named Reroute Declaration for:**
-- **Every input pack** — the Float4 result of `MakeFloat4` goes through a declaration named after the pack (`In1_PackName`, `In_UV`, `In_Time`, etc.). The raw `MakeFloat4` node is suffixed `_Raw` and never consumed directly.
+- **Every Float4 input pack** — the output of each `MakeFloat4` goes through a declaration named after the pack (`In1_PackName`, `In2_AnimParams`, etc.). The raw `MakeFloat4` node is suffixed `_Raw` and never consumed directly by the Custom node.
+- **Standalone source nodes** — `TextureCoordinate` (UV), `Time`, and other non-pack source nodes are wired directly into the Custom node. Do NOT wrap them in reroute declarations — they are not packs.
 - **Every output** — already the existing pattern (`Out_OutputVarName`). Keep this.
 - **Intermediate values consumed in 2+ places** — if the shader design lists a value as used multiple times downstream, promote it to a declaration. Single-use intermediates stay as direct wires.
 
@@ -175,6 +177,8 @@ Use a fixed column-based layout. Tall graphs stay in single columns — no dynam
 | 4 | 1600 | Output `NamedRerouteDeclaration` nodes |
 
 **Vertical rule:** each column stacks top-to-bottom, 200px per row, no overlaps. Related values (e.g. RGBA components of one pack) sit contiguously. Set `position_start: [0, 0]` and let column X values drive horizontal placement; each node's Y increments by 200 within its column.
+
+**Why declarations sit leftmost:** declarations are the "public interface" the Custom node reads from. Source nodes (Constants, `MakeFloat4`) feeding declarations visually trail to the right of them. This keeps the Custom node's input side clean — the consumer reads left-to-right from declarations, not from upstream plumbing.
 
 When emitting node positions in YAML, set each node's `x` explicitly to the column value above and `y` to the next free 200px slot in that column.
 
