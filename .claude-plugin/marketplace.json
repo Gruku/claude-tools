@@ -18,7 +18,7 @@
       "name": "guard-hooks",
       "source": "./plugins/guard-hooks",
       "description": "Safety guard hooks that block destructive CLI commands and sensitive file edits, with in-flow user approval via UserPromptSubmit. Requires: jq (https://jqlang.github.io/jq/)",
-      "version": "2.2.1"
+      "version": "2.2.2"
     },
     {
       "name": "ue5-materials",
