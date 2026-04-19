@@ -1,7 +1,7 @@
 {
   "name": "ue5-materials",
   "description": "Author UE5 materials from YAML. Live mode drives the Material Editor via MCPBridge; clipboard mode emits T3D text for paste.",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "author": {
     "name": "gruku"
   }

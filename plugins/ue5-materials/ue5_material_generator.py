@@ -475,7 +475,8 @@ class NamedRerouteDeclarationNode(MaterialNode):
     """Named reroute declaration (setter)."""
 
     def __init__(self, name: str, var_name: str, node_index: int,
-                 color: Tuple[float, float, float] = (0.0, 0.0, 0.0), **kwargs):
+                 color: Tuple[float, float, float] = (0.0, 0.0, 0.0),
+                 variable_guid: str = None, **kwargs):
         expr_name = f"MaterialExpressionNamedRerouteDeclaration_{name}"
         super().__init__(
             name=name,
@@ -485,7 +486,7 @@ class NamedRerouteDeclarationNode(MaterialNode):
             **kwargs
         )
         self.var_name = var_name
-        self.variable_guid = generate_guid()
+        self.variable_guid = variable_guid or generate_guid()
         self.color = color
         self.input_expression: Optional[str] = None
 
@@ -1062,6 +1063,7 @@ class MaterialGraphBuilder:
                 var_name=node_def.get('var_name', name),
                 node_index=self.node_index,
                 color=tuple(color),
+                variable_guid=node_def.get('variable_guid'),
                 **common_kwargs
             )
             self.node_index += 1

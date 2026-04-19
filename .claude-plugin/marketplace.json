@@ -24,7 +24,7 @@
       "name": "ue5-materials",
       "source": "./plugins/ue5-materials",
       "description": "Author UE5 materials from YAML. Live mode drives the Material Editor via MCPBridge (localhost:13580); clipboard mode emits T3D paste text. HLSL Architect (Opus) + Node Generator (Sonnet) agent chain for complex designs, direct YAML for simple wiring. Requires: pyyaml.",
-      "version": "3.0.0"
+      "version": "3.0.1"
     }
   ]
 }
