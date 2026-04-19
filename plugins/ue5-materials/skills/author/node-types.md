@@ -334,7 +334,12 @@ Properties:
    Period=[float]
 ```
 
-### MaterialExpressionComment
+### MaterialExpressionComment — DO NOT USE
+
+> **⚠ Crashes UE5.** Emitting a `Comment` node in a material graph triggers `UMaterialGraphNode_Comment::ResizeNode()` on mouse move (`EXCEPTION_ACCESS_VIOLATION writing address 0x00000000000000c8`). Do NOT include `Comment` nodes in generated YAML. Use Named Reroutes and the positioning convention (see `node-generator-prompt.md`) for visual grouping instead.
+>
+> The reference below is kept for historical context only. The `node-generator-prompt.md` template does not emit these, and the Generator agent must not add them.
+
 Comment box for organization.
 
 ```
