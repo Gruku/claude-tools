@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Claude Tools — gruku</title>
 <style>
-  body { background: #1a1a1a; color: #ccc; font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 14px; padding: 32px; margin: 0; max-width: 960px; margin: 0 auto; }
+  body { background: #1a1a1a; color: #ccc; font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 14px; padding: 32px; margin: 0 auto; max-width: 960px; }
   h1 { color: #aaa; font-size: 18px; margin-bottom: 4px; }
   .subtitle { color: #555; font-size: 13px; margin-bottom: 12px; }
   .install-bar { background: #0d0d0d; border: 1px solid #333; border-radius: 6px; padding: 12px 16px; margin-bottom: 28px; font-size: 12px; color: #888; }
@@ -15,19 +15,20 @@
   .tool .name a:hover { color: rgb(235,195,80); }
   .tool .desc { color: #666; font-size: 12px; line-height: 1.5; }
   .tool .tags { margin-top: 10px; }
-  .tag { display: inline-block; background: #222; border: 1px solid #333; border-radius: 3px; padding: 2px 8px; font-size: 11px; color: rgb(165,150,200); }
-  .tag.new { color: rgb(63,185,80); border-color: #1a5c2e; }
-  .version { color: #555; font-size: 11px; float: right; }
+  .tag { display: inline-block; background: #222; border: 1px solid #333; border-radius: 3px; padding: 2px 8px; font-size: 11px; color: rgb(165,150,200); margin-right: 4px; }
+  .version { color: #555; font-size: 11px; float: right; font-weight: normal; }
   .skills { margin-top: 8px; }
   .skill { font-size: 11px; color: #555; }
   .skill code { color: rgb(140,160,185); background: #1a1a1a; padding: 1px 5px; border-radius: 2px; }
   .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #333; color: #444; font-size: 11px; }
   .footer a { color: rgb(140,160,185); text-decoration: none; }
+  .loading { color: #444; font-size: 12px; padding: 20px 0; }
+  .error { color: #a44; font-size: 12px; padding: 20px 0; }
 </style>
 </head><body>
 
 <h1>Claude Tools</h1>
-<div class="subtitle">Plugin marketplace & tools for Claude Code by <a href="https://github.com/Gruku" style="color:rgb(140,160,185);text-decoration:none;">Gruku</a></div>
+<div class="subtitle">Plugin marketplace &amp; tools for Claude Code by <a href="https://github.com/Gruku" style="color:rgb(140,160,185);text-decoration:none;">Gruku</a></div>
 
 <div class="install-bar">
   Install marketplace: <code>/plugin marketplace add Gruku/claude-tools</code><br>
@@ -35,105 +36,72 @@
 </div>
 
 <h2>Plugins</h2>
+<div class="tools" id="plugins"><div class="loading">Loading marketplace.json…</div></div>
+
+<h2>Standalone</h2>
 <div class="tools">
-
   <div class="tool">
-    <div class="name">Taskmaster <span class="version">v1.0.0</span></div>
-    <div class="desc">Universal AI-powered task and backlog management. Drop into any project — tracks tasks, epics, milestones, sessions, and dependencies. Includes kanban viewer, quality gates, worktree isolation, and TODO auditing.</div>
-    <div class="tags">
-      <span class="tag new">new</span>
-      <span class="tag">task management</span>
-      <span class="tag">backlog</span>
-      <span class="tag">mcp server</span>
-    </div>
-    <div class="skills">
-      <span class="skill"><code>/init-taskmaster</code> <code>/start-session</code> <code>/pick-task</code> <code>/review-gate</code> <code>/end-session</code> <code>/check-todos</code></span>
-    </div>
+    <div class="name"><a href="statusline/">Statusline preview</a></div>
+    <div class="desc">Live ANSI preview of the pastel statusline. The statusline itself ships as a plugin — see above — this page is just a visual reference.</div>
+    <div class="tags"><span class="tag">preview</span></div>
   </div>
-
-  <div class="tool">
-    <div class="name">Shader Nodes <span class="version">v2.0.0</span></div>
-    <div class="desc">UE5.5 shader development pipeline. HLSL design (Opus) + Material Graph generation (Sonnet). Outputs UE5 clipboard format — paste directly into the Material Editor.</div>
-    <div class="tags">
-      <span class="tag">ue5</span>
-      <span class="tag">hlsl</span>
-      <span class="tag">material graph</span>
-    </div>
-    <div class="skills">
-      <span class="skill"><code>/shader-nodes:create</code> <code>/shader-nodes:yaml</code> <code>/shader-nodes:registry</code></span>
-    </div>
-  </div>
-
-  <div class="tool">
-    <div class="name">Reality Reprojection <span class="version">v1.3.0</span></div>
-    <div class="desc">Web design system plugin. Generate components, convert existing code, review compliance — all following the Reality Reprojection design token system.</div>
-    <div class="tags">
-      <span class="tag">design system</span>
-      <span class="tag">css</span>
-      <span class="tag">web</span>
-    </div>
-    <div class="skills">
-      <span class="skill"><code>/reality-reprojection:apply</code> <code>/reality-reprojection:generate</code> <code>/reality-reprojection:convert</code></span>
-    </div>
-  </div>
-
-  <div class="tool">
-    <div class="name">Image Gen <span class="version">v1.0.0</span></div>
-    <div class="desc">Multi-backend image generation. Generate, edit, and iteratively refine images using Google Gemini and OpenAI GPT Image 1.5. Supports transparent PNGs, multi-turn refinement, and game asset creation.</div>
-    <div class="tags">
-      <span class="tag">gemini</span>
-      <span class="tag">openai</span>
-      <span class="tag">image generation</span>
-    </div>
-    <div class="skills">
-      <span class="skill"><code>/image-gen</code> <code>/image-gen:generate</code> <code>/image-gen:edit</code> <code>/image-gen:refine</code></span>
-    </div>
-  </div>
-
-  <div class="tool">
-    <div class="name">Guard Hooks <span class="version">v1.0.0</span></div>
-    <div class="desc">Safety guard hooks that block destructive CLI commands (rm -rf, force push, reset --hard) and sensitive file edits (.env, lockfiles, git internals). Blocked commands trigger a user-approval flow via AskUserQuestion before proceeding.</div>
-    <div class="tags">
-      <span class="tag new">new</span>
-      <span class="tag">safety</span>
-      <span class="tag">hooks</span>
-    </div>
-    <div class="skills">
-      <span class="skill"><code>/guard-hooks:install</code></span>
-    </div>
-  </div>
-
-  <div class="tool">
-    <div class="name">Codex Dispatch <span class="version">v1.0.0</span></div>
-    <div class="desc">Dispatch tasks to OpenAI Codex CLI for parallel execution with GPT/o-series models. Diversity of thought, cost-optimized sub-tasks, and independent parallel work.</div>
-    <div class="tags">
-      <span class="tag">multi-model</span>
-      <span class="tag">codex</span>
-      <span class="tag">wsl</span>
-    </div>
-    <div class="skills">
-      <span class="skill"><code>/codex-dispatch</code></span>
-    </div>
-  </div>
-
-</div>
-
-<h2>Standalone Tools</h2>
-<div class="tools">
-
-  <div class="tool">
-    <div class="name"><a href="statusline/">Statusline</a></div>
-    <div class="desc">Pastel statusline for Claude Code with rate limit bars, git status, context usage, update notifications, and session cost tracking. Supports PowerShell and Bash.</div>
-    <div class="tags">
-      <span class="tag">ps1</span>
-      <span class="tag">bash</span>
-    </div>
-  </div>
-
 </div>
 
 <div class="footer">
-  <a href="https://github.com/Gruku/claude-tools">GitHub</a> · Marketplace name: <code>gruku-tools</code>
+  <a href="https://github.com/Gruku/claude-tools">GitHub</a> · Marketplace name: <code>gruku-tools</code> · Versions pulled live from <a href="https://github.com/Gruku/claude-tools/blob/master/.claude-plugin/marketplace.json"><code>marketplace.json</code></a>
 </div>
+
+<script>
+// UI metadata keyed by plugin name — tags and skills that aren't in marketplace.json.
+// name / description / version are fetched from marketplace.json at runtime.
+const META = {
+  "taskmaster": {
+    tags: ["task management", "backlog", "mcp server", "kanban"],
+    skills: ["/taskmaster:init-taskmaster", "/taskmaster:start-session", "/taskmaster:pick-task", "/taskmaster:review-gate", "/taskmaster:end-session", "/taskmaster:check-todos"],
+  },
+  "guard-hooks": {
+    tags: ["safety", "hooks"],
+    skills: ["/guard-hooks:install"],
+  },
+  "ue5-materials": {
+    tags: ["ue5", "hlsl", "material graph"],
+    skills: ["/ue5-materials:author", "/ue5-materials:registry"],
+  },
+  "statusline": {
+    tags: ["ps1", "bash", "statusline"],
+    skills: ["/statusline:setup"],
+  },
+};
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+function renderPlugin(p) {
+  const meta = META[p.name] || { tags: [], skills: [] };
+  const tags = meta.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join(" ");
+  const skills = meta.skills.length
+    ? `<div class="skills"><span class="skill">${meta.skills.map(s => `<code>${escapeHtml(s)}</code>`).join(" ")}</span></div>`
+    : "";
+  return `
+    <div class="tool">
+      <div class="name">${escapeHtml(p.name)} <span class="version">v${escapeHtml(p.version || "?")}</span></div>
+      <div class="desc">${escapeHtml(p.description || "")}</div>
+      ${tags ? `<div class="tags">${tags}</div>` : ""}
+      ${skills}
+    </div>`;
+}
+
+fetch(".claude-plugin/marketplace.json", { cache: "no-cache" })
+  .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+  .then(data => {
+    const host = document.getElementById("plugins");
+    const plugins = (data.plugins || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+    host.innerHTML = plugins.map(renderPlugin).join("") || `<div class="loading">No plugins listed.</div>`;
+  })
+  .catch(err => {
+    document.getElementById("plugins").innerHTML = `<div class="error">Failed to load marketplace.json: ${escapeHtml(err.message)}</div>`;
+  });
+</script>
 
 </body></html>

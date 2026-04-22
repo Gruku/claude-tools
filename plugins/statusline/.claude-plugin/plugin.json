@@ -1,0 +1,8 @@
+{
+  "name": "statusline",
+  "description": "Pastel statusline for Claude Code with rate-limit bars, git status, context usage, update notifications, and session cost. Bash + PowerShell. Run /statusline:setup after install.",
+  "version": "1.0.0",
+  "author": {
+    "name": "gruku"
+  }
+}

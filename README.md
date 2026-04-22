@@ -1,29 +1,34 @@
 # Claude Tools
 
-Plugin marketplace & standalone tools for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+Plugin marketplace for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 
 **[Browse Plugins](https://gruku.github.io/claude-tools/)** · Marketplace: `gruku-tools`
+
+> Versions are not listed in this README — they live in [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) as the single source of truth. The [GitHub Pages site](https://gruku.github.io/claude-tools/) reads that file at load time, so the browsable catalog is always current without a docs build step.
 
 ## Quick Start
 
 ```bash
-# Add the marketplace
+# 1. Add the marketplace
 /plugin marketplace add Gruku/claude-tools
 
-# Install a plugin
+# 2. Install a plugin
 /plugin install taskmaster@gruku-tools
+
+# 3. Reload
+/reload-plugins
 ```
 
 ---
 
 ## Plugins
 
-### Taskmaster `v1.4.1`
+### Taskmaster
 
 Universal AI-powered task and backlog management. Drop into any project.
 
 - **23 MCP tools** — tasks, epics, phases, dependencies, search, validation, session locking
-- **Kanban viewer** — dark/light theme board on port 6800 with filtering, search, and phase progress
+- **Kanban viewer** — dark/light theme board on port 6800 with filtering, search, blocked-column toggle, and dynamic version badge
 - **Session tracking** — auto-generated Done/Decisions/Issues changelog entries
 - **Worktree isolation** — every task gets its own git worktree
 - **Quality gates** — spec/plan check, code review, tests, build verification
@@ -31,90 +36,98 @@ Universal AI-powered task and backlog management. Drop into any project.
 - **Phases** — sequential blocks of work for focus, one active at a time
 - **Configurable storage** — `.claude/` (hidden) or project root (git-tracked)
 
+**Requires:** [uv](https://docs.astral.sh/uv/)
+
 **Skills:** `/init-taskmaster` `/start-session` `/pick-task` `/review-gate` `/end-session` `/check-todos`
 
-### Guard Hooks `v2.1.0`
+### Guard Hooks
 
 Safety guard hooks that block destructive CLI commands and sensitive file edits, with in-flow user approval.
 
 - **Destructive command blocking** — prevents `rm -rf`, `git push --force`, `git reset --hard`, etc.
 - **Sensitive file protection** — guards `.env`, credentials, and config files from accidental edits
-- **User approval flow** — prompts for confirmation via `UserPromptSubmit` before allowing risky actions
+- **User approval flow** — prompts for confirmation via `AskUserQuestion` before allowing risky actions
 
-**Requires:** jq
+**Requires:** [jq](https://jqlang.github.io/jq/)
 
 **Skills:** `/guard-hooks:install`
 
----
+### UE5 Materials
 
-## Standalone Tools
+Author Unreal Engine 5 materials from YAML specs. Two execution modes:
+
+- **Live mode** — drives the Material Editor via MCPBridge at `localhost:13580` (`create_material` + `add_material_expressions` + `connect_material_pins`)
+- **Clipboard mode** — emits T3D paste text for manual Ctrl+V into the Material Editor
+- **HLSL Architect (Opus) + Node Generator (Sonnet)** agent chain for complex shader designs
+- **Direct YAML path** for simple wiring of known nodes
+- **Named Reroutes + column positioning** replace crash-prone Comment boxes
+
+**Requires:** `pyyaml`
+
+**Skills:** `/ue5-materials:author` `/ue5-materials:registry`
 
 ### Statusline
 
-Pastel statusline for Claude Code with rate limit bars, git status, context usage, update notifications, and session cost tracking.
+Pastel statusline for Claude Code with rate-limit bars, git status, context usage, update notifications, and session cost tracking. Bash + PowerShell.
 
-**[Live Preview](https://gruku.github.io/claude-tools/statusline/)** · Supports Bash and PowerShell
+**[Live Preview](https://gruku.github.io/claude-tools/statusline/)**
 
 ![Statusline Preview](statusline/screenshot.png)
 
-#### Installation
+#### Install
+
+```bash
+/plugin marketplace add Gruku/claude-tools
+/plugin install statusline@gruku-tools
+/statusline:setup
+/reload-plugins
+```
+
+Then restart Claude Code so the new `statusLine` config is picked up.
+
+The `/statusline:setup` skill detects your OS (Windows → PS1, macOS/Linux → Bash), checks prerequisites, and writes the `statusLine` block into `~/.claude/settings.json` pointing at the bundled script via `${CLAUDE_PLUGIN_ROOT}`. Marketplace updates ship new versions automatically — no re-install needed.
+
+**Requires:** `jq` + `git` on Bash; nothing on Windows (PowerShell built-in, `git` recommended).
+
+<details>
+<summary>Manual install (standalone, without the plugin system)</summary>
 
 ##### macOS / Linux (Bash)
 
-**Requires:** `jq`, `git`
+```bash
+curl -o ~/.claude/statusline.sh https://raw.githubusercontent.com/Gruku/claude-tools/master/statusline/statusline.sh
+chmod +x ~/.claude/statusline.sh
+```
 
-1. Copy the script:
-   ```bash
-   curl -o ~/.claude/statusline.sh https://raw.githubusercontent.com/Gruku/claude-tools/master/statusline/statusline.sh
-   chmod +x ~/.claude/statusline.sh
-   ```
+Add to `~/.claude/settings.json`:
 
-2. Add to `~/.claude/settings.json`:
-   ```json
-   {
-     "statusLine": {
-       "command": "~/.claude/statusline.sh"
-     }
-   }
-   ```
-
-3. Restart Claude Code.
+```json
+{ "statusLine": { "type": "command", "command": "~/.claude/statusline.sh" } }
+```
 
 ##### Windows (PowerShell)
 
-1. Copy the script:
-   ```powershell
-   Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Gruku/claude-tools/master/statusline/statusline.ps1" -OutFile "$env:USERPROFILE\.claude\statusline.ps1"
-   ```
+```powershell
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Gruku/claude-tools/master/statusline/statusline.ps1" -OutFile "$env:USERPROFILE\.claude\statusline.ps1"
+```
 
-2. Add to `~/.claude/settings.json` (located at `%USERPROFILE%\.claude\settings.json`):
-   ```json
-   {
-     "statusLine": {
-       "command": "powershell -NoProfile -File \"%USERPROFILE%\\.claude\\statusline.ps1\""
-     }
-   }
-   ```
+Add to `%USERPROFILE%\.claude\settings.json`:
 
-3. Restart Claude Code.
+```json
+{ "statusLine": { "type": "command", "command": "powershell -NoProfile -File \"%USERPROFILE%\\.claude\\statusline.ps1\"" } }
+```
+
+Restart Claude Code.
+
+</details>
 
 #### Troubleshooting
 
-**Raw escape codes visible** (e.g. `\033[0;33m` printed literally)
+**Raw escape codes visible** (e.g. `\033[0;33m` printed literally) — something between the script and the terminal is re-encoding ANSI. Don't paste the output into `PS1`/`PROMPT` manually. tmux/screen users: `set -g default-terminal "xterm-256color"` in `.tmux.conf`. Check that your terminal supports 24-bit truecolor (iTerm2, Windows Terminal, Ghostty, Alacritty, Kitty, WezTerm all do).
 
-This means something between the script and your terminal is re-encoding the ANSI escape bytes. The statusline scripts output real ESC bytes — they don't rely on the shell to interpret `\033` literals.
+**"statusline: jq required"** — install jq: `brew install jq` / `sudo apt install jq` / `winget install jqlang.jq`.
 
-- **Don't paste the output into `PS1`/`PROMPT` manually.** The `statusLine.command` setting handles rendering — you just point it at the script.
-- **tmux / screen users:** ensure your multiplexer isn't stripping escape sequences. Try `set -g default-terminal "xterm-256color"` in `.tmux.conf`.
-- **Check your terminal emulator** supports 24-bit (truecolor) ANSI. Most modern terminals do (iTerm2, Windows Terminal, Ghostty, Alacritty, Kitty, WezTerm). The macOS default Terminal.app has limited truecolor support.
-
-**"statusline: jq required" error (macOS/Linux)**
-
-Install jq: `brew install jq` (macOS) or `sudo apt install jq` (Debian/Ubuntu).
-
-**No rate limit bars showing**
-
-Rate limits are read from stdin JSON — requires Claude Code v2.1.80 or later. Run `claude --version` to check. Bars also only appear when usage is above display thresholds (80%+ for 5h, 80%+ for 7d) or on the first render of a new session.
+**No rate-limit bars** — requires Claude Code v2.1.80 or later. Bars only appear when usage crosses display thresholds (80%+ for 5h, 80%+ for 7d) or on the first render of a new session.
 
 ---
 
@@ -128,8 +141,10 @@ claude-tools/
 │   └── marketplace.json        # plugin catalog
 ├── plugins/
 │   ├── taskmaster/             # AI task management
-│   └── guard-hooks/            # safety guard hooks
-└── statusline/                 # standalone tool (not a plugin)
+│   ├── guard-hooks/            # safety guard hooks
+│   ├── ue5-materials/          # UE5 material authoring
+│   └── statusline/             # pastel statusline (was standalone, now a plugin)
+└── statusline/                 # legacy standalone source (preview + manual install)
 ```
 
 ### Commands

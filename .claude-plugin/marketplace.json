@@ -25,6 +25,12 @@
       "source": "./plugins/ue5-materials",
       "description": "Author UE5 materials from YAML. Live mode drives the Material Editor via MCPBridge (localhost:13580); clipboard mode emits T3D paste text. HLSL Architect (Opus) + Node Generator (Sonnet) agent chain for complex designs, direct YAML for simple wiring. Requires: pyyaml.",
       "version": "3.0.1"
+    },
+    {
+      "name": "statusline",
+      "source": "./plugins/statusline",
+      "description": "Pastel statusline for Claude Code with rate-limit bars, git status, context usage, update notifications, and session cost. Bash + PowerShell. Run /statusline:setup after install. Requires: jq (Bash only).",
+      "version": "1.0.0"
     }
   ]
 }
