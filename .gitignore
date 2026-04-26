@@ -27,3 +27,6 @@ docs/superpowers/
 
 # Logs
 *.log
+
+# Git worktrees
+.worktrees/
