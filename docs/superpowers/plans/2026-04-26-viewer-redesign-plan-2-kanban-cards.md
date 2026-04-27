@@ -2251,7 +2251,7 @@ git commit -m "feat(viewer): components/epic-chips.js"
 
 (The dropdowns are inline-rendered: a `<select>` styled as a button — no popover plumbing needed in Plan 2.)
 
-- [ ] **Step 1: Append CSS for the styled selects**
+- [x] **Step 1: Append CSS for the styled selects**
 
 Append to `plugins/taskmaster/viewer/css/screens/kanban.css`:
 
@@ -2273,7 +2273,7 @@ Append to `plugins/taskmaster/viewer/css/screens/kanban.css`:
 .kanban-select:focus { border-color: var(--accent); }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/css/screens/kanban.css
