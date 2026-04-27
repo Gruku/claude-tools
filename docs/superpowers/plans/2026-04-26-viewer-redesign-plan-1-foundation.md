@@ -1768,7 +1768,7 @@ git commit -m "feat(viewer): kanban/task-detail/sessions stub screens"
 - Create: `plugins/taskmaster/viewer/js/screens/auto-mode.js`
 - Create: `plugins/taskmaster/viewer/js/screens/recap.js`
 
-- [ ] **Step 1: Write `lessons.js`**
+- [x] **Step 1: Write `lessons.js`**
 
 ```js
 export const meta = { title: 'Lessons', icon: '✦', sidebarKey: 'lessons' };
@@ -1781,7 +1781,7 @@ export async function mount(root) {
 }
 ```
 
-- [ ] **Step 2: Write `issues.js`**
+- [x] **Step 2: Write `issues.js`**
 
 ```js
 export const meta = { title: 'Issues', icon: '⚠', sidebarKey: 'issues' };
@@ -1794,7 +1794,7 @@ export async function mount(root) {
 }
 ```
 
-- [ ] **Step 3: Write `auto-mode.js`**
+- [x] **Step 3: Write `auto-mode.js`**
 
 ```js
 export const meta = { title: 'Auto Mode', icon: '⌬', sidebarKey: 'auto_mode' };
@@ -1807,7 +1807,7 @@ export async function mount(root) {
 }
 ```
 
-- [ ] **Step 4: Write `recap.js`**
+- [x] **Step 4: Write `recap.js`**
 
 ```js
 export const meta = { title: 'Recap', icon: '↻', sidebarKey: 'recap' };
@@ -1821,7 +1821,7 @@ export async function mount(root, { subpath }) {
 }
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/screens/lessons.js plugins/taskmaster/viewer/js/screens/issues.js plugins/taskmaster/viewer/js/screens/auto-mode.js plugins/taskmaster/viewer/js/screens/recap.js
