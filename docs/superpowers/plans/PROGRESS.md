@@ -31,7 +31,7 @@
 - [x] T1.20 Stub `screens/lessons.js`, `screens/issues.js`, `screens/auto-mode.js`, `screens/recap.js`
 - [x] T1.21 Manual smoke — every nav item resolves
 - [x] T1.22 Add `viewer.use_v3` flag and switch root URL when set
-- [ ] T1.23 Set up Playwright
+- [x] T1.23 Set up Playwright
 - [ ] T1.24 Write the smoke test
 - [ ] T1.25 Verify prefs round-trip end-to-end
 - [ ] T1.26 Document how to develop against the new viewer

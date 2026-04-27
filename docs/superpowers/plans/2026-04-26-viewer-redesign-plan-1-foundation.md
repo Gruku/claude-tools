@@ -1935,7 +1935,7 @@ git commit -m "feat(taskmaster): viewer.use_v3 flag — root serves v3 when enab
 - Create: `plugins/taskmaster/viewer/tests/package.json`
 - Create: `plugins/taskmaster/viewer/tests/playwright.config.js`
 
-- [ ] **Step 1: Write `package.json`**
+- [x] **Step 1: Write `package.json`**
 
 ```json
 {
@@ -1950,7 +1950,7 @@ git commit -m "feat(taskmaster): viewer.use_v3 flag — root serves v3 when enab
 }
 ```
 
-- [ ] **Step 2: Write `playwright.config.js`**
+- [x] **Step 2: Write `playwright.config.js`**
 
 ```js
 import { defineConfig } from '@playwright/test';
@@ -1967,7 +1967,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 3: Install Playwright**
+- [x] **Step 3: Install Playwright**
 
 ```bash
 cd plugins/taskmaster/viewer/tests && npm install
@@ -1976,7 +1976,7 @@ npx playwright install chromium
 
 (If `npm` is unavailable, document the manual install in a `README.md` and skip. The Python tests still cover server behavior.)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/package.json plugins/taskmaster/viewer/tests/playwright.config.js
