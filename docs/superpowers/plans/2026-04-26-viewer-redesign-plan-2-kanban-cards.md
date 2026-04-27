@@ -203,7 +203,7 @@ git commit -m "feat(taskmaster): _load_auto_state helper for .taskmaster/auto/st
 - Modify: `plugins/taskmaster/backlog_server.py` (add route in `_Handler.do_GET`)
 - Modify: `plugins/taskmaster/tests/test_server_auto_state.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `plugins/taskmaster/tests/test_server_auto_state.py`:
 
@@ -240,12 +240,12 @@ def test_get_auto_state_returns_state_object(running_server, tmp_path):
     assert body["state"]["cursor"]["stage"] == "IMPLEMENT"
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_auto_state.py -v -k get_auto_state`
 Expected: FAIL — 404 from `/api/auto/state`.
 
-- [ ] **Step 3: Implement the route**
+- [x] **Step 3: Implement the route**
 
 In `plugins/taskmaster/backlog_server.py`, inside `_Handler.do_GET`, add **before** the existing `/api/viewer/prefs` block (so route ordering stays predictable; the Plan 1 file orders specific paths first):
 
@@ -255,12 +255,12 @@ if self.path == "/api/auto/state":
     return
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_auto_state.py -v`
 Expected: 5 PASS (3 helper + 2 endpoint).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_server_auto_state.py
