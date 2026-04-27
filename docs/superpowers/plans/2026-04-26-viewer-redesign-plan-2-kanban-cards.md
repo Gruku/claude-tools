@@ -493,7 +493,7 @@ git commit -m "feat(viewer): lib/time.js with formatters and tests"
 - Create: `plugins/taskmaster/viewer/js/lib/epics.js`
 - Create: `plugins/taskmaster/viewer/tests/unit/epics.test.js`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `plugins/taskmaster/viewer/tests/unit/epics.test.js`:
 
@@ -554,12 +554,12 @@ test('epicCssVar — null color falls back to ink-3', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/epics.test.js`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement `lib/epics.js`**
+- [x] **Step 3: Implement `lib/epics.js`**
 
 Create `plugins/taskmaster/viewer/js/lib/epics.js`:
 
@@ -613,12 +613,12 @@ export function epicCssVar(hex) {
 }
 ```
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/epics.test.js`
 Expected: 6 pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/lib/epics.js plugins/taskmaster/viewer/tests/unit/epics.test.js
