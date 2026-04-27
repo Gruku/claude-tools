@@ -36,7 +36,7 @@
 - [x] T1.25 Verify prefs round-trip end-to-end
 - [x] T1.26 Document how to develop against the new viewer
 - [x] T1.27 Run full test suite + push status
-- [ ] T1.28 Verify Plan 1 deliverables match spec scope
+- [x] T1.28 Verify Plan 1 deliverables match spec scope
 
 ## Plan 2 — Kanban + Cards (0/33)
 *See `2026-04-26-viewer-redesign-plan-2-kanban-cards.md` for task definitions.*

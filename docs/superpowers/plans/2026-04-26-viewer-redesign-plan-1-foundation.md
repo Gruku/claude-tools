@@ -2227,18 +2227,18 @@ Per user policy, do not push to remote.
 
 ### Task 28: Verify Plan 1 deliverables match spec scope
 
-- [ ] **Step 1: Walk the spec checklist**
+- [x] **Step 1: Walk the spec checklist**
 
 Confirm each of these spec sections has at least skeleton support:
-- §3.10 v3 grounding — viewer reads existing v3 entity files via `/backlog.yaml` polling. ✓
-- §3.11 Sidebar — implemented in `sidebar.js`. ✓
-- §5 Implementation notes — `viewer.json` prefs file with all the keys mentioned (card_density, view per screen, dashboard.layout, kanban.filters, lessons.thresholds, issues.aging). ✓
+- §3.10 v3 grounding — viewer reads existing v3 entity files via `/backlog.yaml` polling. ✓ (main.js polls every 3000ms)
+- §3.11 Sidebar — implemented in `sidebar.js`. ✓ (4 sections, 7 items, route:changed listener, identity + autoState subs)
+- §5 Implementation notes — `viewer.json` prefs file with all the keys mentioned (card_density, view per screen, dashboard.layout, kanban.filters, lessons.thresholds, issues.aging). ✓ (verified in VIEWER_PREFS_DEFAULTS at taskmaster_v3.py:1057+)
 
-- [ ] **Step 2: Confirm hand-off contract for Plans 2–6**
+- [x] **Step 2: Confirm hand-off contract for Plans 2–6**
 
 Each subsequent plan inherits the **architectural conventions** at the top of this plan (module style, screen module shape, CSS naming, state+API, routing, persistence, tests). When writing those plans, reference this section verbatim — do not redefine.
 
-- [ ] **Step 3: Commit final state**
+- [x] **Step 3: Commit final state**
 
 If any docs were updated:
 ```bash
