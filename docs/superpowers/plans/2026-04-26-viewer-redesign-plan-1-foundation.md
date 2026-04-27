@@ -1990,7 +1990,7 @@ git commit -m "test(viewer): playwright config + dependency manifest"
 **Files:**
 - Create: `plugins/taskmaster/viewer/tests/smoke.spec.js`
 
-- [ ] **Step 1: Write the test**
+- [x] **Step 1: Write the test**
 
 ```js
 import { test, expect } from '@playwright/test';
@@ -2042,7 +2042,7 @@ test.describe('Viewer v3 smoke', () => {
 });
 ```
 
-- [ ] **Step 2: Add a test runner that boots the server**
+- [x] **Step 2: Add a test runner that boots the server**
 
 Create `plugins/taskmaster/viewer/tests/run_smoke.sh`:
 
@@ -2079,7 +2079,7 @@ exit $RESULT
 
 Make it executable: `chmod +x plugins/taskmaster/viewer/tests/run_smoke.sh`
 
-- [ ] **Step 3: Run the smoke**
+- [x] **Step 3: Run the smoke**
 
 ```bash
 bash plugins/taskmaster/viewer/tests/run_smoke.sh
@@ -2087,7 +2087,7 @@ bash plugins/taskmaster/viewer/tests/run_smoke.sh
 
 Expected: 11 tests PASS (boot + 9 routes + fallback). If npm/playwright isn't installed, Python tests already cover the server side; skip and note in commit message.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/smoke.spec.js plugins/taskmaster/viewer/tests/run_smoke.sh
