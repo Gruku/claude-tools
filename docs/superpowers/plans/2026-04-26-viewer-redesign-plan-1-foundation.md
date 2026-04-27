@@ -2153,7 +2153,7 @@ git commit -m "test(viewer): prefs round-trip integration smoke"
 **Files:**
 - Create: `plugins/taskmaster/viewer/README.md`
 
-- [ ] **Step 1: Write README**
+- [x] **Step 1: Write README**
 
 ```markdown
 # Taskmaster Viewer (v3)
@@ -2189,7 +2189,7 @@ The legacy viewer still serves at `/`. Set `viewer.use_v3 = true` in `.taskmaste
 - UI smoke: `bash plugins/taskmaster/viewer/tests/run_smoke.sh`
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/README.md

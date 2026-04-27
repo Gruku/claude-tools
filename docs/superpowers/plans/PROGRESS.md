@@ -34,7 +34,7 @@
 - [x] T1.23 Set up Playwright
 - [x] T1.24 Write the smoke test
 - [x] T1.25 Verify prefs round-trip end-to-end
-- [ ] T1.26 Document how to develop against the new viewer
+- [x] T1.26 Document how to develop against the new viewer
 - [ ] T1.27 Run full test suite + push status
 - [ ] T1.28 Verify Plan 1 deliverables match spec scope
 
