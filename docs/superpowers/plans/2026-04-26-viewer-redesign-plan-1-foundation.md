@@ -1121,7 +1121,7 @@ git commit -m "feat(viewer): index.html shell"
 - Modify: `plugins/taskmaster/backlog_server.py`
 - Modify: `plugins/taskmaster/tests/test_server_api.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `plugins/taskmaster/tests/test_server_api.py`:
 
@@ -1149,12 +1149,12 @@ def test_static_v3_path_traversal_blocked(running_server):
     assert exc.value.code in (400, 404)
 ```
 
-- [ ] **Step 2: Run tests**
+- [x] **Step 2: Run tests**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_api.py -v -k v3`
 Expected: FAIL (404)
 
-- [ ] **Step 3: Implement the routes**
+- [x] **Step 3: Implement the routes**
 
 Add at the start of `_Handler.do_GET` (before the existing `/api/*` block, but after `/api/viewer/prefs`):
 
@@ -1207,12 +1207,12 @@ if self.path.startswith("/static/v3/"):
 
 Make sure `import os` and `from pathlib import Path` are present at the top of `backlog_server.py`.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_api.py -v -k v3`
 Expected: All PASS (3 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_server_api.py
