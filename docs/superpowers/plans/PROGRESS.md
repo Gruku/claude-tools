@@ -23,7 +23,7 @@
 - [x] T1.12 Manual smoke — open `/v3` in a browser
 - [x] T1.13 Implement `js/api.js`
 - [x] T1.14 Implement `js/store.js` (in-memory state + subscriptions)
-- [ ] T1.15 Implement `js/router.js`
+- [x] T1.15 Implement `js/router.js`
 - [ ] T1.16 Implement `js/components/sidebar.js`
 - [ ] T1.17 Implement `js/main.js` (entry, boot, polling)
 - [ ] T1.18 Stub `screens/dashboard.js`

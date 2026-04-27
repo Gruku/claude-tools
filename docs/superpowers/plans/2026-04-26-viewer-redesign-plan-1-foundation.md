@@ -1350,7 +1350,7 @@ git commit -m "feat(viewer): store.js (in-memory state + subscriptions)"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/router.js`
 
-- [ ] **Step 1: Write the file**
+- [x] **Step 1: Write the file**
 
 ```js
 // Hash-based router. Hashes look like:
@@ -1436,7 +1436,7 @@ export function navigate(hash) {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/router.js
