@@ -306,7 +306,7 @@ git commit -m "feat(viewer): api.autoState() reads /api/auto/state"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/main.js`
 
-- [ ] **Step 1: Add an auto-state poll loop**
+- [x] **Step 1: Add an auto-state poll loop**
 
 Open `plugins/taskmaster/viewer/js/main.js`. Find the line `pollBacklogForever();` near the end of `boot()`. Replace that single line with:
 
@@ -334,7 +334,7 @@ async function pollAutoStateForever() {
 }
 ```
 
-- [ ] **Step 2: Manual smoke**
+- [x] **Step 2: Manual smoke**
 
 Run from `plugins/taskmaster/`:
 
@@ -346,7 +346,7 @@ Open the printed URL in a browser. In DevTools Network tab, confirm a `GET /api/
 
 Expected: no console errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/main.js

@@ -43,7 +43,7 @@
 - [x] T2.1 Helper to load `.taskmaster/auto/state.json`
 - [x] T2.2 HTTP endpoint `GET /api/auto/state`
 - [x] T2.3 Add `api.autoState()` and store wiring
-- [ ] T2.4 Poll auto-mode state from `main.js`
+- [x] T2.4 Poll auto-mode state from `main.js`
 - [ ] T2.5 `lib/time.js` (time-in-status + elapsed formatters)
 - [ ] T2.6 `lib/epics.js` (epic palette + auto-assignment)
 - [ ] T2.7 `lib/filters.js` (apply filters + sort + group)
