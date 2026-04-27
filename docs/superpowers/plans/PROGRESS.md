@@ -66,10 +66,10 @@
 - [x] T2.24 Manual smoke — open `/v3#/kanban` against a fixture backlog
 - [x] T2.24α Zoom removal + 1.5× source CSS rescale
 - [x] T2.24β Signal alignment + collapsible columns + prefs default
-- [ ] T2.25 Persist density toggle round-trip via Playwright (TDD)
-- [ ] T2.26 Group-by phase + epic visual sanity
-- [ ] T2.27 Prefs reset behavior
-- [ ] T2.28 Click-to-copy IDs and branches
+- [x] T2.25 Persist density toggle round-trip via Playwright (TDD)
+- [x] T2.26 Group-by phase + epic visual sanity
+- [x] T2.27 Prefs reset behavior
+- [x] T2.28 Click-to-copy IDs and branches
 - [ ] T2.29 Playwright config addition (kanban-aware fixture)
 - [ ] T2.30 Playwright smoke for kanban
 - [ ] T2.31 Auto-mode strip Playwright smoke (state.json injected by node fixture)

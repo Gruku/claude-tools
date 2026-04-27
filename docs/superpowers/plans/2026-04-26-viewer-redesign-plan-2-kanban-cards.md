@@ -2817,9 +2817,9 @@ See: `docs/superpowers/plans/2026-04-27-plan2-design-feedback-signal-alignment.m
 
 (Tests deferred to M7. Manual confirmation only here — no commit.)
 
-- [ ] **Step 1: Toggle density to "minimal" in the browser**
+- [x] **Step 1: Toggle density to "minimal" in the browser**
 
-- [ ] **Step 2: Reload the page**
+- [x] **Step 2: Reload the page**
 
 Expected: density-toggle still on "minimal", filters persist (search box still has its value).
 
@@ -2831,11 +2831,11 @@ If not, inspect Network tab for a `PUT /api/viewer/prefs` after each change. If 
 
 (Informational; no commit.)
 
-- [ ] **Step 1: Switch group dropdown to Phase**
+- [x] **Step 1: Switch group dropdown to Phase**
 
 Expected: columns are P-01 / P-02 / P-03 / P-04 / P-05 / Orphans, cards distributed by phase, status pill renders inside each card's chip row.
 
-- [ ] **Step 2: Switch group dropdown to Epic**
+- [x] **Step 2: Switch group dropdown to Epic**
 
 Expected: columns are viewer-redesign / narrative-continuity / filter-bar / — no epic — (if any). Status pill still renders.
 
@@ -2847,7 +2847,7 @@ If status pill is missing or rendering when group is `status`, debug `card.js` `
 
 (Informational; no commit.)
 
-- [ ] **Step 1: Apply a few filters, hit "clear all"**
+- [x] **Step 1: Apply a few filters, hit "clear all"**
 
 Expected: priorities, epics, phase, search, group, sort all reset to defaults. Filter count chip disappears.
 
@@ -2857,11 +2857,11 @@ Expected: priorities, epics, phase, search, group, sort all reset to defaults. F
 
 (Informational; no commit.)
 
-- [ ] **Step 1: Click an ID on a card**
+- [x] **Step 1: Click an ID on a card**
 
 Expected: green flash on the chip with " copied" label for ~1.2s; clipboard contains the id.
 
-- [ ] **Step 2: Click a branch in a card footer**
+- [x] **Step 2: Click a branch in a card footer**
 
 Expected: same green flash; clipboard contains the branch.
 
