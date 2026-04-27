@@ -1294,7 +1294,7 @@ git commit -m "feat(viewer): api.js HTTP client"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/store.js`
 
-- [ ] **Step 1: Write the file**
+- [x] **Step 1: Write the file**
 
 ```js
 // In-memory store. Screens read via getters and subscribe to keys.
@@ -1336,7 +1336,7 @@ export const store = {
 };
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/store.js
