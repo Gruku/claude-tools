@@ -435,7 +435,7 @@ git commit -m "feat(taskmaster): viewer_prefs_get/set MCP tools"
 - Modify: `plugins/taskmaster/backlog_server.py` (HTTP request handler)
 - Create: `plugins/taskmaster/tests/test_server_api.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `plugins/taskmaster/tests/test_server_api.py`:
 
@@ -487,12 +487,12 @@ def test_get_viewer_prefs_returns_defaults_on_first_call(running_server):
     assert body["zoom"] == 1.5
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_api.py::test_get_viewer_prefs_returns_defaults_on_first_call -v`
 Expected: FAIL with `ImportError: cannot import name '_make_server'` OR 404 on `/api/viewer/prefs`
 
-- [ ] **Step 3: Refactor `backlog_server.py` to expose `_make_server` and handle the route**
+- [x] **Step 3: Refactor `backlog_server.py` to expose `_make_server` and handle the route**
 
 In `plugins/taskmaster/backlog_server.py`, locate the existing `serve()`/`run()` entry point. Extract server construction into:
 
@@ -518,12 +518,12 @@ if self.path == "/api/viewer/prefs":
     return
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_api.py -v`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_server_api.py

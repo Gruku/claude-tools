@@ -12,7 +12,7 @@
 - [x] T1.1 Define ViewerPrefs schema constants and defaults
 - [x] T1.2 Implement load_viewer_prefs() and save_viewer_prefs()
 - [x] T1.3 Add `viewer_prefs_get` and `viewer_prefs_set` MCP tools
-- [ ] T1.4 Add HTTP endpoint `GET /api/viewer/prefs`
+- [x] T1.4 Add HTTP endpoint `GET /api/viewer/prefs`
 - [ ] T1.5 Add HTTP endpoint `PUT /api/viewer/prefs`
 - [ ] T1.6 Wire `_send_json` helper into existing `/api/*` handlers
 - [ ] T1.7 Scaffold the viewer/ directory and tokens.css
