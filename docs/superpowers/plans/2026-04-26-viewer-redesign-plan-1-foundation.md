@@ -1861,7 +1861,7 @@ If anything fails, debug before continuing. Nothing to commit.
 - Modify: `plugins/taskmaster/backlog_server.py`
 - Modify: `plugins/taskmaster/tests/test_server_api.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_root_serves_v3_when_use_v3_flag_set(running_server, tmp_path):
@@ -1890,12 +1890,12 @@ def test_root_serves_legacy_by_default(running_server):
     assert 'src="/static/v3/js/main.js"' not in body
 ```
 
-- [ ] **Step 2: Run tests**
+- [x] **Step 2: Run tests**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_api.py::test_root_serves_v3_when_use_v3_flag_set -v plugins/taskmaster/tests/test_server_api.py::test_root_serves_legacy_by_default -v`
 Expected: FAIL (root currently serves legacy unconditionally)
 
-- [ ] **Step 3: Add `use_v3` to the prefs defaults and wire root**
+- [x] **Step 3: Add `use_v3` to the prefs defaults and wire root**
 
 In `taskmaster_v3.py`, add `"use_v3": False` to `VIEWER_PREFS_DEFAULTS` (top level).
 
@@ -1913,12 +1913,12 @@ if self.path == "/" or self.path == "/index.html":
     # ... fall through to existing legacy serving
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_api.py -v -k root_serves`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/taskmaster_v3.py plugins/taskmaster/tests/test_server_api.py
