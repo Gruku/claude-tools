@@ -1450,7 +1450,7 @@ git commit -m "feat(viewer): router.js (hash routing + screen registry)"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/sidebar.js`
 
-- [ ] **Step 1: Write the file**
+- [x] **Step 1: Write the file**
 
 ```js
 // Sidebar renderer. Sections + entries are static here; live counts come from the store.
@@ -1533,7 +1533,7 @@ export function mountSidebar(el, { store }) {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/sidebar.js
