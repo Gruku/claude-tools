@@ -51,7 +51,7 @@
 - [x] T2.9 Initial `kanban.css` skeleton + per-epic tokens
 - [x] T2.10 Card CSS (Minimal + Full + Variant E)
 - [x] T2.11 Implement `components/card.js`
-- [ ] T2.12 Implement `components/auto-mode-live-block.js`
+- [x] T2.12 Implement `components/auto-mode-live-block.js`
 - [ ] T2.13 Quick visual sanity — render two cards in dev console
 - [ ] T2.14 Spinner + strip CSS
 - [ ] T2.15 Implement `components/auto-mode-strip.js`

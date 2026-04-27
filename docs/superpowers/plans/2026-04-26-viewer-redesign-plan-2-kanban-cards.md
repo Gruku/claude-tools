@@ -1475,7 +1475,7 @@ git commit -m "feat(viewer): components/card.js (Minimal + Full)"
 - Create: `plugins/taskmaster/viewer/js/components/auto-mode-live-block.js`
 - Modify: `plugins/taskmaster/viewer/css/screens/kanban.css`
 
-- [ ] **Step 1: Append live-block CSS**
+- [x] **Step 1: Append live-block CSS**
 
 Append to `plugins/taskmaster/viewer/css/screens/kanban.css`:
 
@@ -1524,7 +1524,7 @@ Append to `plugins/taskmaster/viewer/css/screens/kanban.css`:
 }
 ```
 
-- [ ] **Step 2: Create the component**
+- [x] **Step 2: Create the component**
 
 Create `plugins/taskmaster/viewer/js/components/auto-mode-live-block.js`:
 
@@ -1572,7 +1572,7 @@ function escapeHtml(s) {
 }
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/auto-mode-live-block.js plugins/taskmaster/viewer/css/screens/kanban.css
