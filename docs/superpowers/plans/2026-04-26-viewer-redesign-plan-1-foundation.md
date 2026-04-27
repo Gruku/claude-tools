@@ -997,7 +997,7 @@ git commit -m "feat(viewer): shell.css + placeholder screen styling"
 **Files:**
 - Create: `plugins/taskmaster/viewer/css/components.css`
 
-- [ ] **Step 1: Write the file**
+- [x] **Step 1: Write the file**
 
 ```css
 /* Shared inline components used across screens.
@@ -1063,7 +1063,7 @@ git commit -m "feat(viewer): shell.css + placeholder screen styling"
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/css/components.css
