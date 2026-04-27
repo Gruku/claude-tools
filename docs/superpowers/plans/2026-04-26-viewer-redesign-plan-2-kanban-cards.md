@@ -633,7 +633,7 @@ git commit -m "feat(viewer): lib/epics.js palette + auto-assignment"
 - Create: `plugins/taskmaster/viewer/js/lib/filters.js`
 - Create: `plugins/taskmaster/viewer/tests/unit/filters.test.js`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `plugins/taskmaster/viewer/tests/unit/filters.test.js`:
 
@@ -720,12 +720,12 @@ test('groupTasks — by phase keeps phase order from input list', () => {
 });
 ```
 
-- [ ] **Step 2: Run test (fails)**
+- [x] **Step 2: Run test (fails)**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/filters.test.js`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement `lib/filters.js`**
+- [x] **Step 3: Implement `lib/filters.js`**
 
 Create `plugins/taskmaster/viewer/js/lib/filters.js`:
 
@@ -851,12 +851,12 @@ export const STATUS_LABELS = {
 };
 ```
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/filters.test.js`
 Expected: 12 pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/lib/filters.js plugins/taskmaster/viewer/tests/unit/filters.test.js
