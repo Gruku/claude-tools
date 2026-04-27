@@ -2397,7 +2397,7 @@ git commit -m "feat(viewer): density-toggle styles"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/screens/kanban.js` (replaces stub)
 
-- [ ] **Step 1: Replace the stub with the screen module skeleton**
+- [x] **Step 1: Replace the stub with the screen module skeleton**
 
 Open `plugins/taskmaster/viewer/js/screens/kanban.js` and replace its **entire contents** with:
 
@@ -2699,7 +2699,7 @@ function escapeHtml(s) {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/screens/kanban.js
