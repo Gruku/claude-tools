@@ -2357,7 +2357,7 @@ git commit -m "feat(viewer): board surface + status/phase/epic column grids"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/css/screens/kanban.css`
 
-- [ ] **Step 1: Append CSS**
+- [x] **Step 1: Append CSS**
 
 Append to `plugins/taskmaster/viewer/css/screens/kanban.css`:
 
@@ -2381,7 +2381,7 @@ Append to `plugins/taskmaster/viewer/css/screens/kanban.css`:
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/css/screens/kanban.css

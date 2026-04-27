@@ -61,7 +61,7 @@
 - [x] T2.19 `epic-chips.js` + CSS
 - [x] T2.20 Group-by + sort dropdowns (popover-free)
 - [x] T2.21 Board surface + columns CSS
-- [ ] T2.22 Density-toggle CSS for the page header
+- [x] T2.22 Density-toggle CSS for the page header
 - [ ] T2.23 Kanban screen — header skeleton
 - [ ] T2.24 Manual smoke — open `/v3#/kanban` against a fixture backlog
 - [ ] T2.25 Persist density toggle round-trip via Playwright (TDD)
