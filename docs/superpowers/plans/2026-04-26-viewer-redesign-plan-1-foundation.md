@@ -230,7 +230,7 @@ git commit -m "feat(taskmaster): add ViewerPrefs defaults + schema version"
 - Modify: `plugins/taskmaster/taskmaster_v3.py` (add helpers near other load/save funcs)
 - Modify: `plugins/taskmaster/tests/test_v3_layout.py` (round-trip test)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `plugins/taskmaster/tests/test_v3_layout.py`:
 
@@ -271,12 +271,12 @@ def test_viewer_prefs_unknown_keys_preserved_on_save(tmp_path, monkeypatch):
     assert saved["future_field"] == "preserve_me"
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_layout.py::test_viewer_prefs_round_trip -v plugins/taskmaster/tests/test_v3_layout.py::test_viewer_prefs_unknown_keys_preserved_on_save -v`
 Expected: FAIL with `ImportError`
 
-- [ ] **Step 3: Implement load + save**
+- [x] **Step 3: Implement load + save**
 
 Add to `plugins/taskmaster/taskmaster_v3.py` (alongside other load/save helpers):
 
@@ -319,12 +319,12 @@ def save_viewer_prefs(prefs: dict) -> None:
     atomic_write(p, json.dumps(prefs, indent=2))
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_layout.py -v -k viewer_prefs`
 Expected: 3 tests PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/taskmaster_v3.py plugins/taskmaster/tests/test_v3_layout.py
