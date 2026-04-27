@@ -1,5 +1,9 @@
 # Viewer Redesign — Resume Handoff (M1 done, M2 next)
 
+> **SUPERSEDED 2026-04-27 (post-M2).** M2 is complete. The next session should read `2026-04-27-viewer-redesign-m2-complete-resume-m3.md` instead. This file is kept as a checkpoint reference.
+>
+> **Correction to this doc:** Claim that "PROGRESS.md and the plan file are TRACKED — `git add` works (without `-f`)" was **wrong**. `docs/superpowers/` is gitignored at the project root, and `git add` rejects ignored paths even when the file is already tracked. Every tick commit during M2 used `git add -f`. The next handoff documents this correctly. Either keep using `-f` or move tracked plan files out of `docs/superpowers/` (per `project_superpowers_local_tracking.md` memory).
+
 **Date opened:** 2026-04-27 (post-M1)
 **Status:** Plan 1 Milestone 1 complete (server foundation). Ready to start Milestone 2.
 **Branch:** `feature/taskmaster-v3` at `C:\Users\gruku\Files\Claude\claude-tools\.worktrees\taskmaster-v3` (NOT the master checkout)
