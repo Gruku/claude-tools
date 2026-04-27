@@ -78,7 +78,7 @@ plugins/taskmaster/tests/
 - Modify: `plugins/taskmaster/backlog_server.py` (add helper near other loaders)
 - Create: `plugins/taskmaster/tests/test_server_auto_state.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `plugins/taskmaster/tests/test_server_auto_state.py`:
 
@@ -156,12 +156,12 @@ def test_load_auto_state_returns_none_on_corrupt_json(tmp_path, monkeypatch):
     assert _load_auto_state() is None
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_auto_state.py -v -k load_auto_state`
 Expected: FAIL with `ImportError: cannot import name '_load_auto_state'`
 
-- [ ] **Step 3: Implement `_load_auto_state` in `backlog_server.py`**
+- [x] **Step 3: Implement `_load_auto_state` in `backlog_server.py`**
 
 Add near other v3 loader helpers (e.g., right after `load_viewer_prefs` re-export or near the imports of other loaders):
 
@@ -183,12 +183,12 @@ def _load_auto_state():
         return None
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_auto_state.py -v -k load_auto_state`
 Expected: 3 PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_server_auto_state.py

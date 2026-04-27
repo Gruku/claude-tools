@@ -40,7 +40,7 @@
 
 ## Plan 2 — Kanban + Cards (0/33)
 *See `2026-04-26-viewer-redesign-plan-2-kanban-cards.md` for task definitions.*
-- [ ] T2.1 Helper to load `.taskmaster/auto/state.json`
+- [x] T2.1 Helper to load `.taskmaster/auto/state.json`
 - [ ] T2.2 HTTP endpoint `GET /api/auto/state`
 - [ ] T2.3 Add `api.autoState()` and store wiring
 - [ ] T2.4 Poll auto-mode state from `main.js`
