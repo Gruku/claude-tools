@@ -1223,7 +1223,7 @@ git commit -m "feat(taskmaster): /v3 + /static/v3/* routes"
 
 ### Task 12: Manual smoke — open `/v3` in a browser
 
-- [ ] **Step 1: Start the server**
+- [x] **Step 1: Start the server**
 
 Run from `plugins/taskmaster/`:
 
@@ -1231,7 +1231,7 @@ Run from `plugins/taskmaster/`:
 python -c "from backlog_server import _make_server; s, p = _make_server(host='127.0.0.1', port=0); print(f'http://127.0.0.1:{p}/v3'); s.serve_forever()"
 ```
 
-- [ ] **Step 2: Open the printed URL**
+- [x] **Step 2: Open the printed URL**
 
 Expected: dark canvas, an empty sidebar (no entries yet — populated next milestone), an empty main area with "Loading…" page title. No console errors except possibly 404s for the not-yet-written `js/main.js`.
 
