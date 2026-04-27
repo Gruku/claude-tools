@@ -2101,7 +2101,7 @@ git commit -m "test(viewer): playwright smoke covering all routes"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/tests/smoke.spec.js`
 
-- [ ] **Step 1: Add an integration test**
+- [x] **Step 1: Add an integration test**
 
 Append to `smoke.spec.js`:
 
@@ -2131,7 +2131,7 @@ test('prefs persist via the API and are reflected in store', async ({ page }) =>
 });
 ```
 
-- [ ] **Step 2: Run it**
+- [x] **Step 2: Run it**
 
 ```bash
 bash plugins/taskmaster/viewer/tests/run_smoke.sh
@@ -2139,7 +2139,7 @@ bash plugins/taskmaster/viewer/tests/run_smoke.sh
 
 Expected: 12 tests PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/smoke.spec.js
