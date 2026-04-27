@@ -1077,7 +1077,7 @@ git commit -m "feat(viewer): shared components.css (chips, pills, buttons, kbd)"
 **Files:**
 - Create: `plugins/taskmaster/viewer/index.html`
 
-- [ ] **Step 1: Write the shell**
+- [x] **Step 1: Write the shell**
 
 ```html
 <!DOCTYPE html>
@@ -1106,7 +1106,7 @@ git commit -m "feat(viewer): shared components.css (chips, pills, buttons, kbd)"
 </html>
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/index.html

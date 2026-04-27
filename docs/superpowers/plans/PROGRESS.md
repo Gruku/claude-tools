@@ -18,7 +18,7 @@
 - [x] T1.7 Scaffold the viewer/ directory and tokens.css
 - [x] T1.8 Write shell.css
 - [x] T1.9 Write components.css (shared chips, pills, buttons)
-- [ ] T1.10 Write index.html shell
+- [x] T1.10 Write index.html shell
 - [ ] T1.11 Serve the new viewer at `/v3` and static assets at `/static/v3/*`
 - [ ] T1.12 Manual smoke — open `/v3` in a browser
 - [ ] T1.13 Implement `js/api.js`
