@@ -26,7 +26,7 @@
 - [x] T1.15 Implement `js/router.js`
 - [x] T1.16 Implement `js/components/sidebar.js`
 - [x] T1.17 Implement `js/main.js` (entry, boot, polling)
-- [ ] T1.18 Stub `screens/dashboard.js`
+- [x] T1.18 Stub `screens/dashboard.js`
 - [ ] T1.19 Stub `screens/kanban.js`, `screens/task-detail.js`, `screens/sessions.js`
 - [ ] T1.20 Stub `screens/lessons.js`, `screens/issues.js`, `screens/auto-mode.js`, `screens/recap.js`
 - [ ] T1.21 Manual smoke — every nav item resolves

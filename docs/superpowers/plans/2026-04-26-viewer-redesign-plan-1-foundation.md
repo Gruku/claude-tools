@@ -1664,7 +1664,7 @@ git commit -m "feat(viewer): main.js boot + screen registry + backlog polling"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/screens/dashboard.js`
 
-- [ ] **Step 1: Write the stub**
+- [x] **Step 1: Write the stub**
 
 ```js
 export const meta = { title: 'Dashboard', icon: '▤', sidebarKey: 'dashboard' };
@@ -1681,7 +1681,7 @@ export async function mount(root, { store }) {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/screens/dashboard.js
