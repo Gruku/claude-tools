@@ -1616,7 +1616,7 @@ If anything is off (extra borders, wrong colors), debug `card.js` / `kanban.css`
 **Files:**
 - Modify: `plugins/taskmaster/viewer/css/screens/kanban.css`
 
-- [ ] **Step 1: Append strip styles**
+- [x] **Step 1: Append strip styles**
 
 Append to `plugins/taskmaster/viewer/css/screens/kanban.css`:
 
@@ -1697,7 +1697,7 @@ Append to `plugins/taskmaster/viewer/css/screens/kanban.css`:
 .kanban-strip-action:hover { color: var(--ink-2); }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/css/screens/kanban.css

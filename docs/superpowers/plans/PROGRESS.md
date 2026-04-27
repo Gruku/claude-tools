@@ -53,7 +53,7 @@
 - [x] T2.11 Implement `components/card.js`
 - [x] T2.12 Implement `components/auto-mode-live-block.js`
 - [x] T2.13 Quick visual sanity — render two cards in dev console
-- [ ] T2.14 Spinner + strip CSS
+- [x] T2.14 Spinner + strip CSS
 - [ ] T2.15 Implement `components/auto-mode-strip.js`
 - [ ] T2.16 Strip session-timer ticks every second
 - [ ] T2.17 `priority-chips.js` + CSS
