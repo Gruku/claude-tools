@@ -121,7 +121,7 @@ The router calls `mount()` when the hash changes to that screen, awaits the clea
 - Modify: `plugins/taskmaster/taskmaster_v3.py:60-110` (constants block, near the existing `LESSON_KINDS` etc.)
 - Modify: `plugins/taskmaster/tests/test_v3_layout.py` (add test)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `plugins/taskmaster/tests/test_v3_layout.py`:
 
@@ -149,12 +149,12 @@ def test_viewer_prefs_defaults_have_all_expected_keys():
     assert VIEWER_PREFS_DEFAULTS["screens"]["task_detail"]["view"] == "A"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_layout.py::test_viewer_prefs_defaults_have_all_expected_keys -v`
 Expected: FAIL with `ImportError: cannot import name 'VIEWER_PREFS_DEFAULTS'`
 
-- [ ] **Step 3: Add the defaults constant**
+- [x] **Step 3: Add the defaults constant**
 
 Insert after the `AUTO_TASK_STATUSES` constant in `plugins/taskmaster/taskmaster_v3.py`:
 
@@ -210,12 +210,12 @@ VIEWER_PREFS_DEFAULTS = {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_layout.py::test_viewer_prefs_defaults_have_all_expected_keys -v`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/taskmaster_v3.py plugins/taskmaster/tests/test_v3_layout.py

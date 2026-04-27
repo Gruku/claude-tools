@@ -9,7 +9,7 @@
 
 ## Plan 1 — Foundation (0/28)
 *See `2026-04-26-viewer-redesign-plan-1-foundation.md` for task definitions.*
-- [ ] T1.1 Define ViewerPrefs schema constants and defaults
+- [x] T1.1 Define ViewerPrefs schema constants and defaults
 - [ ] T1.2 Implement load_viewer_prefs() and save_viewer_prefs()
 - [ ] T1.3 Add `viewer_prefs_get` and `viewer_prefs_set` MCP tools
 - [ ] T1.4 Add HTTP endpoint `GET /api/viewer/prefs`
