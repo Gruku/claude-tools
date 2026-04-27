@@ -1246,7 +1246,7 @@ This step is informational; nothing to commit. If the page doesn't load, debug b
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/api.js`
 
-- [ ] **Step 1: Write the file**
+- [x] **Step 1: Write the file**
 
 ```js
 // Thin HTTP client for /api/* endpoints. All viewer mutations go through here.
@@ -1280,7 +1280,7 @@ export const api = {
 };
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/api.js
