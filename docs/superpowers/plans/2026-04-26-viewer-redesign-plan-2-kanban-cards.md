@@ -1061,7 +1061,7 @@ git commit -m "feat(viewer): kanban.css scaffold + page-head/search styles"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/css/screens/kanban.css`
 
-- [ ] **Step 1: Append card styles**
+- [x] **Step 1: Append card styles**
 
 Append to `plugins/taskmaster/viewer/css/screens/kanban.css`:
 
@@ -1231,7 +1231,7 @@ Append to `plugins/taskmaster/viewer/css/screens/kanban.css`:
 .card-status-pill.blocked .dot      { background: var(--red); }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/css/screens/kanban.css
