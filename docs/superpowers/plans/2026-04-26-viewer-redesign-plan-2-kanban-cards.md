@@ -2789,6 +2789,30 @@ See: `docs/superpowers/plans/2026-04-27-plan2-design-feedback-signal-alignment.m
 
 ---
 
+### Task 24β: Signal alignment + collapsible columns + prefs default
+
+**Trigger:** Signal-reference visual alignment per user feedback A1–A7. Bundles palette tokens, viewport-fill, header compaction, column collapse with prefs persistence, and the zoom-default cleanup left over from T2.24α.
+
+**Files:**
+- Modify: `plugins/taskmaster/viewer/css/tokens.css` (palette only)
+- Modify: `plugins/taskmaster/viewer/css/shell.css` (`.main` viewport bound)
+- Modify: `plugins/taskmaster/viewer/css/screens/kanban.css` (column-head weight, viewport-fill, collapse styles)
+- Modify: `plugins/taskmaster/viewer/js/screens/kanban.js` (drop title, collapse toggle, onClear reset)
+- Modify: `plugins/taskmaster/taskmaster_v3.py` (`VIEWER_PREFS_DEFAULTS` zoom + collapsed_columns)
+
+- [x] **Step 1: Signal palette tokens (surfaces + inks)**
+- [x] **Step 2: Column-header weight + dot halo (A7)**
+- [x] **Step 3: Board viewport-fill — `.main`, `.kanban-page`, `.kanban-board`, `.kanban-col` (A2)**
+- [x] **Step 4: Drop redundant inner kanban title (A1)**
+- [x] **Step 5: Collapsed-column CSS (A3)**
+- [x] **Step 6: Collapse toggle JS + prefs round-trip (A3)**
+- [x] **Step 7: VIEWER_PREFS_DEFAULTS — zoom default 1.0 + collapsed_columns**
+- [x] **Step 8: Verification — pytest 212 / node 25 / manual smoke (deferred to user)**
+
+See: `docs/superpowers/plans/2026-04-27-plan2-design-feedback-signal-alignment.md`
+
+---
+
 ### Task 25: Persist density toggle round-trip via Playwright (TDD)
 
 (Tests deferred to M7. Manual confirmation only here — no commit.)

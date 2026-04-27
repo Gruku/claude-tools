@@ -65,6 +65,7 @@
 - [x] T2.23 Kanban screen — header skeleton
 - [ ] T2.24 Manual smoke — open `/v3#/kanban` against a fixture backlog
 - [x] T2.24α Zoom removal + 1.5× source CSS rescale
+- [x] T2.24β Signal alignment + collapsible columns + prefs default
 - [ ] T2.25 Persist density toggle round-trip via Playwright (TDD)
 - [ ] T2.26 Group-by phase + epic visual sanity
 - [ ] T2.27 Prefs reset behavior
