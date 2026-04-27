@@ -2765,6 +2765,30 @@ If anything fails, debug before continuing.
 
 ---
 
+### Task 24α: Zoom removal + 1.5× source CSS rescale (mechanical refactor)
+
+**Trigger:** Spec §3.4 originally baked 150% via CSS `zoom: var(--shell-zoom)`. User decided to remove the zoom hack for consistency and instead bake 1.5× into source CSS values. Visual output unchanged.
+
+**Files:**
+- Modify: `plugins/taskmaster/viewer/css/tokens.css`
+- Modify: `plugins/taskmaster/viewer/css/shell.css`
+- Modify: `plugins/taskmaster/viewer/css/components.css`
+- Modify: `plugins/taskmaster/viewer/css/screens/_placeholders.css`
+- Modify: `plugins/taskmaster/viewer/css/screens/kanban.css`
+
+- [x] **Step 1: Rescale tokens.css numeric values × 1.5**
+- [x] **Step 2: Remove `--shell-zoom` + rescale shell.css literals × 1.5**
+- [x] **Step 3: Rescale components.css literals × 1.5**
+- [x] **Step 4: Rescale _placeholders.css literals × 1.5**
+- [x] **Step 5: Rescale kanban.css literals × 1.5**
+- [x] **Step 6: Verification — pytest 212 / node 25 / no visual regression**
+
+Companion task T2.24β handles Signal palette alignment + visual feedback (separate commit chain).
+
+See: `docs/superpowers/plans/2026-04-27-plan2-design-feedback-signal-alignment.md`
+
+---
+
 ### Task 25: Persist density toggle round-trip via Playwright (TDD)
 
 (Tests deferred to M7. Manual confirmation only here — no commit.)
