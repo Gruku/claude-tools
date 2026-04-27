@@ -1,5 +1,7 @@
 # Viewer Redesign — Resume Handoff (M2 done, M3 next)
 
+> **SUPERSEDED 2026-04-27 (post-M3).** M3 is complete. The next session should read `2026-04-27-viewer-redesign-m3-complete-resume-m4.md` instead. This file is kept as a checkpoint reference — it carries hygiene-sweep inventory items 1–22 which the M3→M4 handoff appends to (not duplicates).
+
 **Date opened:** 2026-04-27 (post-M2)
 **Status:** Plan 1 Milestone 2 complete (static skeleton). Ready to start Milestone 3.
 **Branch:** `feature/taskmaster-v3` at `C:\Users\gruku\Files\Claude\claude-tools\.worktrees\taskmaster-v3` (NOT the master checkout)
