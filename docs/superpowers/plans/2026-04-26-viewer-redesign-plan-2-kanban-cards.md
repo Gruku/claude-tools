@@ -1834,7 +1834,7 @@ git commit -m "feat(viewer): components/auto-mode-strip.js (light header strip)"
 
 (The strip currently renders "running 01:42:08" only on store updates — every 3s. The session timer should tick every 1s for smoothness.)
 
-- [ ] **Step 1: Add a 1s repaint cadence**
+- [x] **Step 1: Add a 1s repaint cadence**
 
 Replace the entire `renderAutoModeStrip` and `updateAutoModeStrip` exports in `auto-mode-strip.js` with:
 
@@ -1870,7 +1870,7 @@ export function destroyAutoModeStrip(el) {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/auto-mode-strip.js
