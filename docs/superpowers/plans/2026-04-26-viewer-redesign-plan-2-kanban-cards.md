@@ -1711,7 +1711,7 @@ git commit -m "feat(viewer): kanban auto-mode strip styles + conic spinner"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/auto-mode-strip.js`
 
-- [ ] **Step 1: Write the component**
+- [x] **Step 1: Write the component**
 
 Create `plugins/taskmaster/viewer/js/components/auto-mode-strip.js`:
 
@@ -1818,7 +1818,7 @@ function escapeHtml(s) {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/auto-mode-strip.js
