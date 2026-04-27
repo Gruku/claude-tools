@@ -14,7 +14,7 @@
 - [x] T1.3 Add `viewer_prefs_get` and `viewer_prefs_set` MCP tools
 - [x] T1.4 Add HTTP endpoint `GET /api/viewer/prefs`
 - [x] T1.5 Add HTTP endpoint `PUT /api/viewer/prefs`
-- [ ] T1.6 Wire `_send_json` helper into existing `/api/*` handlers
+- [x] T1.6 Wire `_send_json` helper into existing `/api/*` handlers
 - [ ] T1.7 Scaffold the viewer/ directory and tokens.css
 - [ ] T1.8 Write shell.css
 - [ ] T1.9 Write components.css (shared chips, pills, buttons)

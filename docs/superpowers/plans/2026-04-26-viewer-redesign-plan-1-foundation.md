@@ -657,7 +657,7 @@ git commit -m "feat(taskmaster): PUT /api/viewer/prefs endpoint"
 
 (Refactor pass — the existing `/api/backlog`, `/api/identity`, `/api/session` handlers each open-code response sending. Replace with `self._send_json(...)` for consistency.)
 
-- [ ] **Step 1: Write the failing test (regression guard)**
+- [x] **Step 1: Write the failing test (regression guard)**
 
 Append to `plugins/taskmaster/tests/test_server_api.py`:
 
@@ -669,21 +669,21 @@ def test_api_endpoints_set_cors_header(running_server):
         assert resp.headers.get("Access-Control-Allow-Origin") == "*"
 ```
 
-- [ ] **Step 2: Run the test**
+- [x] **Step 2: Run the test**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_api.py::test_api_endpoints_set_cors_header -v`
 Expected: PASS or FAIL depending on existing `/api/identity` impl. If FAIL, proceed; if PASS, the existing handler already sets the header — still go through Step 3 to deduplicate.
 
-- [ ] **Step 3: Refactor the existing handlers**
+- [x] **Step 3: Refactor the existing handlers**
 
 Replace each `/api/identity`, `/api/backlog`, `/api/session` block in `_Handler.do_GET` with calls to `self._send_json(200, payload_dict)`. Drop the open-coded `send_response` / `send_header` triplets. Behavior should be identical; only the implementation tightens.
 
-- [ ] **Step 4: Run all server tests**
+- [x] **Step 4: Run all server tests**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_api.py -v`
 Expected: All PASS (4 tests)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_server_api.py
