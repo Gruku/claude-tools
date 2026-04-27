@@ -872,7 +872,7 @@ git commit -m "feat(viewer): lib/filters.js (filter + sort + group, fully tested
 
 (No unit test — depends on `navigator.clipboard` and DOM. Covered by Playwright in Task 31.)
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 Create `plugins/taskmaster/viewer/js/lib/copy.js`:
 
@@ -928,7 +928,7 @@ export function bindCopy(el, text, opts = {}) {
 }
 ```
 
-- [ ] **Step 2: Add the `.cmp-flash-copied` style + `.cmp-icon-btn` to `components.css`**
+- [x] **Step 2: Add the `.cmp-flash-copied` style + `.cmp-icon-btn` to `components.css`**
 
 Append to `plugins/taskmaster/viewer/css/components.css`:
 
@@ -962,7 +962,7 @@ Append to `plugins/taskmaster/viewer/css/components.css`:
 }
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/lib/copy.js plugins/taskmaster/viewer/css/components.css
