@@ -1697,7 +1697,7 @@ git commit -m "feat(viewer): dashboard stub screen"
 - Create: `plugins/taskmaster/viewer/js/screens/task-detail.js`
 - Create: `plugins/taskmaster/viewer/js/screens/sessions.js`
 
-- [ ] **Step 1: Write `kanban.js`**
+- [x] **Step 1: Write `kanban.js`**
 
 ```js
 export const meta = { title: 'Kanban', icon: '▦', sidebarKey: 'kanban' };
@@ -1714,7 +1714,7 @@ export async function mount(root) {
 }
 ```
 
-- [ ] **Step 2: Write `task-detail.js`**
+- [x] **Step 2: Write `task-detail.js`**
 
 ```js
 export const meta = { title: 'Task Detail', icon: '▣', sidebarKey: null };
@@ -1734,7 +1734,7 @@ export async function mount(root, { subpath }) {
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 ```
 
-- [ ] **Step 3: Write `sessions.js`**
+- [x] **Step 3: Write `sessions.js`**
 
 ```js
 export const meta = { title: 'Sessions / Handovers', icon: '⌕', sidebarKey: 'sessions' };
@@ -1751,7 +1751,7 @@ export async function mount(root, { subpath }) {
 }
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/screens/kanban.js plugins/taskmaster/viewer/js/screens/task-detail.js plugins/taskmaster/viewer/js/screens/sessions.js
