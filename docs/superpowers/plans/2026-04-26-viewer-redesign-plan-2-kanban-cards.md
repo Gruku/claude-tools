@@ -2287,7 +2287,7 @@ git commit -m "feat(viewer): styled <select> for kanban group/sort dropdowns"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/css/screens/kanban.css`
 
-- [ ] **Step 1: Append CSS**
+- [x] **Step 1: Append CSS**
 
 Append to `plugins/taskmaster/viewer/css/screens/kanban.css`:
 
@@ -2343,7 +2343,7 @@ Append to `plugins/taskmaster/viewer/css/screens/kanban.css`:
 .kanban-col-head.done        .dot { background: var(--green); }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/css/screens/kanban.css
