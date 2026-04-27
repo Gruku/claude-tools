@@ -2120,7 +2120,7 @@ git commit -m "feat(viewer): components/phase-stepper.js"
 - Create: `plugins/taskmaster/viewer/js/components/epic-chips.js`
 - Modify: `plugins/taskmaster/viewer/css/screens/kanban.css`
 
-- [ ] **Step 1: Append CSS**
+- [x] **Step 1: Append CSS**
 
 Append to `plugins/taskmaster/viewer/css/screens/kanban.css`:
 
@@ -2163,7 +2163,7 @@ Append to `plugins/taskmaster/viewer/css/screens/kanban.css`:
 }
 ```
 
-- [ ] **Step 2: Implement the component**
+- [x] **Step 2: Implement the component**
 
 Create `plugins/taskmaster/viewer/js/components/epic-chips.js`:
 
@@ -2235,7 +2235,7 @@ function escapeHtml(s) {
 }
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/epic-chips.js plugins/taskmaster/viewer/css/screens/kanban.css
