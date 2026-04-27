@@ -1585,13 +1585,13 @@ git commit -m "feat(viewer): per-card auto-mode live block + shimmer bar"
 
 (Informational; no commit.)
 
-- [ ] **Step 1: Boot the server**
+- [x] **Step 1: Boot the server**
 
 ```bash
 python -c "from backlog_server import _make_server; s, p = _make_server(host='127.0.0.1', port=0); print(f'http://127.0.0.1:{p}/v3'); s.serve_forever()"
 ```
 
-- [ ] **Step 2: Open `/v3` in a browser. In DevTools console:**
+- [x] **Step 2: Open `/v3` in a browser. In DevTools console:**
 
 ```js
 const { renderCard } = await import('/static/v3/js/components/card.js');
