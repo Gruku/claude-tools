@@ -363,7 +363,7 @@ git commit -m "feat(viewer): poll /api/auto/state every 3s into store"
 - Create: `plugins/taskmaster/viewer/js/lib/time.js`
 - Create: `plugins/taskmaster/viewer/tests/unit/time.test.js`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `plugins/taskmaster/viewer/tests/unit/time.test.js`:
 
@@ -420,12 +420,12 @@ test('isoToMs — parses ISO8601 string, returns null for falsy', () => {
 });
 ```
 
-- [ ] **Step 2: Run test (it should fail with ENOENT for the lib file)**
+- [x] **Step 2: Run test (it should fail with ENOENT for the lib file)**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/time.test.js`
 Expected: FAIL — `Cannot find module '.../js/lib/time.js'`.
 
-- [ ] **Step 3: Implement `lib/time.js`**
+- [x] **Step 3: Implement `lib/time.js`**
 
 Create `plugins/taskmaster/viewer/js/lib/time.js`:
 
@@ -473,12 +473,12 @@ export function formatElapsed(ms) {
 }
 ```
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/time.test.js`
 Expected: All pass — `# pass 7`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/lib/time.js plugins/taskmaster/viewer/tests/unit/time.test.js

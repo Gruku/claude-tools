@@ -44,7 +44,7 @@
 - [x] T2.2 HTTP endpoint `GET /api/auto/state`
 - [x] T2.3 Add `api.autoState()` and store wiring
 - [x] T2.4 Poll auto-mode state from `main.js`
-- [ ] T2.5 `lib/time.js` (time-in-status + elapsed formatters)
+- [x] T2.5 `lib/time.js` (time-in-status + elapsed formatters)
 - [ ] T2.6 `lib/epics.js` (epic palette + auto-assignment)
 - [ ] T2.7 `lib/filters.js` (apply filters + sort + group)
 - [ ] T2.8 `lib/copy.js` (click-to-copy with green flash)
