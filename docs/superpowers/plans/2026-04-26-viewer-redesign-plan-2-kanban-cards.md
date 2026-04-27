@@ -274,7 +274,7 @@ git commit -m "feat(taskmaster): GET /api/auto/state read-only endpoint"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/api.js`
 
-- [ ] **Step 1: Add `autoState` to the `api` object**
+- [x] **Step 1: Add `autoState` to the `api` object**
 
 Open `plugins/taskmaster/viewer/js/api.js`. Replace the entire `export const api = { ... };` block with:
 
@@ -292,7 +292,7 @@ export const api = {
 
 The store key `autoState` already exists in Plan 1's `store.js` (`getAutoState` / `setAutoState`). No store edit needed.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/api.js
