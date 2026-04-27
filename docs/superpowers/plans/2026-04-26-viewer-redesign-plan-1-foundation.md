@@ -699,13 +699,13 @@ git commit -m "refactor(taskmaster): unify JSON response sending in HTTP handler
 **Files:**
 - Create: `plugins/taskmaster/viewer/css/tokens.css`
 
-- [ ] **Step 1: Create the directory tree**
+- [x] **Step 1: Create the directory tree**
 
 ```bash
 mkdir -p plugins/taskmaster/viewer/css/screens plugins/taskmaster/viewer/js/components plugins/taskmaster/viewer/js/screens plugins/taskmaster/viewer/tests
 ```
 
-- [ ] **Step 2: Write `tokens.css`**
+- [x] **Step 2: Write `tokens.css`**
 
 Create `plugins/taskmaster/viewer/css/tokens.css` with the design tokens collected from the mockups (and inlined in the spec at §3.4 / §3.7). Exact contents:
 
@@ -810,7 +810,7 @@ Create `plugins/taskmaster/viewer/css/tokens.css` with the design tokens collect
 }
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/css/tokens.css

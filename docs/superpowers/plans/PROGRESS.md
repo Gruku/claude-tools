@@ -15,7 +15,7 @@
 - [x] T1.4 Add HTTP endpoint `GET /api/viewer/prefs`
 - [x] T1.5 Add HTTP endpoint `PUT /api/viewer/prefs`
 - [x] T1.6 Wire `_send_json` helper into existing `/api/*` handlers
-- [ ] T1.7 Scaffold the viewer/ directory and tokens.css
+- [x] T1.7 Scaffold the viewer/ directory and tokens.css
 - [ ] T1.8 Write shell.css
 - [ ] T1.9 Write components.css (shared chips, pills, buttons)
 - [ ] T1.10 Write index.html shell
