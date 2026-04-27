@@ -2200,7 +2200,7 @@ git commit -m "docs(viewer): README"
 
 ### Task 27: Run full test suite + push status
 
-- [ ] **Step 1: Run all tests**
+- [x] **Step 1: Run all tests**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/ -v
@@ -2209,11 +2209,15 @@ bash plugins/taskmaster/viewer/tests/run_smoke.sh
 
 Expected: all green.
 
-- [ ] **Step 2: Commit any straggling fixes**
+Result: 207 pytest passed, 12/12 playwright passed. No stragglers.
+
+- [x] **Step 2: Commit any straggling fixes**
 
 If anything fails, fix it, then commit with `fix(viewer): <what was wrong>`.
 
-- [ ] **Step 3: No push**
+(No fixes needed.)
+
+- [x] **Step 3: No push**
 
 Per user policy, do not push to remote.
 
