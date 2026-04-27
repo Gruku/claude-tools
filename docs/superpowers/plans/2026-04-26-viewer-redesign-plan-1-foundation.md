@@ -824,7 +824,7 @@ git commit -m "feat(viewer): scaffold viewer/ tree + tokens.css"
 **Files:**
 - Create: `plugins/taskmaster/viewer/css/shell.css`
 
-- [ ] **Step 1: Write `shell.css`**
+- [x] **Step 1: Write `shell.css`**
 
 ```css
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+Pro:ital,wght@1,400&display=swap');
@@ -959,7 +959,7 @@ body {
 /* Stub screen — see _placeholders.css */
 ```
 
-- [ ] **Step 2: Write `_placeholders.css`**
+- [x] **Step 2: Write `_placeholders.css`**
 
 Create `plugins/taskmaster/viewer/css/screens/_placeholders.css`:
 
@@ -983,7 +983,7 @@ Create `plugins/taskmaster/viewer/css/screens/_placeholders.css`:
 }
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/css/shell.css plugins/taskmaster/viewer/css/screens/_placeholders.css
