@@ -56,7 +56,7 @@
 - [x] T2.14 Spinner + strip CSS
 - [x] T2.15 Implement `components/auto-mode-strip.js`
 - [x] T2.16 Strip session-timer ticks every second
-- [ ] T2.17 `priority-chips.js` + CSS
+- [x] T2.17 `priority-chips.js` + CSS
 - [ ] T2.18 `phase-stepper.js` + CSS
 - [ ] T2.19 `epic-chips.js` + CSS
 - [ ] T2.20 Group-by + sort dropdowns (popover-free)

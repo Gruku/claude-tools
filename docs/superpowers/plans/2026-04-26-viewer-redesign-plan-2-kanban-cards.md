@@ -1887,7 +1887,7 @@ git commit -m "feat(viewer): strip session timer ticks at 1Hz"
 - Create: `plugins/taskmaster/viewer/js/components/priority-chips.js`
 - Modify: `plugins/taskmaster/viewer/css/screens/kanban.css`
 
-- [ ] **Step 1: Append CSS**
+- [x] **Step 1: Append CSS**
 
 Append to `plugins/taskmaster/viewer/css/screens/kanban.css`:
 
@@ -1912,7 +1912,7 @@ Append to `plugins/taskmaster/viewer/css/screens/kanban.css`:
 .kanban-pri-tog.low.on      { background: rgba(127,179,240,0.12); border-color: var(--accent-2); color: var(--accent-2); }
 ```
 
-- [ ] **Step 2: Implement the component**
+- [x] **Step 2: Implement the component**
 
 Create `plugins/taskmaster/viewer/js/components/priority-chips.js`:
 
@@ -1956,7 +1956,7 @@ export function updatePriorityChips(el, { active }) {
 }
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/priority-chips.js plugins/taskmaster/viewer/css/screens/kanban.css
