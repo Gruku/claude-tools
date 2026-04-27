@@ -48,7 +48,7 @@
 - [x] T2.6 `lib/epics.js` (epic palette + auto-assignment)
 - [x] T2.7 `lib/filters.js` (apply filters + sort + group)
 - [x] T2.8 `lib/copy.js` (click-to-copy with green flash)
-- [ ] T2.9 Initial `kanban.css` skeleton + per-epic tokens
+- [x] T2.9 Initial `kanban.css` skeleton + per-epic tokens
 - [ ] T2.10 Card CSS (Minimal + Full + Variant E)
 - [ ] T2.11 Implement `components/card.js`
 - [ ] T2.12 Implement `components/auto-mode-live-block.js`

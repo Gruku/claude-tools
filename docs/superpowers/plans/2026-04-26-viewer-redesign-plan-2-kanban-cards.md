@@ -979,7 +979,7 @@ git commit -m "feat(viewer): lib/copy.js + cmp-flash-copied/cmp-icon-btn styles"
 - Create: `plugins/taskmaster/viewer/css/screens/kanban.css`
 - Modify: `plugins/taskmaster/viewer/index.html` (link the CSS)
 
-- [ ] **Step 1: Create `kanban.css` with the structural / token block**
+- [x] **Step 1: Create `kanban.css` with the structural / token block**
 
 Create `plugins/taskmaster/viewer/css/screens/kanban.css`:
 
@@ -1039,7 +1039,7 @@ Create `plugins/taskmaster/viewer/css/screens/kanban.css`:
 .kanban-reset-link:hover { color: var(--red); }
 ```
 
-- [ ] **Step 2: Link the new CSS in `index.html`**
+- [x] **Step 2: Link the new CSS in `index.html`**
 
 Open `plugins/taskmaster/viewer/index.html`. After the existing `<link rel="stylesheet" href="css/screens/_placeholders.css">` line, add:
 
@@ -1047,7 +1047,7 @@ Open `plugins/taskmaster/viewer/index.html`. After the existing `<link rel="styl
   <link rel="stylesheet" href="css/screens/kanban.css">
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/css/screens/kanban.css plugins/taskmaster/viewer/index.html
