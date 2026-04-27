@@ -339,7 +339,7 @@ git commit -m "feat(taskmaster): viewer prefs load/save with deep-merge defaults
 - Modify: `plugins/taskmaster/backlog_server.py` (add tools near other entity tools)
 - Modify: `plugins/taskmaster/tests/test_v3_layout.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `plugins/taskmaster/tests/test_v3_layout.py`:
 
@@ -368,12 +368,12 @@ def test_viewer_prefs_set_merges_patch(tmp_path, monkeypatch):
     assert prefs["card_density"] == "full"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_layout.py::test_viewer_prefs_set_merges_patch -v`
 Expected: FAIL — `ImportError: cannot import name 'viewer_prefs_set'`
 
-- [ ] **Step 3: Implement the MCP tools**
+- [x] **Step 3: Implement the MCP tools**
 
 Insert in `plugins/taskmaster/backlog_server.py` near the other v3 entity tools (e.g., after `backlog_issue_list`):
 
@@ -415,12 +415,12 @@ def viewer_prefs_set(patch_json: str) -> str:
 
 If `load_viewer_prefs` / `save_viewer_prefs` aren't already re-exported at the top of `backlog_server.py`, add them to the existing taskmaster_v3 re-export block.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_layout.py::test_viewer_prefs_set_merges_patch -v`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_v3_layout.py
