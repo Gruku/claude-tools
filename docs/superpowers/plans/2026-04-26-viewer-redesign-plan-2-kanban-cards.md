@@ -1971,7 +1971,7 @@ git commit -m "feat(viewer): components/priority-chips.js"
 - Create: `plugins/taskmaster/viewer/js/components/phase-stepper.js`
 - Modify: `plugins/taskmaster/viewer/css/screens/kanban.css`
 
-- [ ] **Step 1: Append CSS**
+- [x] **Step 1: Append CSS**
 
 Append to `plugins/taskmaster/viewer/css/screens/kanban.css`:
 
@@ -2019,7 +2019,7 @@ Append to `plugins/taskmaster/viewer/css/screens/kanban.css`:
 .kanban-phase-step .dot   { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.6s ease-in-out infinite; }
 ```
 
-- [ ] **Step 2: Implement the component**
+- [x] **Step 2: Implement the component**
 
 Create `plugins/taskmaster/viewer/js/components/phase-stepper.js`:
 
@@ -2105,7 +2105,7 @@ function escapeHtml(s) {
 }
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/phase-stepper.js plugins/taskmaster/viewer/css/screens/kanban.css
