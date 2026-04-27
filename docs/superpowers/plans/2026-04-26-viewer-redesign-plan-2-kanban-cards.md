@@ -1245,7 +1245,7 @@ git commit -m "feat(viewer): card styles (Minimal + Full + Variant E)"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/card.js`
 
-- [ ] **Step 1: Write the file**
+- [x] **Step 1: Write the file**
 
 Create `plugins/taskmaster/viewer/js/components/card.js`:
 
@@ -1460,7 +1460,7 @@ function escapeHtml(s) {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/card.js
