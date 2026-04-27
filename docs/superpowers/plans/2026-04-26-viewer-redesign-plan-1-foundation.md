@@ -1832,13 +1832,13 @@ git commit -m "feat(viewer): lessons/issues/auto-mode/recap stub screens"
 
 ### Task 21: Manual smoke — every nav item resolves
 
-- [ ] **Step 1: Restart the server**
+- [x] **Step 1: Restart the server**
 
 ```bash
 python -c "from backlog_server import _make_server; s, p = _make_server(host='127.0.0.1', port=0); print(f'http://127.0.0.1:{p}/v3'); s.serve_forever()"
 ```
 
-- [ ] **Step 2: Navigate via the sidebar**
+- [x] **Step 2: Navigate via the sidebar**
 
 Open the printed URL. Click each sidebar entry. Each should:
 - Update the URL hash

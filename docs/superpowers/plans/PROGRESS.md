@@ -29,7 +29,7 @@
 - [x] T1.18 Stub `screens/dashboard.js`
 - [x] T1.19 Stub `screens/kanban.js`, `screens/task-detail.js`, `screens/sessions.js`
 - [x] T1.20 Stub `screens/lessons.js`, `screens/issues.js`, `screens/auto-mode.js`, `screens/recap.js`
-- [ ] T1.21 Manual smoke — every nav item resolves
+- [x] T1.21 Manual smoke — every nav item resolves
 - [ ] T1.22 Add `viewer.use_v3` flag and switch root URL when set
 - [ ] T1.23 Set up Playwright
 - [ ] T1.24 Write the smoke test
