@@ -76,7 +76,7 @@
 - [ ] T2.32 Run all server + unit + smoke tests in sequence
 - [ ] T2.33 Final integration smoke + plan-level verification commit
 
-## Plan 3 — Task Detail (17/46)
+## Plan 3 — Task Detail (28/46)
 *See `2026-04-26-viewer-redesign-plan-3-task-detail.md` for task definitions.*
 - [x] T3.1 Define the `GET /api/task/<id>` payload shape with a failing test
 - [x] T3.2 Implement `GET /api/task/<id>` — index merge
@@ -95,17 +95,17 @@
 - [x] T3.15 Extend `api.js` with `getTask` and `getTaskRelated`
 - [x] T3.16 Cache the full task payload in the store
 - [x] T3.17 Build the shared `right-rail.js`
-- [ ] T3.18 Create `task-detail.css` skeleton
-- [ ] T3.19 Stub `task-detail-document.js` and a failing Playwright test for header + meta
-- [ ] T3.20 Wire `task-detail.js` to mount the document renderer (so Task 19's test passes)
-- [ ] T3.21 Add the lock banner (conditional on `locked_by`)
-- [ ] T3.22 Add the chip row (status / priority / size / epic / branch / worktree / release / sub_repo)
-- [ ] T3.23 Add the spec-review badge with click-to-expand codex note
-- [ ] T3.24 Add the auto-mode banner (conditional)
-- [ ] T3.25 Add Docs / Specification / Plan / Notes / Review-instructions sections
-- [ ] T3.26 Add Latest activity + Patchnote sections (conditional)
-- [ ] T3.27 Add the dates footer block (Created / Started / Completed)
-- [ ] T3.28 Add click-to-copy on the meta `id` chip
+- [x] T3.18 Create `task-detail.css` skeleton
+- [x] T3.19 Stub `task-detail-document.js` and a failing Playwright test for header + meta
+- [x] T3.20 Wire `task-detail.js` to mount the document renderer (so Task 19's test passes)
+- [x] T3.21 Add the lock banner (conditional on `locked_by`)
+- [x] T3.22 Add the chip row (status / priority / size / epic / branch / worktree / release / sub_repo)
+- [x] T3.23 Add the spec-review badge with click-to-expand codex note
+- [x] T3.24 Add the auto-mode banner (conditional)
+- [x] T3.25 Add Docs / Specification / Plan / Notes / Review-instructions sections
+- [x] T3.26 Add Latest activity + Patchnote sections (conditional)
+- [x] T3.27 Add the dates footer block (Created / Started / Completed)
+- [x] T3.28 Add click-to-copy on the meta `id` chip
 - [ ] T3.29 Stub `task-detail-graph.js` and a failing Playwright test for the Graph variant
 - [ ] T3.30 Build the SVG graph frame (axis rail, canvas, column guides)
 - [ ] T3.31 Render the context band (lessons / handovers / issues pills)
