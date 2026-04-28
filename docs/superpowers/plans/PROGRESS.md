@@ -76,7 +76,7 @@
 - [ ] T2.32 Run all server + unit + smoke tests in sequence
 - [ ] T2.33 Final integration smoke + plan-level verification commit
 
-## Plan 3 — Task Detail (43/46)
+## Plan 3 — Task Detail (46/46)
 *See `2026-04-26-viewer-redesign-plan-3-task-detail.md` for task definitions.*
 - [x] T3.1 Define the `GET /api/task/<id>` payload shape with a failing test
 - [x] T3.2 Implement `GET /api/task/<id>` — index merge
@@ -121,9 +121,9 @@
 - [x] T3.41 Clean up the old Plan 1 stub references
 - [x] T3.42 Run all server tests
 - [x] T3.43 Run all unit tests
-- [ ] T3.44 Run the Playwright suite (deferred — needs live server)
-- [ ] T3.45 Spec coverage audit (deferred — needs live server)
-- [ ] T3.46 Final integration smoke + plan handoff (deferred — needs live server + tag)
+- [x] T3.44 Run the Playwright suite — 10/10 PASS against fixture-kanban server on :8765
+- [x] T3.45 Spec coverage audit — all §3.9 items present (Variant A + Rail + Variant B)
+- [x] T3.46 Final integration smoke + plan handoff — server 5/5, unit 30/30, Playwright 10/10; tag pending user OK
 
 ## Plan 4 — Dashboard (0/36)
 *See `2026-04-26-viewer-redesign-plan-4-dashboard.md` for task definitions.*
