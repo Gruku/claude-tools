@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$PROJECT_DIR/.claude/hooks/check-version-bump.sh\"",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-version-bump.sh\"",
             "timeout": 10,
             "statusMessage": "Checking plugin versions..."
           }
