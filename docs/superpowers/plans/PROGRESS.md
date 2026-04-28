@@ -76,7 +76,7 @@
 - [ ] T2.32 Run all server + unit + smoke tests in sequence
 - [ ] T2.33 Final integration smoke + plan-level verification commit
 
-## Plan 3 — Task Detail (13/46)
+## Plan 3 — Task Detail (17/46)
 *See `2026-04-26-viewer-redesign-plan-3-task-detail.md` for task definitions.*
 - [x] T3.1 Define the `GET /api/task/<id>` payload shape with a failing test
 - [x] T3.2 Implement `GET /api/task/<id>` — index merge
@@ -91,10 +91,10 @@
 - [x] T3.11 Add the mixed-graph test
 - [x] T3.12 Add the cycle-handling test (deduplicated nodes)
 - [x] T3.13 Wire `node --test` into a `package.json` script
-- [ ] T3.14 Add `markdown.js` (sandboxed `marked` wrapper)
-- [ ] T3.15 Extend `api.js` with `getTask` and `getTaskRelated`
-- [ ] T3.16 Cache the full task payload in the store
-- [ ] T3.17 Build the shared `right-rail.js`
+- [x] T3.14 Add `markdown.js` (sandboxed `marked` wrapper)
+- [x] T3.15 Extend `api.js` with `getTask` and `getTaskRelated`
+- [x] T3.16 Cache the full task payload in the store
+- [x] T3.17 Build the shared `right-rail.js`
 - [ ] T3.18 Create `task-detail.css` skeleton
 - [ ] T3.19 Stub `task-detail-document.js` and a failing Playwright test for header + meta
 - [ ] T3.20 Wire `task-detail.js` to mount the document renderer (so Task 19's test passes)
