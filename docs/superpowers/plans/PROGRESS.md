@@ -76,12 +76,12 @@
 - [ ] T2.32 Run all server + unit + smoke tests in sequence
 - [ ] T2.33 Final integration smoke + plan-level verification commit
 
-## Plan 3 — Task Detail (1/46)
+## Plan 3 — Task Detail (4/46)
 *See `2026-04-26-viewer-redesign-plan-3-task-detail.md` for task definitions.*
 - [x] T3.1 Define the `GET /api/task/<id>` payload shape with a failing test
-- [ ] T3.2 Implement `GET /api/task/<id>` — index merge
-- [ ] T3.3 Add 404 + malformed-id handling for `/api/task/<id>`
-- [ ] T3.4 Implement `GET /api/task/<id>/related` — anchors-matched lessons + handovers + issues
+- [x] T3.2 Implement `GET /api/task/<id>` — index merge
+- [x] T3.3 Add 404 + malformed-id handling for `/api/task/<id>`
+- [x] T3.4 Implement `GET /api/task/<id>/related` — anchors-matched lessons + handovers + issues
 - [ ] T3.5 Verify forward-compat fields (`spec_review`, `patchnote`, `worktree`, `release`, `locked_by`) round-trip
 - [ ] T3.6 Suite-level run of all server tests so far
 - [ ] T3.7 Author the layout function with a failing Node test (empty graph)
