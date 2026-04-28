@@ -76,7 +76,7 @@
 - [ ] T2.32 Run all server + unit + smoke tests in sequence
 - [ ] T2.33 Final integration smoke + plan-level verification commit
 
-## Plan 3 — Task Detail (6/46)
+## Plan 3 — Task Detail (13/46)
 *See `2026-04-26-viewer-redesign-plan-3-task-detail.md` for task definitions.*
 - [x] T3.1 Define the `GET /api/task/<id>` payload shape with a failing test
 - [x] T3.2 Implement `GET /api/task/<id>` — index merge
@@ -84,13 +84,13 @@
 - [x] T3.4 Implement `GET /api/task/<id>/related` — anchors-matched lessons + handovers + issues
 - [x] T3.5 Verify forward-compat fields (`spec_review`, `patchnote`, `worktree`, `release`, `locked_by`) round-trip
 - [x] T3.6 Suite-level run of all server tests so far
-- [ ] T3.7 Author the layout function with a failing Node test (empty graph)
-- [ ] T3.8 Implement empty + L0-only layout
-- [ ] T3.9 Add the deep-upstream-chain test
-- [ ] T3.10 Add the deep-downstream-chain test
-- [ ] T3.11 Add the mixed-graph test
-- [ ] T3.12 Add the cycle-handling test (deduplicated nodes)
-- [ ] T3.13 Wire `node --test` into a `package.json` script
+- [x] T3.7 Author the layout function with a failing Node test (empty graph)
+- [x] T3.8 Implement empty + L0-only layout
+- [x] T3.9 Add the deep-upstream-chain test
+- [x] T3.10 Add the deep-downstream-chain test
+- [x] T3.11 Add the mixed-graph test
+- [x] T3.12 Add the cycle-handling test (deduplicated nodes)
+- [x] T3.13 Wire `node --test` into a `package.json` script
 - [ ] T3.14 Add `markdown.js` (sandboxed `marked` wrapper)
 - [ ] T3.15 Extend `api.js` with `getTask` and `getTaskRelated`
 - [ ] T3.16 Cache the full task payload in the store
