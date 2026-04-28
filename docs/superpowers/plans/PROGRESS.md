@@ -76,7 +76,7 @@
 - [ ] T2.32 Run all server + unit + smoke tests in sequence
 - [ ] T2.33 Final integration smoke + plan-level verification commit
 
-## Plan 3 — Task Detail (28/46)
+## Plan 3 — Task Detail (43/46)
 *See `2026-04-26-viewer-redesign-plan-3-task-detail.md` for task definitions.*
 - [x] T3.1 Define the `GET /api/task/<id>` payload shape with a failing test
 - [x] T3.2 Implement `GET /api/task/<id>` — index merge
@@ -106,24 +106,24 @@
 - [x] T3.26 Add Latest activity + Patchnote sections (conditional)
 - [x] T3.27 Add the dates footer block (Created / Started / Completed)
 - [x] T3.28 Add click-to-copy on the meta `id` chip
-- [ ] T3.29 Stub `task-detail-graph.js` and a failing Playwright test for the Graph variant
-- [ ] T3.30 Build the SVG graph frame (axis rail, canvas, column guides)
-- [ ] T3.31 Render the context band (lessons / handovers / issues pills)
-- [ ] T3.32 Render graph controls (depth toggle / show all / hide context / fullscreen)
-- [ ] T3.33 Render the tab bar (Spec / Plan / Notes / Activity / Anchors / Raw YAML)
-- [ ] T3.34 Add a Playwright assertion for the graph SVG node count
-- [ ] T3.35 Add a Playwright assertion for tab switching
-- [ ] T3.36 Wire the right rail into Variant B identically to Variant A
-- [ ] T3.37 Visual verification against `task-detail-graph.html` mockup
-- [ ] T3.38 Confirm `task-detail.js` resolves both subpath and `?view=` override
-- [ ] T3.39 Persist toggle clicks via `api.savePrefs`
-- [ ] T3.40 Handle 404 gracefully (unknown task id in URL)
-- [ ] T3.41 Clean up the old Plan 1 stub references
-- [ ] T3.42 Run all server tests
-- [ ] T3.43 Run all unit tests
-- [ ] T3.44 Run the Playwright suite
-- [ ] T3.45 Spec coverage audit
-- [ ] T3.46 Final integration smoke + plan handoff
+- [x] T3.29 Stub `task-detail-graph.js` and a failing Playwright test for the Graph variant
+- [x] T3.30 Build the SVG graph frame (axis rail, canvas, column guides)
+- [x] T3.31 Render the context band (lessons / handovers / issues pills)
+- [x] T3.32 Render graph controls (depth toggle / show all / hide context / fullscreen)
+- [x] T3.33 Render the tab bar (Spec / Plan / Notes / Activity / Anchors / Raw YAML)
+- [x] T3.34 Add a Playwright assertion for the graph SVG node count
+- [x] T3.35 Add a Playwright assertion for tab switching
+- [x] T3.36 Wire the right rail into Variant B identically to Variant A
+- [ ] T3.37 Visual verification against `task-detail-graph.html` mockup (deferred — needs live server)
+- [x] T3.38 Confirm `task-detail.js` resolves both subpath and `?view=` override
+- [x] T3.39 Persist toggle clicks via `api.savePrefs`
+- [x] T3.40 Handle 404 gracefully (unknown task id in URL)
+- [x] T3.41 Clean up the old Plan 1 stub references
+- [x] T3.42 Run all server tests
+- [x] T3.43 Run all unit tests
+- [ ] T3.44 Run the Playwright suite (deferred — needs live server)
+- [ ] T3.45 Spec coverage audit (deferred — needs live server)
+- [ ] T3.46 Final integration smoke + plan handoff (deferred — needs live server + tag)
 
 ## Plan 4 — Dashboard (0/36)
 *See `2026-04-26-viewer-redesign-plan-4-dashboard.md` for task definitions.*
