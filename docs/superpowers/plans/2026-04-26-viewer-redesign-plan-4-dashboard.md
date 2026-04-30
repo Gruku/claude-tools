@@ -588,7 +588,7 @@ git commit -m "test(viewer): cover dashboard-grid add/remove/move semantics"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/widget-frame.js`
 
-- [ ] **Step 1: Implement `widget-frame.js`**
+- [x] **Step 1: Implement `widget-frame.js`**
 
 Create `plugins/taskmaster/viewer/js/components/widget-frame.js`:
 
@@ -664,14 +664,14 @@ export function createWidgetFrame({ instance, label, onRemove, onSizeCycle }) {
 }
 ```
 
-- [ ] **Step 2: Smoke-load via node module syntax check**
+- [x] **Step 2: Smoke-load via node module syntax check**
 
 ```bash
 node --input-type=module -e "import('./plugins/taskmaster/viewer/js/components/widget-frame.js').then(m => console.log(typeof m.createWidgetFrame))"
 ```
 Expected output: `function`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/widget-frame.js
