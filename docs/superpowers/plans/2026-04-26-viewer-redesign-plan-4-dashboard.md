@@ -2253,7 +2253,7 @@ git commit -m "feat(viewer): cycle widget size from frame chrome"
 **Files:**
 - Create: `plugins/taskmaster/viewer/tests/dashboard.spec.js`
 
-- [ ] **Step 1: Write the smoke test**
+- [x] **Step 1: Write the smoke test**
 
 Create `plugins/taskmaster/viewer/tests/dashboard.spec.js`:
 
@@ -2305,14 +2305,14 @@ test.describe('dashboard', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test (assumes a running dev server with seeded backlog)**
+- [x] **Step 2: Run the test (assumes a running dev server with seeded backlog)**
 
 ```bash
 npx playwright test plugins/taskmaster/viewer/tests/dashboard.spec.js
 ```
 Expected output: `5 passed`. If the suite fails because no viewer dev server is running, start one with the Plan 1 `_make_server` runner first.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/dashboard.spec.js
