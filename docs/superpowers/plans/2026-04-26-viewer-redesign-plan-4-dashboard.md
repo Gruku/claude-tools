@@ -685,7 +685,7 @@ git commit -m "feat(viewer): widget-frame chrome with drag handle + remove butto
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/briefing-strip.js`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 Create `plugins/taskmaster/viewer/js/components/briefing-strip.js`:
 
@@ -736,14 +736,14 @@ export function createBriefingStrip({ store, api, prefs }) {
 }
 ```
 
-- [ ] **Step 2: Smoke-load**
+- [x] **Step 2: Smoke-load**
 
 ```bash
 node --input-type=module -e "import('./plugins/taskmaster/viewer/js/components/briefing-strip.js').then(m => console.log(typeof m.createBriefingStrip))"
 ```
 Expected output: `function`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/briefing-strip.js
