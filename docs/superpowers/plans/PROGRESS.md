@@ -1,6 +1,6 @@
 # Viewer Redesign — Progress
 
-**Total:** 271 tasks · 7 plans · ~18% complete (38/38 Plan 5a, 32/32 Plan 5b, 14/58 Plan 6 M1+M2 done)
+**Total:** 271 tasks · 7 plans · ~18% complete (38/38 Plan 5a, 32/32 Plan 5b, 19/58 Plan 6 M1+M2+M3 done)
 
 ## Pre-execution
 - [x] Plan 1 layout-shape reconciliation applied
@@ -240,7 +240,7 @@
 - [x] T5b.31 Reinforce-event source enforcement (viewer must send valid source)
 - [x] T5b.32 Final spec-coverage walk + plan handoff
 
-## Plan 6 — Auto Mode (14/58)
+## Plan 6 — Auto Mode (19/58)
 *See `2026-04-26-viewer-redesign-plan-6-auto-mode.md` for task definitions.*
 - [x] T6.1 Define auto-mode storage layout constants
 - [x] T6.2 Implement `load_auto_session`, `save_auto_session`, `list_auto_sessions`
@@ -256,11 +256,11 @@
 - [x] T6.12 `GET /api/auto/budget/<sid>` + `compute_budget`
 - [x] T6.13 MCP tools — `auto_state_get`, `auto_pause`, `auto_stop`, `auto_history`, `auto_event_log`
 - [x] T6.14 Extend `js/api.js` with auto-mode HTTP wrappers
-- [ ] T6.15 Define exported function signatures for `auto-spine-layout.js`
-- [ ] T6.16 Lock node radii (active=18, others=10) and y-positions
-- [ ] T6.17 Lock connector geometry (start at edge, end at edge)
-- [ ] T6.18 Lock satellite bezier control points (horizontal in/out tangents)
-- [ ] T6.19 Edge case — no cursor stage (session paused/stopped)
+- [x] T6.15 Define exported function signatures for `auto-spine-layout.js`
+- [x] T6.16 Lock node radii (active=18, others=10) and y-positions
+- [x] T6.17 Lock connector geometry (start at edge, end at edge)
+- [x] T6.18 Lock satellite bezier control points (horizontal in/out tangents)
+- [x] T6.19 Edge case — no cursor stage (session paused/stopped)
 - [ ] T6.20 Stub `quest-spine.js` — render an empty SVG into a root element
 - [ ] T6.21 Add `auto-mode.css` — deep-recess frame and base spine styles
 - [ ] T6.22 Mount the spine inside the auto-mode screen (smoke wiring only)

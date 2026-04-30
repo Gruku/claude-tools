@@ -1408,7 +1408,7 @@ The pure-data layout helper has stable function names that the renderer (Task 22
 - Create: `plugins/taskmaster/viewer/js/components/auto-spine-layout.js` (skeleton)
 - Create: `plugins/taskmaster/viewer/tests/unit/auto-spine-layout.test.js`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `plugins/taskmaster/viewer/tests/unit/auto-spine-layout.test.js`:
 
@@ -1443,14 +1443,14 @@ test('computeSpineLayout returns one node per stage', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 node --test plugins/taskmaster/viewer/tests/unit/auto-spine-layout.test.js
 ```
 Expected: FAIL with `Cannot find module .../auto-spine-layout.js`.
 
-- [ ] **Step 3: Create the skeleton**
+- [x] **Step 3: Create the skeleton**
 
 Write `plugins/taskmaster/viewer/js/components/auto-spine-layout.js`:
 
@@ -1538,14 +1538,14 @@ export function computeSpineLayout(opts) {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 ```bash
 node --test plugins/taskmaster/viewer/tests/unit/auto-spine-layout.test.js
 ```
 Expected: 2 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/auto-spine-layout.js plugins/taskmaster/viewer/tests/unit/auto-spine-layout.test.js
@@ -1556,7 +1556,7 @@ git commit -m "feat(taskmaster-viewer): pure spine layout helper skeleton"
 
 ### Task 16: Lock node radii (active=18, others=10) and y-positions
 
-- [ ] **Step 1: Append failing assertions**
+- [x] **Step 1: Append failing assertions**
 
 Append to `plugins/taskmaster/viewer/tests/unit/auto-spine-layout.test.js`:
 
@@ -1587,14 +1587,14 @@ test('y-positions are evenly spaced and inside padding', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests**
+- [x] **Step 2: Run tests**
 
 ```bash
 node --test plugins/taskmaster/viewer/tests/unit/auto-spine-layout.test.js
 ```
 Expected: PASS (the implementation already satisfies these — this task locks the contract).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/unit/auto-spine-layout.test.js
@@ -1605,7 +1605,7 @@ git commit -m "test(taskmaster-viewer): lock spine node radius + spacing contrac
 
 ### Task 17: Lock connector geometry (start at edge, end at edge)
 
-- [ ] **Step 1: Append failing assertions**
+- [x] **Step 1: Append failing assertions**
 
 Append:
 
@@ -1638,13 +1638,13 @@ test('connector.fromState mirrors the upper node state (drives line color)', () 
 });
 ```
 
-- [ ] **Step 2: Run tests** — Expected: PASS.
+- [x] **Step 2: Run tests** — Expected: PASS.
 
 ```bash
 node --test plugins/taskmaster/viewer/tests/unit/auto-spine-layout.test.js
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/unit/auto-spine-layout.test.js
@@ -1655,7 +1655,7 @@ git commit -m "test(taskmaster-viewer): lock spine connector edge-to-edge geomet
 
 ### Task 18: Lock satellite bezier control points (horizontal in/out tangents)
 
-- [ ] **Step 1: Append failing assertions**
+- [x] **Step 1: Append failing assertions**
 
 Append:
 
@@ -1690,13 +1690,13 @@ test('satellites alternate sides of the spine', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests** — Expected: PASS.
+- [x] **Step 2: Run tests** — Expected: PASS.
 
 ```bash
 node --test plugins/taskmaster/viewer/tests/unit/auto-spine-layout.test.js
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/unit/auto-spine-layout.test.js
@@ -1707,7 +1707,7 @@ git commit -m "test(taskmaster-viewer): lock satellite bezier horizontal tangent
 
 ### Task 19: Edge case — no cursor stage (session paused/stopped)
 
-- [ ] **Step 1: Append failing assertion**
+- [x] **Step 1: Append failing assertion**
 
 Append:
 
@@ -1726,13 +1726,13 @@ test('null cursorStage produces all-pending or all-done nodes (no active)', () =
 });
 ```
 
-- [ ] **Step 2: Run tests** — Expected: PASS (helper already handles this correctly).
+- [x] **Step 2: Run tests** — Expected: PASS (helper already handles this correctly).
 
 ```bash
 node --test plugins/taskmaster/viewer/tests/unit/auto-spine-layout.test.js
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/unit/auto-spine-layout.test.js
