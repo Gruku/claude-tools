@@ -1702,7 +1702,7 @@ git commit -m "feat(viewer): api.getLessons / api.getIssues / api.reinforceLesso
 - Create: `plugins/taskmaster/viewer/css/screens/lessons.css`
 - Modify: `plugins/taskmaster/viewer/index.html` (link the new CSS)
 
-- [ ] **Step 1: Write the CSS**
+- [x] **Step 1: Write the CSS**
 
 Create `plugins/taskmaster/viewer/css/screens/lessons.css`:
 
@@ -1878,7 +1878,7 @@ Create `plugins/taskmaster/viewer/css/screens/lessons.css`:
 }
 ```
 
-- [ ] **Step 2: Add the link tag**
+- [x] **Step 2: Add the link tag**
 
 In `plugins/taskmaster/viewer/index.html`, inside `<head>` after the existing screen CSS links:
 
@@ -1886,7 +1886,7 @@ In `plugins/taskmaster/viewer/index.html`, inside `<head>` after the existing sc
 <link rel="stylesheet" href="/static/v3/css/screens/lessons.css">
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/css/screens/lessons.css plugins/taskmaster/viewer/index.html
@@ -1900,7 +1900,7 @@ git commit -m "feat(viewer): lessons screen CSS — three shelves + card"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/lesson-card.js`
 
-- [ ] **Step 1: Write the file**
+- [x] **Step 1: Write the file**
 
 Create `plugins/taskmaster/viewer/js/components/lesson-card.js`:
 
@@ -1998,7 +1998,7 @@ export function lessonCard(lesson, { onReinforce } = {}) {
 export default lessonCard;
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/lesson-card.js
@@ -2012,7 +2012,7 @@ git commit -m "feat(viewer): lesson-card with all three shelf flavors + reinforc
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/screens/lessons.js` (replace stub)
 
-- [ ] **Step 1: Replace the stub**
+- [x] **Step 1: Replace the stub**
 
 Replace `plugins/taskmaster/viewer/js/screens/lessons.js` with:
 
@@ -2160,7 +2160,7 @@ export async function mount(root, { store, prefs }) {
 }
 ```
 
-- [ ] **Step 2: Add `getLessons` / `setLessons` to `store.js`**
+- [x] **Step 2: Add `getLessons` / `setLessons` to `store.js`**
 
 In `plugins/taskmaster/viewer/js/store.js`, inside the store factory, add (alongside existing slices):
 
@@ -2172,7 +2172,7 @@ export function setLessons(v) { _lessons = v || []; _emit('lessons'); }
 
 (Adapt to whatever shape `store.js` already uses — if it's a single object, add `_lessons` to that object instead.)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/screens/lessons.js plugins/taskmaster/viewer/js/store.js
@@ -2186,7 +2186,7 @@ git commit -m "feat(viewer): lessons screen with shelves/flat/by-anchor views"
 **Files:**
 - Create: `plugins/taskmaster/viewer/tests/lessons.spec.js`
 
-- [ ] **Step 1: Write the test**
+- [x] **Step 1: Write the test**
 
 Create `plugins/taskmaster/viewer/tests/lessons.spec.js`:
 
@@ -2224,12 +2224,12 @@ test('view toggle persists to prefs', async ({ page }) => {
 });
 ```
 
-- [ ] **Step 2: Run the test**
+- [x] **Step 2: Run the test**
 
 Run: `npx playwright test plugins/taskmaster/viewer/tests/lessons.spec.js`
 Expected: 3 tests PASS (assumes the dev server has at least one lesson seeded; the test fixture or existing repo lessons satisfy this — see Task 49 for a fixture seed if missing).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/lessons.spec.js
@@ -2246,7 +2246,7 @@ git commit -m "test(viewer): playwright smoke for lessons screen"
 - Create: `plugins/taskmaster/viewer/css/screens/issues.css`
 - Modify: `plugins/taskmaster/viewer/index.html` (link)
 
-- [ ] **Step 1: Write the CSS**
+- [x] **Step 1: Write the CSS**
 
 Create `plugins/taskmaster/viewer/css/screens/issues.css`:
 
@@ -2476,7 +2476,7 @@ Append to `<head>` in `plugins/taskmaster/viewer/index.html`:
 <link rel="stylesheet" href="/static/v3/css/screens/issues.css">
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/css/screens/issues.css plugins/taskmaster/viewer/index.html
@@ -2490,7 +2490,7 @@ git commit -m "feat(viewer): issues screen CSS — hybrid + bug-report card"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/issue-card.js`
 
-- [ ] **Step 1: Write the file**
+- [x] **Step 1: Write the file**
 
 Create `plugins/taskmaster/viewer/js/components/issue-card.js`:
 
@@ -2672,7 +2672,7 @@ export function issueRow(issue) {
 export default issueCard;
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/issue-card.js
@@ -2686,7 +2686,7 @@ git commit -m "feat(viewer): issue-card bug-report flavor + one-line issue-row"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/screens/issues.js` (replace stub)
 
-- [ ] **Step 1: Replace the stub**
+- [x] **Step 1: Replace the stub**
 
 Replace `plugins/taskmaster/viewer/js/screens/issues.js` with:
 
@@ -2853,7 +2853,7 @@ export function setIssues(v) { _issues = v || []; _emit('issues'); }
 
 (Same caveat as Task 20 — adapt to existing store shape.)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/screens/issues.js plugins/taskmaster/viewer/js/store.js
@@ -2867,7 +2867,7 @@ git commit -m "feat(viewer): issues screen with hybrid layout + resolved shelf"
 **Files:**
 - Create: `plugins/taskmaster/viewer/tests/issues.spec.js`
 
-- [ ] **Step 1: Write the test**
+- [x] **Step 1: Write the test**
 
 Create `plugins/taskmaster/viewer/tests/issues.spec.js`:
 
@@ -2909,12 +2909,12 @@ test('resolved shelf collapsed by default and expandable', async ({ page }) => {
 });
 ```
 
-- [ ] **Step 2: Run the test**
+- [x] **Step 2: Run the test**
 
 Run: `npx playwright test plugins/taskmaster/viewer/tests/issues.spec.js`
 Expected: 4 tests PASS (assumes at least one issue with `repro` is seeded — Task 49 covers fixture seeding if absent).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/issues.spec.js
@@ -2967,7 +2967,7 @@ test('core shelf shows gold styling on ID', async ({ page }) => {
 Run: `npx playwright test plugins/taskmaster/viewer/tests/lessons.spec.js`
 Expected: All PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/lessons.spec.js
@@ -3015,7 +3015,7 @@ test('blocks chip appears when issue blocks non-done tasks', async ({ page }) =>
 Run: `npx playwright test plugins/taskmaster/viewer/tests/issues.spec.js`
 Expected: All PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/issues.spec.js
@@ -3029,7 +3029,7 @@ git commit -m "test(viewer): issue card spec-coverage assertions"
 **Files:**
 - Create: `plugins/taskmaster/viewer/tests/lessons-issues-routing.spec.js`
 
-- [ ] **Step 1: Write the test**
+- [x] **Step 1: Write the test**
 
 Create `plugins/taskmaster/viewer/tests/lessons-issues-routing.spec.js`:
 
@@ -3062,7 +3062,7 @@ test('clicking an issue task pill navigates to task detail', async ({ page }) =>
 Run: `npx playwright test plugins/taskmaster/viewer/tests/lessons-issues-routing.spec.js`
 Expected: 2 tests PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/lessons-issues-routing.spec.js
@@ -3116,7 +3116,7 @@ def test_thresholds_override_changes_shelf_placement(running_server, tmp_path):
 Run: `python -m pytest plugins/taskmaster/tests/test_server_lessons.py::test_thresholds_override_changes_shelf_placement -v`
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/tests/test_server_lessons.py
@@ -3163,7 +3163,7 @@ def test_aging_override_changes_tier(running_server, tmp_path):
 Run: `python -m pytest plugins/taskmaster/tests/test_server_issues.py::test_aging_override_changes_tier -v`
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/tests/test_server_issues.py
@@ -3205,7 +3205,7 @@ def test_reinforce_records_event_with_correct_source_and_note(running_server, tm
 Run: `python -m pytest plugins/taskmaster/tests/test_server_lessons.py::test_reinforce_records_event_with_correct_source_and_note -v`
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/tests/test_server_lessons.py
