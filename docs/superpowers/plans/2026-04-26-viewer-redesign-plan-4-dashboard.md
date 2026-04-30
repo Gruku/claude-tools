@@ -526,7 +526,7 @@ git commit -m "feat(viewer): pure dashboard-grid layout engine + computePlacemen
 **Files:**
 - Modify: `plugins/taskmaster/viewer/tests/unit/dashboard-grid.test.js`
 
-- [ ] **Step 1: Append additional tests**
+- [x] **Step 1: Append additional tests**
 
 Append to `plugins/taskmaster/viewer/tests/unit/dashboard-grid.test.js`:
 
@@ -567,14 +567,14 @@ test('moveWidget across rails reorders both rails consistently', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they pass**
+- [x] **Step 2: Run tests to verify they pass**
 
 ```bash
 node --test plugins/taskmaster/viewer/tests/unit/dashboard-grid.test.js
 ```
 Expected: `# tests 5  # pass 5  # fail 0`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/unit/dashboard-grid.test.js
