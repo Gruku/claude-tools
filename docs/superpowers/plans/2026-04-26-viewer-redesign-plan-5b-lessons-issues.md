@@ -552,7 +552,7 @@ git commit -m "feat(taskmaster): POST /api/lessons/<id>/reinforce"
 - Modify: `plugins/taskmaster/taskmaster_v3.py`
 - Modify: `plugins/taskmaster/tests/test_v3_lesson_reinforce.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `plugins/taskmaster/tests/test_v3_lesson_reinforce.py`:
 
@@ -611,12 +611,12 @@ def test_compute_lesson_shelf_active_when_high_volume_but_no_recent_fire(tmp_pat
     assert compute_lesson_shelf({"reinforce_events": events}, thresholds, now=now) == "active"
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_lesson_reinforce.py -v -k shelf`
 Expected: FAIL — `ImportError`.
 
-- [ ] **Step 3: Implement `compute_lesson_shelf`**
+- [x] **Step 3: Implement `compute_lesson_shelf`**
 
 Add to `plugins/taskmaster/taskmaster_v3.py`:
 
@@ -659,12 +659,12 @@ def compute_lesson_shelf(lesson: dict, thresholds: dict, now=None) -> str:
     return "active"
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_lesson_reinforce.py -v -k shelf`
 Expected: 4 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/taskmaster_v3.py plugins/taskmaster/tests/test_v3_lesson_reinforce.py
@@ -679,7 +679,7 @@ git commit -m "feat(taskmaster): compute_lesson_shelf core/active/retired classi
 - Modify: `plugins/taskmaster/backlog_server.py`
 - Modify: `plugins/taskmaster/tests/test_server_lessons.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `plugins/taskmaster/tests/test_server_lessons.py`:
 
@@ -708,12 +708,12 @@ def test_get_lessons_returns_list_with_shelf_placement(running_server, tmp_path)
     assert by_id["L-COLD"]["shelf"] == "retired"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_lessons.py -v -k get_lessons`
 Expected: FAIL — 404.
 
-- [ ] **Step 3: Implement the tool + route**
+- [x] **Step 3: Implement the tool + route**
 
 In `plugins/taskmaster/backlog_server.py`:
 
@@ -765,12 +765,12 @@ if self.path == "/api/lessons":
 
 (If `list_lesson_ids()` does not yet exist in `taskmaster_v3.py`, add a small helper that scans `.taskmaster/lessons/*.md` and returns the stem strings sorted.)
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_lessons.py -v`
 Expected: All PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_server_lessons.py
@@ -785,7 +785,7 @@ git commit -m "feat(taskmaster): GET /api/lessons + lesson_list_extended"
 - Modify: `plugins/taskmaster/taskmaster_v3.py`
 - Create: `plugins/taskmaster/tests/test_server_issues.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `plugins/taskmaster/tests/test_server_issues.py`:
 
@@ -864,12 +864,12 @@ def test_compute_issue_aging_critical_decays_faster_than_low():
     assert crit["percent"] > low["percent"]
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_issues.py -v -k aging`
 Expected: FAIL — `ImportError`.
 
-- [ ] **Step 3: Implement `compute_issue_aging`**
+- [x] **Step 3: Implement `compute_issue_aging`**
 
 Add to `plugins/taskmaster/taskmaster_v3.py`:
 
@@ -916,12 +916,12 @@ def compute_issue_aging(issue: dict, aging_cfg: dict, now=None) -> dict:
     return {"percent": pct, "tier": tier}
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_issues.py -v -k aging`
 Expected: 4 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/taskmaster_v3.py plugins/taskmaster/tests/test_server_issues.py
@@ -936,7 +936,7 @@ git commit -m "feat(taskmaster): compute_issue_aging + severity_label"
 - Modify: `plugins/taskmaster/backlog_server.py`
 - Modify: `plugins/taskmaster/tests/test_server_issues.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `plugins/taskmaster/tests/test_server_issues.py`:
 
@@ -966,12 +966,12 @@ def test_get_issues_excludes_resolved_when_query_param_set(running_server, tmp_p
     assert "ISS-011" not in ids
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_issues.py -v -k get_issues`
 Expected: FAIL — 404.
 
-- [ ] **Step 3: Implement the tool + route**
+- [x] **Step 3: Implement the tool + route**
 
 Add to `plugins/taskmaster/backlog_server.py`:
 
@@ -1032,12 +1032,12 @@ if self.path.startswith("/api/issues"):
 
 (Add `list_issue_ids()` to `taskmaster_v3.py` if absent — same shape as `list_lesson_ids()`, scanning `.taskmaster/issues/*.md`.)
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_issues.py -v`
 Expected: All PASS (6 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_server_issues.py

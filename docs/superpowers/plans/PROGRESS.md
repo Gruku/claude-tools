@@ -1,6 +1,6 @@
 # Viewer Redesign — Progress
 
-**Total:** 271 tasks · 7 plans · ~14% complete (38/38 Plan 5a tasks done, 4/32 Plan 5b M1 done)
+**Total:** 271 tasks · 7 plans · ~14% complete (38/38 Plan 5a tasks done, 8/32 Plan 5b M1+M2 done)
 
 ## Pre-execution
 - [x] Plan 1 layout-shape reconciliation applied
@@ -205,16 +205,16 @@
 - [x] T5a.37 Cross-screen integration — Sessions row → Recap deep link
 - [x] T5a.38 Final integration sweep + plan handoff commit
 
-## Plan 5b — Lessons + Issues (4/32)
+## Plan 5b — Lessons + Issues (8/32)
 *See `2026-04-26-viewer-redesign-plan-5b-lessons-issues.md` for task definitions.*
 - [x] T5b.1 Extend the lesson schema with `reinforce_events`
 - [x] T5b.2 Implement `lesson_reinforce()` helper
 - [x] T5b.3 Add `lesson_reinforce` MCP tool
 - [x] T5b.4 Add `POST /api/lessons/<id>/reinforce` HTTP endpoint
-- [ ] T5b.5 Pure-Python `compute_lesson_shelf` helper
-- [ ] T5b.6 `lesson_list_extended` MCP tool + `GET /api/lessons` endpoint
-- [ ] T5b.7 Pure-Python `compute_issue_aging` helper
-- [ ] T5b.8 `issue_list_extended` MCP tool + `GET /api/issues` endpoint
+- [x] T5b.5 Pure-Python `compute_lesson_shelf` helper
+- [x] T5b.6 `lesson_list_extended` MCP tool + `GET /api/lessons` endpoint
+- [x] T5b.7 Pure-Python `compute_issue_aging` helper
+- [x] T5b.8 `issue_list_extended` MCP tool + `GET /api/issues` endpoint
 - [ ] T5b.9 `severity-glyph.js` — SVG hexagon symbol defs
 - [ ] T5b.10 `aging-bar.js` + JS-side `computeAgingTier` + unit test
 - [ ] T5b.11 `sparkline.js` — gold active-signal sparkline
