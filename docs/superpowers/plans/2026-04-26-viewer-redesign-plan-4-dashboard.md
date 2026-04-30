@@ -934,7 +934,7 @@ git commit -m "feat(viewer): dashboard orchestrator skeleton (briefing + bento +
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/widget-catalog.js`
 
-- [ ] **Step 1: Implement the catalog skeleton**
+- [x] **Step 1: Implement the catalog skeleton**
 
 Create `plugins/taskmaster/viewer/js/components/widget-catalog.js`:
 
@@ -980,14 +980,14 @@ export function defaultLayout() {
 }
 ```
 
-- [ ] **Step 2: Smoke-load**
+- [x] **Step 2: Smoke-load**
 
 ```bash
 node --input-type=module -e "import('./plugins/taskmaster/viewer/js/components/widget-catalog.js').then(m => { console.log(typeof m.registerWidget, m.listWidgets().length, m.defaultLayout().length); })"
 ```
 Expected output: `function 0 10`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/widget-catalog.js
