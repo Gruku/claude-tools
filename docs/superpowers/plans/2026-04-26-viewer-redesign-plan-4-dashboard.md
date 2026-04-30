@@ -2212,11 +2212,11 @@ git commit -m "feat(viewer): drag-drop widget reorder across rails"
 - Modify: `plugins/taskmaster/viewer/js/components/widget-frame.js`
 - Modify: `plugins/taskmaster/viewer/js/screens/dashboard.js`
 
-- [ ] **Step 1: Update `widget-frame.js`**
+- [x] **Step 1: Update `widget-frame.js`**
 
 The frame already exposes `setSize`. Verify the size button is present (it is, when `onSizeCycle` is passed). No edit needed in that file.
 
-- [ ] **Step 2: Wire size cycling in `dashboard.js`**
+- [x] **Step 2: Wire size cycling in `dashboard.js`**
 
 Inside the `render()` function in `dashboard.js`, change the `createWidgetFrame` call to pass `onSizeCycle`:
 
@@ -2239,7 +2239,7 @@ const frame = createWidgetFrame({
 });
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/screens/dashboard.js
