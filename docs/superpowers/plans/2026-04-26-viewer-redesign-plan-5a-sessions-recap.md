@@ -3634,7 +3634,7 @@ Spec §3.12 requirements:
 - right-rail with featured Resume-prompt block + What's done/open + Related + Files touched
 - view toggle (Diary / Lanes / By Task)
 
-- [ ] **Step 1: Append coverage test**
+- [x] **Step 1: Append coverage test**
 
 ```js
 test('spec §3.12 coverage: kind tints, parallel-block, nested children, view toggle, new-note', async ({ page }) => {
@@ -3652,12 +3652,12 @@ test('spec §3.12 coverage: kind tints, parallel-block, nested children, view to
 });
 ```
 
-- [ ] **Step 2: Run (verify pass)**
+- [x] **Step 2: Run (verify pass)**
 
 Run: `npx playwright test plugins/taskmaster/viewer/tests/sessions.spec.js -g "spec.*3\\.12 coverage" --reporter=line`
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/sessions.spec.js
@@ -3681,7 +3681,7 @@ Spec §3.16 requirements:
 - footer strip with handover/snapshot links + token cost
 - edit mode: textareas + save + cancel + regenerate
 
-- [ ] **Step 1: Append coverage test**
+- [x] **Step 1: Append coverage test**
 
 ```js
 test('spec §3.16 coverage: picker, hero, narrative-3, stats-5, receipts-4, footer, edit', async ({ page, request }) => {
@@ -3707,12 +3707,12 @@ test('spec §3.16 coverage: picker, hero, narrative-3, stats-5, receipts-4, foot
 });
 ```
 
-- [ ] **Step 2: Run (verify pass)**
+- [x] **Step 2: Run (verify pass)**
 
 Run: `npx playwright test plugins/taskmaster/viewer/tests/recap.spec.js -g "spec.*3\\.16 coverage" --reporter=line`
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/recap.spec.js
@@ -3726,7 +3726,7 @@ git commit -m "test(viewer): spec §3.16 coverage assertions on Recap screen"
 **Files:**
 - Create: `plugins/taskmaster/viewer/tests/sessions-recap-integration.spec.js`
 
-- [ ] **Step 1: Write test**
+- [x] **Step 1: Write test**
 
 ```js
 import { test, expect } from '@playwright/test';
@@ -3751,12 +3751,12 @@ test('clicking a recap child row in Sessions navigates to /recap/<sid>', async (
 });
 ```
 
-- [ ] **Step 2: Run (verify pass)**
+- [x] **Step 2: Run (verify pass)**
 
 Run: `npx playwright test plugins/taskmaster/viewer/tests/sessions-recap-integration.spec.js --reporter=line`
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/sessions-recap-integration.spec.js
@@ -3769,7 +3769,7 @@ git commit -m "test(viewer): integration — Sessions recap-child → Recap scre
 
 **Files:** none modified (verification + handoff).
 
-- [ ] **Step 1: Run the entire Plan 5a test surface**
+- [x] **Step 1: Run the entire Plan 5a test surface**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_recap.py plugins/taskmaster/tests/test_v3_snapshot_diff.py plugins/taskmaster/tests/test_v3_sessions.py plugins/taskmaster/tests/test_server_sessions_recap.py -v`
 Expected: All PASS.
@@ -3780,12 +3780,12 @@ Expected: All PASS.
 Run: `npx playwright test plugins/taskmaster/viewer/tests/sessions.spec.js plugins/taskmaster/viewer/tests/recap.spec.js plugins/taskmaster/viewer/tests/sessions-recap-integration.spec.js --reporter=line`
 Expected: All PASS.
 
-- [ ] **Step 2: Confirm no leftover stubs in implemented files**
+- [x] **Step 2: Confirm no leftover stubs in implemented files**
 
 Run: `grep -nE "TBD|TODO|implement later" plugins/taskmaster/viewer/js/screens/sessions.js plugins/taskmaster/viewer/js/screens/recap.js plugins/taskmaster/viewer/js/components/timeline.js plugins/taskmaster/viewer/js/components/right-rail.js plugins/taskmaster/viewer/js/components/recap-receipts-grid.js plugins/taskmaster/viewer/js/components/diff-row.js plugins/taskmaster/viewer/js/components/snapshot-diff.js`
 Expected: no matches.
 
-- [ ] **Step 3: Plan handoff commit**
+- [x] **Step 3: Plan handoff commit**
 
 ```bash
 git commit --allow-empty -m "chore(viewer): plan 5a complete — sessions + recap shipped"

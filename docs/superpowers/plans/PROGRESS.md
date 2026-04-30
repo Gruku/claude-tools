@@ -1,6 +1,6 @@
 # Viewer Redesign — Progress
 
-**Total:** 271 tasks · 7 plans · ~10% complete (34/38 Plan 5a tasks done)
+**Total:** 271 tasks · 7 plans · ~14% complete (38/38 Plan 5a tasks done)
 
 ## Pre-execution
 - [x] Plan 1 layout-shape reconciliation applied
@@ -164,7 +164,7 @@
 - [x] T4.35 Final integration smoke (Playwright 5/5 FAIL — see notes)
 - [x] T4.36 Plan handoff — type/contract self-review
 
-## Plan 5a — Sessions + Recap (34/38)
+## Plan 5a — Sessions + Recap (38/38) ✓ COMPLETE
 *See `2026-04-26-viewer-redesign-plan-5a-sessions-recap.md` for task definitions.*
 - [x] T5a.1 Add `RECAP_SCHEMA_VERSION` and handover-kind mapping
 - [x] T5a.2 `recap_path()` + `_format_recap_markdown()` helper
@@ -200,10 +200,10 @@
 - [x] T5a.32 Hero stat-strip exclusion of handovers (regression guard)
 - [x] T5a.33 Right-rail close on Escape + outside-click
 - [x] T5a.34 Run full Plan 5a test sweep
-- [ ] T5a.35 Spec §3.12 coverage walk — checklist tied to assertions
-- [ ] T5a.36 Spec §3.16 coverage walk — checklist tied to assertions
-- [ ] T5a.37 Cross-screen integration — Sessions row → Recap deep link
-- [ ] T5a.38 Final integration sweep + plan handoff commit
+- [x] T5a.35 Spec §3.12 coverage walk — checklist tied to assertions
+- [x] T5a.36 Spec §3.16 coverage walk — checklist tied to assertions
+- [x] T5a.37 Cross-screen integration — Sessions row → Recap deep link
+- [x] T5a.38 Final integration sweep + plan handoff commit
 
 ## Plan 5b — Lessons + Issues (0/32)
 *See `2026-04-26-viewer-redesign-plan-5b-lessons-issues.md` for task definitions.*
