@@ -91,7 +91,7 @@ plugins/taskmaster/viewer/tests/
 - Modify: `plugins/taskmaster/taskmaster_v3.py` (lesson load path)
 - Create: `plugins/taskmaster/tests/test_v3_lesson_reinforce.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `plugins/taskmaster/tests/test_v3_lesson_reinforce.py`:
 
@@ -165,12 +165,12 @@ def test_load_lesson_preserves_existing_reinforce_events(tmp_path, monkeypatch):
     assert lesson["reinforce_events"][0]["note"] == "paid attention this time"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_lesson_reinforce.py -v`
 Expected: FAIL with `ImportError: cannot import name '_ensure_reinforce_events'` (or KeyError on `reinforce_events`).
 
-- [ ] **Step 3: Implement `_ensure_reinforce_events` and wire it into `load_lesson`**
+- [x] **Step 3: Implement `_ensure_reinforce_events` and wire it into `load_lesson`**
 
 In `plugins/taskmaster/taskmaster_v3.py`, locate the existing `load_lesson(lesson_id)` function. Add the migration helper above it and call it at the end of `load_lesson`:
 
@@ -197,12 +197,12 @@ def load_lesson(lesson_id: str) -> dict:
 
 (If `load_lesson` already exists with a different shape, keep its signature — only add the `_ensure_reinforce_events(lesson)` call before returning, and define the helper at module scope.)
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_lesson_reinforce.py -v`
 Expected: 2 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/taskmaster_v3.py plugins/taskmaster/tests/test_v3_lesson_reinforce.py
@@ -217,7 +217,7 @@ git commit -m "feat(taskmaster): backfill lesson reinforce_events on load"
 - Modify: `plugins/taskmaster/taskmaster_v3.py`
 - Modify: `plugins/taskmaster/tests/test_v3_lesson_reinforce.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `plugins/taskmaster/tests/test_v3_lesson_reinforce.py`:
 
@@ -261,12 +261,12 @@ def test_lesson_reinforce_unknown_id_raises(tmp_path, monkeypatch):
         lesson_reinforce("L-999", source="user")
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_lesson_reinforce.py -v -k reinforce`
 Expected: FAIL with `ImportError: cannot import name 'lesson_reinforce'`.
 
-- [ ] **Step 3: Implement `lesson_reinforce`**
+- [x] **Step 3: Implement `lesson_reinforce`**
 
 Add to `plugins/taskmaster/taskmaster_v3.py` (near `load_lesson`):
 
@@ -310,12 +310,12 @@ def lesson_reinforce(lesson_id: str, source: str = "user", note: str = "") -> di
 
 (If a `save_lesson(lesson)` helper does not exist alongside `load_lesson`, add it: serialize the frontmatter dict back to YAML, preserve `_body`, atomic-write via `atomic_write`.)
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_lesson_reinforce.py -v`
 Expected: 5 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/taskmaster_v3.py plugins/taskmaster/tests/test_v3_lesson_reinforce.py
@@ -330,7 +330,7 @@ git commit -m "feat(taskmaster): lesson_reinforce() appends event + bumps counte
 - Modify: `plugins/taskmaster/backlog_server.py`
 - Modify: `plugins/taskmaster/tests/test_v3_lesson_reinforce.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `plugins/taskmaster/tests/test_v3_lesson_reinforce.py`:
 
@@ -347,12 +347,12 @@ def test_lesson_reinforce_mcp_tool_returns_json_summary(tmp_path, monkeypatch):
     assert payload["reinforce_count"] == 4
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_lesson_reinforce.py::test_lesson_reinforce_mcp_tool_returns_json_summary -v`
 Expected: FAIL with `ImportError: cannot import name 'lesson_reinforce' from 'backlog_server'`.
 
-- [ ] **Step 3: Add the MCP tool**
+- [x] **Step 3: Add the MCP tool**
 
 In `plugins/taskmaster/backlog_server.py`, near other lesson tools, add:
 
@@ -380,12 +380,12 @@ def lesson_reinforce(lesson_id: str, source: str = "user", note: str = "") -> st
     return _json.dumps(summary, indent=2, default=str)
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_lesson_reinforce.py -v -k mcp_tool`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_v3_lesson_reinforce.py
@@ -400,7 +400,7 @@ git commit -m "feat(taskmaster): lesson_reinforce MCP tool"
 - Modify: `plugins/taskmaster/backlog_server.py` (`_Handler` request handler)
 - Create: `plugins/taskmaster/tests/test_server_lessons.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `plugins/taskmaster/tests/test_server_lessons.py`:
 
@@ -488,12 +488,12 @@ def test_post_reinforce_rejects_bad_source(running_server, tmp_path):
     assert exc.value.code == 400
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_lessons.py -v`
 Expected: FAIL — 404/405 on POST.
 
-- [ ] **Step 3: Add `do_POST` route handler**
+- [x] **Step 3: Add `do_POST` route handler**
 
 In `plugins/taskmaster/backlog_server.py`, inside `_Handler`, add (or extend) `do_POST`:
 
@@ -530,12 +530,12 @@ def do_POST(self):
     self.end_headers()
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_lessons.py -v`
 Expected: 3 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_server_lessons.py
