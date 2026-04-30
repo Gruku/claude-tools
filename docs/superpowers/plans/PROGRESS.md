@@ -1,6 +1,6 @@
 # Viewer Redesign — Progress
 
-**Total:** 271 tasks · 7 plans · ~14% complete (38/38 Plan 5a tasks done, 25/32 Plan 5b M1+M2+M3+M4+M5 done)
+**Total:** 271 tasks · 7 plans · ~14% complete (38/38 Plan 5a tasks done, 32/32 Plan 5b complete)
 
 ## Pre-execution
 - [x] Plan 1 layout-shape reconciliation applied
@@ -205,7 +205,7 @@
 - [x] T5a.37 Cross-screen integration — Sessions row → Recap deep link
 - [x] T5a.38 Final integration sweep + plan handoff commit
 
-## Plan 5b — Lessons + Issues (25/32)
+## Plan 5b — Lessons + Issues (32/32) ✓ COMPLETE
 *See `2026-04-26-viewer-redesign-plan-5b-lessons-issues.md` for task definitions.*
 - [x] T5b.1 Extend the lesson schema with `reinforce_events`
 - [x] T5b.2 Implement `lesson_reinforce()` helper
@@ -232,13 +232,13 @@
 - [x] T5b.23 `issue-card.js` — bug-report flavor
 - [x] T5b.24 `js/screens/issues.js` — Hybrid view (default)
 - [x] T5b.25 Playwright smoke — Issues screen renders + repro expands
-- [ ] T5b.26 Lessons screen — anchor-pills, since-caption, kind-icon assertions
-- [ ] T5b.27 Issues screen — location, symptom, blocks-chip assertions
-- [ ] T5b.28 Cross-screen routing smoke
-- [ ] T5b.29 Threshold override — `viewer.lessons.thresholds` end-to-end
-- [ ] T5b.30 Aging override — `viewer.issues.aging` end-to-end
-- [ ] T5b.31 Reinforce-event source enforcement (viewer must send valid source)
-- [ ] T5b.32 Final spec-coverage walk + plan handoff
+- [x] T5b.26 Lessons screen — anchor-pills, since-caption, kind-icon assertions
+- [x] T5b.27 Issues screen — location, symptom, blocks-chip assertions
+- [x] T5b.28 Cross-screen routing smoke
+- [x] T5b.29 Threshold override — `viewer.lessons.thresholds` end-to-end
+- [x] T5b.30 Aging override — `viewer.issues.aging` end-to-end
+- [x] T5b.31 Reinforce-event source enforcement (viewer must send valid source)
+- [x] T5b.32 Final spec-coverage walk + plan handoff
 
 ## Plan 6 — Auto Mode (0/58)
 *See `2026-04-26-viewer-redesign-plan-6-auto-mode.md` for task definitions.*

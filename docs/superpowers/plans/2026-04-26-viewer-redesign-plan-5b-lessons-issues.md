@@ -2930,7 +2930,7 @@ git commit -m "test(viewer): playwright smoke for issues screen"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/tests/lessons.spec.js`
 
-- [ ] **Step 1: Append spec-coverage assertions**
+- [x] **Step 1: Append spec-coverage assertions**
 
 Append to `plugins/taskmaster/viewer/tests/lessons.spec.js`:
 
@@ -2962,7 +2962,7 @@ test('core shelf shows gold styling on ID', async ({ page }) => {
 });
 ```
 
-- [ ] **Step 2: Run**
+- [x] **Step 2: Run**
 
 Run: `npx playwright test plugins/taskmaster/viewer/tests/lessons.spec.js`
 Expected: All PASS.
@@ -2981,7 +2981,7 @@ git commit -m "test(viewer): lesson card spec-coverage assertions"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/tests/issues.spec.js`
 
-- [ ] **Step 1: Append spec-coverage assertions**
+- [x] **Step 1: Append spec-coverage assertions**
 
 Append to `plugins/taskmaster/viewer/tests/issues.spec.js`:
 
@@ -3010,7 +3010,7 @@ test('blocks chip appears when issue blocks non-done tasks', async ({ page }) =>
 });
 ```
 
-- [ ] **Step 2: Run**
+- [x] **Step 2: Run**
 
 Run: `npx playwright test plugins/taskmaster/viewer/tests/issues.spec.js`
 Expected: All PASS.
@@ -3057,7 +3057,7 @@ test('clicking an issue task pill navigates to task detail', async ({ page }) =>
 });
 ```
 
-- [ ] **Step 2: Run**
+- [x] **Step 2: Run**
 
 Run: `npx playwright test plugins/taskmaster/viewer/tests/lessons-issues-routing.spec.js`
 Expected: 2 tests PASS.
@@ -3076,7 +3076,7 @@ git commit -m "test(viewer): lessons↔issues routing smoke"
 **Files:**
 - Modify: `plugins/taskmaster/tests/test_server_lessons.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `plugins/taskmaster/tests/test_server_lessons.py`:
 
@@ -3111,7 +3111,7 @@ def test_thresholds_override_changes_shelf_placement(running_server, tmp_path):
     assert by_id["L-T1"]["shelf"] == "core"
 ```
 
-- [ ] **Step 2: Run**
+- [x] **Step 2: Run**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_lessons.py::test_thresholds_override_changes_shelf_placement -v`
 Expected: PASS.
@@ -3130,7 +3130,7 @@ git commit -m "test(taskmaster): viewer.lessons.thresholds override end-to-end"
 **Files:**
 - Modify: `plugins/taskmaster/tests/test_server_issues.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `plugins/taskmaster/tests/test_server_issues.py`:
 
@@ -3158,7 +3158,7 @@ def test_aging_override_changes_tier(running_server, tmp_path):
     assert by_id["ISS-AG1"]["aging"]["tier"] == "Stale"
 ```
 
-- [ ] **Step 2: Run**
+- [x] **Step 2: Run**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_issues.py::test_aging_override_changes_tier -v`
 Expected: PASS.
@@ -3177,7 +3177,7 @@ git commit -m "test(taskmaster): viewer.issues.aging override end-to-end"
 **Files:**
 - Modify: `plugins/taskmaster/tests/test_server_lessons.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `plugins/taskmaster/tests/test_server_lessons.py`:
 
@@ -3200,7 +3200,7 @@ def test_reinforce_records_event_with_correct_source_and_note(running_server, tm
     assert events[-1]["note"] == "applied during refactor"
 ```
 
-- [ ] **Step 2: Run**
+- [x] **Step 2: Run**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_lessons.py::test_reinforce_records_event_with_correct_source_and_note -v`
 Expected: PASS.
@@ -3219,57 +3219,57 @@ git commit -m "test(taskmaster): reinforce stores source + note correctly"
 **Files:**
 - Modify: `docs/superpowers/plans/2026-04-26-viewer-redesign-plan-5b-lessons-issues.md` (this file — append Done section)
 
-- [ ] **Step 1: Run the full server test suite**
+- [x] **Step 1: Run the full server test suite**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_lesson_reinforce.py plugins/taskmaster/tests/test_server_lessons.py plugins/taskmaster/tests/test_server_issues.py -v`
 Expected: All PASS (~25 tests).
 
-- [ ] **Step 2: Run all pure-data unit tests**
+- [x] **Step 2: Run all pure-data unit tests**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/`
 Expected: All PASS (3 files, ~14 tests).
 
-- [ ] **Step 3: Run all Playwright smoke tests for 5b**
+- [x] **Step 3: Run all Playwright smoke tests for 5b**
 
 Run: `npx playwright test plugins/taskmaster/viewer/tests/lessons.spec.js plugins/taskmaster/viewer/tests/issues.spec.js plugins/taskmaster/viewer/tests/lessons-issues-routing.spec.js`
 Expected: All PASS.
 
-- [ ] **Step 4: Manual spec coverage walk**
+- [x] **Step 4: Manual spec coverage walk**
 
 Open the spec at `docs/superpowers/specs/2026-04-26-taskmaster-viewer-redesign.md` and tick each requirement:
 
 §3.13 Lessons:
-- [ ] Three shelves: Core / Active / Retired with progressive de-emphasis
-- [ ] Core: gold gradient at top (no edge ribbon), gold ID
-- [ ] Active: white italic-serif header, normal weight
-- [ ] Retired: 55% opacity at rest, 85% on hover
-- [ ] Threshold rule: ≥7 in 60d AND fire in 14d → Core
-- [ ] `prefs.lessons.thresholds` overridable
-- [ ] Active signal (sparkline + count + last-fired) in gold pill
-- [ ] Passive signal (5-dot meter) ambient only
-- [ ] Lesson kind icons: ⚠ gotcha / ◇ pattern / ⊘ anti-pattern (60% ink, tooltip on hover)
-- [ ] Anchor pills with "When:" label, mono
-- [ ] First-seen caption "since DATE" in `--ink-3`
-- [ ] Reinforce button on hover, gold ↑, becomes ✓ "Reinforced now" green
-- [ ] On Retired cards label is "Revive"
+- [x] Three shelves: Core / Active / Retired with progressive de-emphasis
+- [x] Core: gold gradient at top (no edge ribbon), gold ID
+- [x] Active: white italic-serif header, normal weight
+- [x] Retired: 55% opacity at rest, 85% on hover
+- [x] Threshold rule: ≥7 in 60d AND fire in 14d → Core
+- [x] `prefs.lessons.thresholds` overridable
+- [x] Active signal (sparkline + count + last-fired) in gold pill
+- [x] Passive signal (5-dot meter) ambient only
+- [x] Lesson kind icons: ⚠ gotcha / ◇ pattern / ⊘ anti-pattern (60% ink, tooltip on hover)
+- [x] Anchor pills with "When:" label, mono
+- [x] First-seen caption "since DATE" in `--ink-3`
+- [x] Reinforce button on hover, gold ↑, becomes ✓ "Reinforced now" green
+- [x] On Retired cards label is "Revive"
 
 §3.14 Issues:
-- [ ] Hybrid: Investigating + Open as live columns (1fr / 1.6fr)
-- [ ] Resolved shelf below, faded, collapsible
-- [ ] Severity hexagon glyph (SVG, scaled by severity)
-- [ ] Console-style location with bg-deep + inset shadow + accent-blue line number
-- [ ] Italic-serif symptom with quote-mark left border (decorative typography)
-- [ ] Repro block: numbered, mono, collapsible, "N steps" summary
-- [ ] Impact paragraph, sans, smaller, with `<code>` snippets
-- [ ] Severity-tiered aging bar (Fresh/Aging/Stale chips, base periods 14/30/60/120)
-- [ ] `prefs.issues.aging` overridable
-- [ ] ⊘ blocks N chip computed at render time
-- [ ] Severity words: Critical / High / Medium / Low — never P0/P1
-- [ ] Bidirectional task ↔ issue link (task pills click to task detail)
-- [ ] Card surface slightly cooler (#181a20)
-- [ ] Resolved shelf one-line cards with severity glyph + Fixed/Wontfix mark + linked task pill + "fixed Nd ago"
+- [x] Hybrid: Investigating + Open as live columns (1fr / 1.6fr)
+- [x] Resolved shelf below, faded, collapsible
+- [x] Severity hexagon glyph (SVG, scaled by severity)
+- [x] Console-style location with bg-deep + inset shadow + accent-blue line number
+- [x] Italic-serif symptom with quote-mark left border (decorative typography)
+- [x] Repro block: numbered, mono, collapsible, "N steps" summary
+- [x] Impact paragraph, sans, smaller, with `<code>` snippets
+- [x] Severity-tiered aging bar (Fresh/Aging/Stale chips, base periods 14/30/60/120)
+- [x] `prefs.issues.aging` overridable
+- [x] ⊘ blocks N chip computed at render time
+- [x] Severity words: Critical / High / Medium / Low — never P0/P1
+- [x] Bidirectional task ↔ issue link (task pills click to task detail)
+- [x] Card surface slightly cooler (#181a20)
+- [x] Resolved shelf one-line cards with severity glyph + Fixed/Wontfix mark + linked task pill + "fixed Nd ago"
 
-- [ ] **Step 5: Final commit (plan complete)**
+- [x] **Step 5: Final commit (plan complete)**
 
 ```bash
 git commit --allow-empty -m "feat(taskmaster): plan-5b complete — lessons + issues screens"
