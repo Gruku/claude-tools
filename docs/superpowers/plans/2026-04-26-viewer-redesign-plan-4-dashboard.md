@@ -2011,7 +2011,7 @@ git commit -m "feat(viewer): edit-mode toggle, add tile + picker, persistence wi
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/screens/dashboard.js`
 
-- [ ] **Step 1: Update orchestrator**
+- [x] **Step 1: Update orchestrator**
 
 Replace the body of `mount()` in `plugins/taskmaster/viewer/js/screens/dashboard.js` to call `createEditMode` and re-render via a `refresh()` closure. Overwrite the file with:
 
@@ -2121,7 +2121,7 @@ export async function mount(root, { store, api, prefs }) {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/screens/dashboard.js

@@ -125,7 +125,7 @@
 - [x] T3.45 Spec coverage audit — all §3.9 items present (Variant A + Rail + Variant B)
 - [x] T3.46 Final integration smoke + plan handoff — server 5/5, unit 30/30, Playwright 10/10; tag pending user OK
 
-## Plan 4 — Dashboard (24/36)
+## Plan 4 — Dashboard (25/36)
 *See `2026-04-26-viewer-redesign-plan-4-dashboard.md` for task definitions.*
 - [x] T4.1 Read mockups + seed dashboard.css with bento grid skeleton
 - [x] T4.2 `dashboard-grid.js` — `computePlacements` (pure)
@@ -151,7 +151,7 @@
 - [x] T4.22 Widget — `stale-tasks.js`
 - [x] T4.23 Widget — `auto-mode-stepper.js` stub (Plan 6 fills in)
 - [x] T4.24 `edit-mode.js` — toggle + remove
-- [ ] T4.25 Wire edit mode into the dashboard orchestrator
+- [x] T4.25 Wire edit mode into the dashboard orchestrator
 - [ ] T4.26 Drag-and-drop reorder within a rail
 - [ ] T4.27 Size cycler on widget frame
 - [ ] T4.28 Edit-mode tests (Playwright)
