@@ -1,6 +1,6 @@
 # Viewer Redesign — Progress
 
-**Total:** 271 tasks · 7 plans · ~14% complete (38/38 Plan 5a tasks done, 8/32 Plan 5b M1+M2 done)
+**Total:** 271 tasks · 7 plans · ~14% complete (38/38 Plan 5a tasks done, 17/32 Plan 5b M1+M2+M3 done)
 
 ## Pre-execution
 - [x] Plan 1 layout-shape reconciliation applied
@@ -205,7 +205,7 @@
 - [x] T5a.37 Cross-screen integration — Sessions row → Recap deep link
 - [x] T5a.38 Final integration sweep + plan handoff commit
 
-## Plan 5b — Lessons + Issues (8/32)
+## Plan 5b — Lessons + Issues (17/32)
 *See `2026-04-26-viewer-redesign-plan-5b-lessons-issues.md` for task definitions.*
 - [x] T5b.1 Extend the lesson schema with `reinforce_events`
 - [x] T5b.2 Implement `lesson_reinforce()` helper
@@ -215,15 +215,15 @@
 - [x] T5b.6 `lesson_list_extended` MCP tool + `GET /api/lessons` endpoint
 - [x] T5b.7 Pure-Python `compute_issue_aging` helper
 - [x] T5b.8 `issue_list_extended` MCP tool + `GET /api/issues` endpoint
-- [ ] T5b.9 `severity-glyph.js` — SVG hexagon symbol defs
-- [ ] T5b.10 `aging-bar.js` + JS-side `computeAgingTier` + unit test
-- [ ] T5b.11 `sparkline.js` — gold active-signal sparkline
-- [ ] T5b.12 `dot-meter.js` — passive-signal anchor-match meter
-- [ ] T5b.13 `anchor-pills.js` — mono pills with "When:" label
-- [ ] T5b.14 `lesson-shelf-placement.test.js` — JS-side `computeShelfPlacement`
-- [ ] T5b.15 `issue-blocks-count.test.js` — JS-side `computeBlocksCount`
-- [ ] T5b.16 `severity-label.js` JS helper
-- [ ] T5b.17 Extend `api.js` with `reinforceLesson`, `getLessons`, `getIssues`
+- [x] T5b.9 `severity-glyph.js` — SVG hexagon symbol defs
+- [x] T5b.10 `aging-bar.js` + JS-side `computeAgingTier` + unit test
+- [x] T5b.11 `sparkline.js` — gold active-signal sparkline
+- [x] T5b.12 `dot-meter.js` — passive-signal anchor-match meter
+- [x] T5b.13 `anchor-pills.js` — mono pills with "When:" label
+- [x] T5b.14 `lesson-shelf-placement.test.js` — JS-side `computeShelfPlacement`
+- [x] T5b.15 `issue-blocks-count.test.js` — JS-side `computeBlocksCount`
+- [x] T5b.16 `severity-label.js` JS helper
+- [x] T5b.17 Extend `api.js` with `reinforceLesson`, `getLessons`, `getIssues`
 - [ ] T5b.18 `css/screens/lessons.css` — three shelves + tokens
 - [ ] T5b.19 `lesson-card.js` — full card with all signals
 - [ ] T5b.20 `js/screens/lessons.js` — Shelves view (default)

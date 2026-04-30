@@ -1053,7 +1053,7 @@ git commit -m "feat(taskmaster): GET /api/issues + issue_list_extended"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/severity-glyph.js`
 
-- [ ] **Step 1: Write the file**
+- [x] **Step 1: Write the file**
 
 Create `plugins/taskmaster/viewer/js/components/severity-glyph.js`:
 
@@ -1112,12 +1112,12 @@ export function severityGlyph(label) {
 export default severityGlyph;
 ```
 
-- [ ] **Step 2: Smoke-import (no test yet — verified end-to-end via Playwright in M5)**
+- [x] **Step 2: Smoke-import (no test yet — verified end-to-end via Playwright in M5)**
 
 Run: `node -e "import('./plugins/taskmaster/viewer/js/components/severity-glyph.js').then(m => console.log(Object.keys(m)))"`
 Expected: `[ 'injectSeverityDefs', 'severityGlyph', 'default' ]`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/severity-glyph.js
@@ -1132,7 +1132,7 @@ git commit -m "feat(viewer): severity hexagon SVG glyph component"
 - Create: `plugins/taskmaster/viewer/js/components/aging-bar.js`
 - Create: `plugins/taskmaster/viewer/tests/unit/issue-aging.test.js`
 
-- [ ] **Step 1: Write the failing unit test**
+- [x] **Step 1: Write the failing unit test**
 
 Create `plugins/taskmaster/viewer/tests/unit/issue-aging.test.js`:
 
@@ -1176,12 +1176,12 @@ test('computeAgingTier: Critical decays faster than Low at same age', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/issue-aging.test.js`
 Expected: FAIL — `Cannot find module`.
 
-- [ ] **Step 3: Implement `aging-bar.js`**
+- [x] **Step 3: Implement `aging-bar.js`**
 
 Create `plugins/taskmaster/viewer/js/components/aging-bar.js`:
 
@@ -1230,12 +1230,12 @@ export function agingBar(issue, cfg) {
 export default agingBar;
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/issue-aging.test.js`
 Expected: 4 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/aging-bar.js plugins/taskmaster/viewer/tests/unit/issue-aging.test.js
@@ -1249,7 +1249,7 @@ git commit -m "feat(viewer): aging-bar with severity-tiered Fresh/Aging/Stale"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/sparkline.js`
 
-- [ ] **Step 1: Write the file**
+- [x] **Step 1: Write the file**
 
 Create `plugins/taskmaster/viewer/js/components/sparkline.js`:
 
@@ -1310,12 +1310,12 @@ export function sparkline(lesson, { days = DEFAULT_DAYS, now = new Date() } = {}
 export default sparkline;
 ```
 
-- [ ] **Step 2: Smoke-import**
+- [x] **Step 2: Smoke-import**
 
 Run: `node -e "import('./plugins/taskmaster/viewer/js/components/sparkline.js').then(m => console.log(typeof m.sparkline))"`
 Expected: `function`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/sparkline.js
@@ -1329,7 +1329,7 @@ git commit -m "feat(viewer): gold sparkline for lesson active signal"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/dot-meter.js`
 
-- [ ] **Step 1: Write the file**
+- [x] **Step 1: Write the file**
 
 Create `plugins/taskmaster/viewer/js/components/dot-meter.js`:
 
@@ -1370,7 +1370,7 @@ export { _dotsFilledFor };
 export default dotMeter;
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/dot-meter.js
@@ -1384,7 +1384,7 @@ git commit -m "feat(viewer): 5-dot passive anchor-match meter"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/anchor-pills.js`
 
-- [ ] **Step 1: Write the file**
+- [x] **Step 1: Write the file**
 
 Create `plugins/taskmaster/viewer/js/components/anchor-pills.js`:
 
@@ -1421,7 +1421,7 @@ export function anchorPills(lesson) {
 export default anchorPills;
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/anchor-pills.js
@@ -1436,7 +1436,7 @@ git commit -m "feat(viewer): anchor pills with When: label"
 - Create: `plugins/taskmaster/viewer/js/util/lesson-shelf.js`
 - Create: `plugins/taskmaster/viewer/tests/unit/lesson-shelf-placement.test.js`
 
-- [ ] **Step 1: Write the failing unit test**
+- [x] **Step 1: Write the failing unit test**
 
 Create `plugins/taskmaster/viewer/tests/unit/lesson-shelf-placement.test.js`:
 
@@ -1481,12 +1481,12 @@ test('retired: empty events list', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/lesson-shelf-placement.test.js`
 Expected: FAIL — `Cannot find module`.
 
-- [ ] **Step 3: Implement `computeShelfPlacement`**
+- [x] **Step 3: Implement `computeShelfPlacement`**
 
 Create `plugins/taskmaster/viewer/js/util/lesson-shelf.js`:
 
@@ -1514,12 +1514,12 @@ export function computeShelfPlacement(lesson, thresholds, now = new Date()) {
 export default computeShelfPlacement;
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/lesson-shelf-placement.test.js`
 Expected: 5 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/util/lesson-shelf.js plugins/taskmaster/viewer/tests/unit/lesson-shelf-placement.test.js
@@ -1534,7 +1534,7 @@ git commit -m "feat(viewer): client-side computeShelfPlacement matching server"
 - Create: `plugins/taskmaster/viewer/js/util/issue-blocks.js`
 - Create: `plugins/taskmaster/viewer/tests/unit/issue-blocks-count.test.js`
 
-- [ ] **Step 1: Write the failing unit test**
+- [x] **Step 1: Write the failing unit test**
 
 Create `plugins/taskmaster/viewer/tests/unit/issue-blocks-count.test.js`:
 
@@ -1574,12 +1574,12 @@ test('unknown task IDs are ignored', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/issue-blocks-count.test.js`
 Expected: FAIL — `Cannot find module`.
 
-- [ ] **Step 3: Implement `computeBlocksCount`**
+- [x] **Step 3: Implement `computeBlocksCount`**
 
 Create `plugins/taskmaster/viewer/js/util/issue-blocks.js`:
 
@@ -1604,12 +1604,12 @@ export function computeBlocksCount(issue, tasksIndex) {
 export default computeBlocksCount;
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/issue-blocks-count.test.js`
 Expected: 5 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/util/issue-blocks.js plugins/taskmaster/viewer/tests/unit/issue-blocks-count.test.js
@@ -1623,7 +1623,7 @@ git commit -m "feat(viewer): computeBlocksCount for ⊘ blocks N chip"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/util/severity-label.js`
 
-- [ ] **Step 1: Write the file**
+- [x] **Step 1: Write the file**
 
 Create `plugins/taskmaster/viewer/js/util/severity-label.js`:
 
@@ -1640,7 +1640,7 @@ export function severityLabel(code) {
 export default severityLabel;
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/util/severity-label.js
@@ -1654,7 +1654,7 @@ git commit -m "feat(viewer): severityLabel maps P0-P3 to words"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/api.js`
 
-- [ ] **Step 1: Append to api.js**
+- [x] **Step 1: Append to api.js**
 
 Append to `plugins/taskmaster/viewer/js/api.js`:
 
@@ -1685,7 +1685,7 @@ export async function getIssues({ includeResolved = true } = {}) {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/api.js
