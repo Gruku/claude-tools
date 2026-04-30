@@ -1,0 +1,69 @@
+meta:
+  project: viewer-redesign-fixture
+phases:
+  - {id: P-01, name: Discovery,        status: done}
+  - {id: P-02, name: Spike,            status: done}
+  - {id: P-03, name: Foundations,      status: done}
+  - {id: P-04, name: Skeleton,         status: done}
+  - {id: P-05, name: Migration,        status: done}
+  - {id: P-06, name: Visual Redesign,  status: active}
+  - {id: P-07, name: Polish,           status: future}
+  - {id: P-08, name: Launch,           status: future}
+  - {id: P-09, name: Soak,             status: future}
+  - {id: P-10, name: GA,               status: future}
+  - {id: P-11, name: Documentation,    status: future}
+epics:
+  - {id: viewer-redesign,      name: viewer-redesign}
+  - {id: narrative-continuity, name: narrative-continuity}
+  - {id: filter-bar,           name: filter-bar}
+  - {id: kanban-board,         name: kanban-board}
+  - {id: auto-mode,            name: auto-mode}
+tasks:
+  # in_progress (3)
+  - id: v3-009
+    title: "Wire viewer to v3 schema"
+    status: in_progress
+    priority: critical
+    estimate: L
+    phase: P-03
+    epic: viewer-redesign
+    branch: "feat/wire-viewer"
+    started: "2026-04-26T10:00:00Z"
+    description: "Wire the new viewer screens to the v3 backlog schema so kanban, dashboard, and task-detail all read the new shape."
+    notes: "Initial wire-up landed in M2; M3 right-rail follows."
+    depends_on: [v3-001]
+    unblocks: [v3-011, v3-040]
+    anchors:
+      - {kind: file, label: "viewer/js/api.js", href: "viewer/js/api.js"}
+      - {kind: file, label: "viewer/js/store.js", href: "viewer/js/store.js"}
+  - {id: v3-011, title: "Lesson digest sidebar",               status: in_progress, priority: high,     estimate: M, phase: P-03, epic: viewer-redesign,      branch: "feat/lesson-digest"}
+  - {id: v3-040, title: "Sidebar collapse toggle",             status: in_progress, priority: medium,   estimate: S, phase: P-03, epic: viewer-redesign,      branch: "feat/sidebar-collapse"}
+
+  # in_review (2)
+  - {id: v3-012, title: "Issue panel",                         status: in_review,   priority: high,     estimate: M, phase: P-03, epic: narrative-continuity, branch: "feat/issue-panel"}
+  - {id: v3-031, title: "Auto-mode strip auto-cleanup",        status: in_review,   priority: medium,   estimate: S, phase: P-03, epic: auto-mode,            branch: "feat/auto-strip-cleanup"}
+
+  # todo (12 — overflow target)
+  - {id: v3-014, title: "Auto-mode status indicator",          status: todo,        priority: high,     estimate: M, phase: P-03, epic: auto-mode,            branch: "feat/auto-mode-strip"}
+  - {id: v3-015, title: "Density toggle persistence",          status: todo,        priority: medium,   estimate: S, phase: P-03, epic: kanban-board}
+  - {id: v3-016, title: "Group-by phase + epic",               status: todo,        priority: medium,   estimate: M, phase: P-03, epic: kanban-board}
+  - {id: v3-017, title: "Click-to-copy task IDs",              status: todo,        priority: low,      estimate: S, phase: P-03, epic: kanban-board}
+  - {id: v3-018, title: "Filter chip rendering",               status: todo,        priority: medium,   estimate: S, phase: P-03, epic: filter-bar}
+  - {id: v3-019, title: "Phase stepper polish",                status: todo,        priority: low,      estimate: S, phase: P-03, epic: filter-bar}
+  - {id: v3-020, title: "Epic chip overflow handling",         status: todo,        priority: low,      estimate: S, phase: P-03, epic: filter-bar}
+  - {id: v3-022, title: "Search debounce timing",              status: todo,        priority: low,      estimate: S, phase: P-03, epic: filter-bar}
+  - {id: v3-023, title: "Task detail screen scaffold",         status: todo,        priority: high,     estimate: L, phase: P-04, epic: viewer-redesign}
+  - {id: v3-024, title: "Dashboard widget catalog",            status: todo,        priority: medium,   estimate: L, phase: P-04, epic: viewer-redesign}
+  - {id: v3-025, title: "Sessions screen variant lanes",       status: todo,        priority: medium,   estimate: M, phase: P-04, epic: viewer-redesign}
+  - {id: v3-026, title: "Lessons shelves view",                status: todo,        priority: medium,   estimate: M, phase: P-04, epic: viewer-redesign}
+
+  # blocked (2)
+  - {id: v3-021, title: "Hook compact recap on PreCompact",    status: blocked,     priority: high,     estimate: S, phase: P-03, epic: narrative-continuity}
+  - {id: v3-027, title: "Issue aging tier rules",              status: blocked,     priority: medium,   estimate: M, phase: P-04, epic: narrative-continuity}
+
+  # done (5)
+  - {id: v3-001, title: "Bootstrap viewer shell",              status: done,        priority: critical, estimate: M, phase: P-01, epic: viewer-redesign}
+  - {id: v3-002, title: "Shell tokens + dark theme",           status: done,        priority: high,     estimate: M, phase: P-01, epic: viewer-redesign}
+  - {id: v3-003, title: "Router with hash routing",            status: done,        priority: high,     estimate: S, phase: P-01, epic: viewer-redesign}
+  - {id: v3-004, title: "Backlog YAML poller",                 status: done,        priority: high,     estimate: M, phase: P-02, epic: viewer-redesign}
+  - {id: v3-005, title: "Prefs persistence round-trip",        status: done,        priority: medium,   estimate: M, phase: P-02, epic: viewer-redesign}
