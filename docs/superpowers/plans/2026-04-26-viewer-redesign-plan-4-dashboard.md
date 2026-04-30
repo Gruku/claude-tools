@@ -2136,7 +2136,7 @@ git commit -m "feat(viewer): wire edit mode + add tiles + per-rail rendering"
 - Modify: `plugins/taskmaster/viewer/js/components/edit-mode.js`
 - Modify: `plugins/taskmaster/viewer/js/screens/dashboard.js`
 
-- [ ] **Step 1: Add drop handler helper to `edit-mode.js`**
+- [x] **Step 1: Add drop handler helper to `edit-mode.js`**
 
 Append to `plugins/taskmaster/viewer/js/components/edit-mode.js`:
 
@@ -2168,7 +2168,7 @@ export function attachRailDropTarget(railEl, rail, onMove) {
 }
 ```
 
-- [ ] **Step 2: Wire it from `dashboard.js`**
+- [x] **Step 2: Wire it from `dashboard.js`**
 
 In `plugins/taskmaster/viewer/js/screens/dashboard.js`, add the import:
 
@@ -2184,7 +2184,7 @@ attachRailDropTarget(railRight, 'right',  edit.onMove);
 attachRailDropTarget(bottom,    'bottom', edit.onMove);
 ```
 
-- [ ] **Step 3: Add a drop-target visual to dashboard.css**
+- [x] **Step 3: Add a drop-target visual to dashboard.css**
 
 Append to `plugins/taskmaster/viewer/css/screens/dashboard.css`:
 
@@ -2197,7 +2197,7 @@ Append to `plugins/taskmaster/viewer/css/screens/dashboard.css`:
 }
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/edit-mode.js plugins/taskmaster/viewer/js/screens/dashboard.js plugins/taskmaster/viewer/css/screens/dashboard.css
