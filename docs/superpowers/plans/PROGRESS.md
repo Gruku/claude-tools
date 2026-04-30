@@ -1,6 +1,6 @@
 # Viewer Redesign — Progress
 
-**Total:** 271 tasks · 7 plans · ~14% complete (38/38 Plan 5a tasks done, 32/32 Plan 5b complete)
+**Total:** 271 tasks · 7 plans · ~16% complete (38/38 Plan 5a, 32/32 Plan 5b, 6/58 Plan 6 M1 done)
 
 ## Pre-execution
 - [x] Plan 1 layout-shape reconciliation applied
@@ -240,14 +240,14 @@
 - [x] T5b.31 Reinforce-event source enforcement (viewer must send valid source)
 - [x] T5b.32 Final spec-coverage walk + plan handoff
 
-## Plan 6 — Auto Mode (0/58)
+## Plan 6 — Auto Mode (6/58)
 *See `2026-04-26-viewer-redesign-plan-6-auto-mode.md` for task definitions.*
-- [ ] T6.1 Define auto-mode storage layout constants
-- [ ] T6.2 Implement `load_auto_session`, `save_auto_session`, `list_auto_sessions`
-- [ ] T6.3 One-time migration of legacy `state.json` → `sessions/<sid>.json`
-- [ ] T6.4 Wire migration into server startup
-- [ ] T6.5 Implement `append_auto_event` and `read_auto_events`
-- [ ] T6.6 Implement `read_hook_events` (read-only scrape)
+- [x] T6.1 Define auto-mode storage layout constants
+- [x] T6.2 Implement `load_auto_session`, `save_auto_session`, `list_auto_sessions`
+- [x] T6.3 One-time migration of legacy `state.json` → `sessions/<sid>.json`
+- [x] T6.4 Wire migration into server startup
+- [x] T6.5 Implement `append_auto_event` and `read_auto_events`
+- [x] T6.6 Implement `read_hook_events` (read-only scrape)
 - [ ] T6.7 Create `tests/test_server_auto_mode.py` skeleton + first endpoint test
 - [ ] T6.8 `GET /api/auto/sessions/<sid>` — single session detail
 - [ ] T6.9 `GET /api/auto/state` returns most-recent session (Plan-2 compat shim)

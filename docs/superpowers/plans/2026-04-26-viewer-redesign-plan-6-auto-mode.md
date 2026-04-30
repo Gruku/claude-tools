@@ -104,7 +104,7 @@ plugins/taskmaster/
 - Modify: `plugins/taskmaster/taskmaster_v3.py` (constants block, near `AUTO_STAGES`)
 - Modify: `plugins/taskmaster/tests/test_v3_layout.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `plugins/taskmaster/tests/test_v3_layout.py`:
 
@@ -121,14 +121,14 @@ def test_auto_storage_constants():
     assert auto_events_path("v3-014") == AUTO_SESSIONS_DIR / "v3-014.events.jsonl"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_v3_layout.py::test_auto_storage_constants -v
 ```
 Expected: FAIL with `ImportError: cannot import name 'AUTO_DIR'`.
 
-- [ ] **Step 3: Add the constants**
+- [x] **Step 3: Add the constants**
 
 Insert in `plugins/taskmaster/taskmaster_v3.py` after `AUTO_TASK_STATUSES`:
 
@@ -149,14 +149,14 @@ def auto_events_path(sid: str) -> Path:
     return AUTO_SESSIONS_DIR / f"{sid}.events.jsonl"
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_v3_layout.py::test_auto_storage_constants -v
 ```
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/taskmaster_v3.py plugins/taskmaster/tests/test_v3_layout.py
@@ -171,7 +171,7 @@ git commit -m "feat(taskmaster): auto-mode storage layout constants"
 - Modify: `plugins/taskmaster/taskmaster_v3.py`
 - Modify: `plugins/taskmaster/tests/test_v3_layout.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `plugins/taskmaster/tests/test_v3_layout.py`:
 
@@ -213,14 +213,14 @@ def test_load_auto_session_missing_returns_none(tmp_path, monkeypatch):
     assert load_auto_session("nope") is None
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_v3_layout.py -v -k auto_session
 ```
 Expected: FAIL with `ImportError`.
 
-- [ ] **Step 3: Implement helpers**
+- [x] **Step 3: Implement helpers**
 
 Add to `plugins/taskmaster/taskmaster_v3.py` (alongside other load/save helpers):
 
@@ -257,14 +257,14 @@ def list_auto_sessions() -> list[dict]:
     return out
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_v3_layout.py -v -k auto_session
 ```
 Expected: 2 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/taskmaster_v3.py plugins/taskmaster/tests/test_v3_layout.py
@@ -279,7 +279,7 @@ git commit -m "feat(taskmaster): per-session auto-mode storage helpers"
 - Modify: `plugins/taskmaster/taskmaster_v3.py`
 - Modify: `plugins/taskmaster/tests/test_v3_layout.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append:
 
@@ -316,14 +316,14 @@ def test_migrate_idempotent(tmp_path, monkeypatch):
     assert migrate_auto_state_to_sessions() is False
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_v3_layout.py -v -k migrate
 ```
 Expected: FAIL with `ImportError`.
 
-- [ ] **Step 3: Implement the migration**
+- [x] **Step 3: Implement the migration**
 
 Add to `plugins/taskmaster/taskmaster_v3.py`:
 
@@ -347,14 +347,14 @@ def migrate_auto_state_to_sessions() -> bool:
     return True
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_v3_layout.py -v -k migrate
 ```
 Expected: 2 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/taskmaster_v3.py plugins/taskmaster/tests/test_v3_layout.py
@@ -369,7 +369,7 @@ git commit -m "feat(taskmaster): migrate legacy auto state.json to per-session s
 - Modify: `plugins/taskmaster/backlog_server.py`
 - Modify: `plugins/taskmaster/tests/test_v3_layout.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append:
 
@@ -388,14 +388,14 @@ def test_server_init_runs_auto_migration(tmp_path, monkeypatch):
     assert not (tmp_path / AUTO_LEGACY_STATE).exists()
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_v3_layout.py::test_server_init_runs_auto_migration -v
 ```
 Expected: FAIL — `ImportError: cannot import name '_init_storage'`.
 
-- [ ] **Step 3: Add `_init_storage` and call it from server entry**
+- [x] **Step 3: Add `_init_storage` and call it from server entry**
 
 In `plugins/taskmaster/backlog_server.py`, alongside `_make_server`:
 
@@ -409,14 +409,14 @@ def _init_storage() -> None:
 
 In the existing server entry point (the `serve()`/`run()` function from Plan 1), call `_init_storage()` immediately before `server.serve_forever()`. Also update the `running_server` fixture in `tests/test_server_api.py` to call `_init_storage()` after `_make_server` so HTTP tests see migrated state — search for `_make_server` and add `_init_storage()` on the next line.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_v3_layout.py::test_server_init_runs_auto_migration -v
 ```
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_server_api.py plugins/taskmaster/tests/test_v3_layout.py
@@ -431,7 +431,7 @@ git commit -m "feat(taskmaster): run auto-mode migration on server init"
 - Modify: `plugins/taskmaster/taskmaster_v3.py`
 - Modify: `plugins/taskmaster/tests/test_v3_layout.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append:
 
@@ -467,14 +467,14 @@ def test_read_auto_events_missing_session_returns_empty(tmp_path, monkeypatch):
     assert read_auto_events("nope") == []
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_v3_layout.py -v -k auto_events
 ```
 Expected: FAIL with `ImportError`.
 
-- [ ] **Step 3: Implement helpers**
+- [x] **Step 3: Implement helpers**
 
 Add to `plugins/taskmaster/taskmaster_v3.py`:
 
@@ -511,14 +511,14 @@ def read_auto_events(sid: str, since: str | None = None) -> list[dict]:
     return out
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_v3_layout.py -v -k auto_events
 ```
 Expected: 2 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/taskmaster_v3.py plugins/taskmaster/tests/test_v3_layout.py
@@ -541,7 +541,7 @@ Schema documented here for `.taskmaster/auto/hooks.jsonl` (one JSON object per l
 
 Plan 6 only reads this file. Producer (the actual hook plumbing) is out of scope.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append:
 
@@ -565,14 +565,14 @@ def test_read_hook_events_missing_log_returns_empty(tmp_path, monkeypatch):
     assert read_hook_events("v3-014") == {}
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_v3_layout.py -v -k hook_events
 ```
 Expected: FAIL.
 
-- [ ] **Step 3: Implement helper**
+- [x] **Step 3: Implement helper**
 
 Add to `plugins/taskmaster/taskmaster_v3.py`:
 
@@ -602,14 +602,14 @@ def read_hook_events(sid: str) -> dict[str, int]:
     return counts
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_v3_layout.py -v -k hook_events
 ```
 Expected: 2 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/taskmaster_v3.py plugins/taskmaster/tests/test_v3_layout.py
