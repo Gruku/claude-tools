@@ -125,7 +125,7 @@
 - [x] T3.45 Spec coverage audit — all §3.9 items present (Variant A + Rail + Variant B)
 - [x] T3.46 Final integration smoke + plan handoff — server 5/5, unit 30/30, Playwright 10/10; tag pending user OK
 
-## Plan 4 — Dashboard (10/36)
+## Plan 4 — Dashboard (23/36)
 *See `2026-04-26-viewer-redesign-plan-4-dashboard.md` for task definitions.*
 - [x] T4.1 Read mockups + seed dashboard.css with bento grid skeleton
 - [x] T4.2 `dashboard-grid.js` — `computePlacements` (pure)
@@ -137,19 +137,19 @@
 - [x] T4.8 `widget-catalog.js` — empty registry + helpers
 - [x] T4.9 Wire briefing strip + auto-mode-strip + catalog mounting into `dashboard.js`
 - [x] T4.10 Default-layout seeding test
-- [ ] T4.11 Widget — `suggested-next.js`
-- [ ] T4.12 Widget — `phase-deliverables.js`
-- [ ] T4.13 Widget — `newly-unblocked.js`
-- [ ] T4.14 Widget — `what-changed.js`
-- [ ] T4.15 Widget — `last-session.js`
-- [ ] T4.16 Widget — `open-issues.js`
-- [ ] T4.17 Widget — `build-test-pulse.js`
-- [ ] T4.18 Widget — `lessons-digest.js`
-- [ ] T4.19 Widget — `quick-capture.js`
-- [ ] T4.20 Widget — `recent-commits.js`
-- [ ] T4.21 Widget — `agent-activity.js`
-- [ ] T4.22 Widget — `stale-tasks.js`
-- [ ] T4.23 Widget — `auto-mode-stepper.js` stub (Plan 6 fills in)
+- [x] T4.11 Widget — `suggested-next.js`
+- [x] T4.12 Widget — `phase-deliverables.js`
+- [x] T4.13 Widget — `newly-unblocked.js`
+- [x] T4.14 Widget — `what-changed.js`
+- [x] T4.15 Widget — `last-session.js`
+- [x] T4.16 Widget — `open-issues.js`
+- [x] T4.17 Widget — `build-test-pulse.js`
+- [x] T4.18 Widget — `lessons-digest.js`
+- [x] T4.19 Widget — `quick-capture.js`
+- [x] T4.20 Widget — `recent-commits.js`
+- [x] T4.21 Widget — `agent-activity.js`
+- [x] T4.22 Widget — `stale-tasks.js`
+- [x] T4.23 Widget — `auto-mode-stepper.js` stub (Plan 6 fills in)
 - [ ] T4.24 `edit-mode.js` — toggle + remove
 - [ ] T4.25 Wire edit mode into the dashboard orchestrator
 - [ ] T4.26 Drag-and-drop reorder within a rail

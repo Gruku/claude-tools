@@ -1165,7 +1165,7 @@ git commit -m "test(viewer): default-layout sanity (rails, ids, sizes)"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/widgets/suggested-next.js`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```js
 import { registerWidget } from '../widget-catalog.js';
@@ -1215,14 +1215,14 @@ export async function mount(el, { store }) {
 registerWidget({ meta, mount });
 ```
 
-- [ ] **Step 2: Smoke-load**
+- [x] **Step 2: Smoke-load**
 
 ```bash
 node --input-type=module -e "import('./plugins/taskmaster/viewer/js/components/widgets/suggested-next.js').then(m => console.log(m.meta.id))"
 ```
 Expected output: `suggested-next` (or an import error from `card.js` if running before Plan 2 lands; that's acceptable — integration smoke is in M6).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/widgets/suggested-next.js
@@ -1236,7 +1236,7 @@ git commit -m "feat(viewer): widget — suggested-next (Full card + reason line)
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/widgets/phase-deliverables.js`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```js
 import { registerWidget } from '../widget-catalog.js';
@@ -1281,7 +1281,7 @@ export async function mount(el, { store }) {
 registerWidget({ meta, mount });
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/widgets/phase-deliverables.js
@@ -1295,7 +1295,7 @@ git commit -m "feat(viewer): widget — phase-deliverables checklist"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/widgets/newly-unblocked.js`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```js
 import { registerWidget } from '../widget-catalog.js';
@@ -1344,7 +1344,7 @@ export async function mount(el, { store }) {
 registerWidget({ meta, mount });
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/widgets/newly-unblocked.js
@@ -1358,7 +1358,7 @@ git commit -m "feat(viewer): widget — newly-unblocked"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/widgets/what-changed.js`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```js
 import { registerWidget } from '../widget-catalog.js';
@@ -1404,7 +1404,7 @@ export async function mount(el, { api, prefs }) {
 registerWidget({ meta, mount });
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/widgets/what-changed.js
@@ -1418,7 +1418,7 @@ git commit -m "feat(viewer): widget — what-changed (semantic icons ↳ ! ✦ �
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/widgets/last-session.js`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```js
 import { registerWidget } from '../widget-catalog.js';
@@ -1456,7 +1456,7 @@ export async function mount(el, { api }) {
 registerWidget({ meta, mount });
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/widgets/last-session.js
@@ -1470,7 +1470,7 @@ git commit -m "feat(viewer): widget — last-session with italic-serif handover 
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/widgets/open-issues.js`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```js
 import { registerWidget } from '../widget-catalog.js';
@@ -1509,7 +1509,7 @@ export async function mount(el, { api, store }) {
 registerWidget({ meta, mount });
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/widgets/open-issues.js
@@ -1523,7 +1523,7 @@ git commit -m "feat(viewer): widget — open-issues with severity color"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/widgets/build-test-pulse.js`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```js
 import { registerWidget } from '../widget-catalog.js';
@@ -1557,7 +1557,7 @@ export async function mount(el, { api }) {
 registerWidget({ meta, mount });
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/widgets/build-test-pulse.js
@@ -1571,7 +1571,7 @@ git commit -m "feat(viewer): widget — build-test pulse"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/widgets/lessons-digest.js`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```js
 import { registerWidget } from '../widget-catalog.js';
@@ -1608,7 +1608,7 @@ export async function mount(el, { api }) {
 registerWidget({ meta, mount });
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/widgets/lessons-digest.js
@@ -1622,7 +1622,7 @@ git commit -m "feat(viewer): widget — lessons-digest with reinforcement counte
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/widgets/quick-capture.js`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```js
 import { registerWidget } from '../widget-catalog.js';
@@ -1670,7 +1670,7 @@ export async function mount(el, { api }) {
 registerWidget({ meta, mount });
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/widgets/quick-capture.js
@@ -1684,7 +1684,7 @@ git commit -m "feat(viewer): widget — quick-capture inbox"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/widgets/recent-commits.js`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```js
 import { registerWidget } from '../widget-catalog.js';
@@ -1720,7 +1720,7 @@ export async function mount(el, { api }) {
 registerWidget({ meta, mount });
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/widgets/recent-commits.js
@@ -1734,7 +1734,7 @@ git commit -m "feat(viewer): widget — recent-commits"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/widgets/agent-activity.js`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```js
 import { registerWidget } from '../widget-catalog.js';
@@ -1771,7 +1771,7 @@ export async function mount(el, { api }) {
 registerWidget({ meta, mount });
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/widgets/agent-activity.js
@@ -1785,7 +1785,7 @@ git commit -m "feat(viewer): widget — agent-activity"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/widgets/stale-tasks.js`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 ```js
 import { registerWidget } from '../widget-catalog.js';
@@ -1841,7 +1841,7 @@ export async function mount(el, { store }) {
 registerWidget({ meta, mount });
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/widgets/stale-tasks.js
@@ -1855,7 +1855,7 @@ git commit -m "feat(viewer): widget — stale-tasks (in-progress > 4d)"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/widgets/auto-mode-stepper.js`
 
-- [ ] **Step 1: Implement stub**
+- [x] **Step 1: Implement stub**
 
 ```js
 import { registerWidget } from '../widget-catalog.js';
@@ -1880,7 +1880,7 @@ export async function mount(el) {
 registerWidget({ meta, mount });
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/widgets/auto-mode-stepper.js
