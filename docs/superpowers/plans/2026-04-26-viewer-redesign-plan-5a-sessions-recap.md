@@ -85,7 +85,7 @@ plugins/taskmaster/viewer/tests/
 - Modify: `plugins/taskmaster/taskmaster_v3.py` (constants block, near `HANDOVER_KINDS`)
 - Modify: `plugins/taskmaster/tests/test_v3_recap.py` (new file)
 
-- [ ] **Step 1: Create the failing test**
+- [x] **Step 1: Create the failing test**
 
 Create `plugins/taskmaster/tests/test_v3_recap.py`:
 
@@ -114,12 +114,12 @@ def test_handover_kind_to_viewer_kind_maps_all_four():
     }
 ```
 
-- [ ] **Step 2: Run the test (verify failure)**
+- [x] **Step 2: Run the test (verify failure)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_recap.py -v`
 Expected: FAIL with `ImportError: cannot import name 'RECAP_SCHEMA_VERSION'`.
 
-- [ ] **Step 3: Add the constants**
+- [x] **Step 3: Add the constants**
 
 Add to `plugins/taskmaster/taskmaster_v3.py` near `HANDOVER_KINDS`:
 
@@ -141,12 +141,12 @@ HANDOVER_KIND_TO_VIEWER_KIND = {
 VIEWER_HANDOVER_KINDS = ("mid-task", "checkpoint", "wrap", "standalone")
 ```
 
-- [ ] **Step 4: Run the test (verify pass)**
+- [x] **Step 4: Run the test (verify pass)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_recap.py -v`
 Expected: PASS (2 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/taskmaster_v3.py plugins/taskmaster/tests/test_v3_recap.py
@@ -161,7 +161,7 @@ git commit -m "feat(taskmaster): RECAP_SCHEMA_VERSION + handover-kind viewer map
 - Modify: `plugins/taskmaster/taskmaster_v3.py`
 - Modify: `plugins/taskmaster/tests/test_v3_recap.py`
 
-- [ ] **Step 1: Append failing test**
+- [x] **Step 1: Append failing test**
 
 ```python
 def test_recap_path_resolves_under_taskmaster_recaps():
@@ -202,12 +202,12 @@ def test_format_recap_markdown_round_trip():
     assert parsed["whats_next"].startswith("Pick up the rebased branch")
 ```
 
-- [ ] **Step 2: Run (verify fail)**
+- [x] **Step 2: Run (verify fail)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_recap.py::test_recap_path_resolves_under_taskmaster_recaps plugins/taskmaster/tests/test_v3_recap.py::test_format_recap_markdown_round_trip -v`
 Expected: FAIL — ImportError.
 
-- [ ] **Step 3: Implement helpers**
+- [x] **Step 3: Implement helpers**
 
 Add to `plugins/taskmaster/taskmaster_v3.py`:
 
@@ -277,12 +277,12 @@ def _parse_recap_markdown(text: str) -> dict:
     }
 ```
 
-- [ ] **Step 4: Run (verify pass)**
+- [x] **Step 4: Run (verify pass)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_recap.py -v`
 Expected: 4 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/taskmaster_v3.py plugins/taskmaster/tests/test_v3_recap.py
@@ -297,7 +297,7 @@ git commit -m "feat(taskmaster): recap_path + recap markdown formatter/parser"
 - Modify: `plugins/taskmaster/taskmaster_v3.py`
 - Modify: `plugins/taskmaster/tests/test_v3_recap.py`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```python
 def test_save_recap_writes_file_with_expected_shape(tmp_path, monkeypatch):
@@ -331,12 +331,12 @@ def test_save_recap_writes_file_with_expected_shape(tmp_path, monkeypatch):
     assert "## What's next" in text
 ```
 
-- [ ] **Step 2: Run (verify fail)**
+- [x] **Step 2: Run (verify fail)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_recap.py::test_save_recap_writes_file_with_expected_shape -v`
 Expected: FAIL — ImportError.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add to `plugins/taskmaster/taskmaster_v3.py`:
 
@@ -370,12 +370,12 @@ def save_recap(
     return p
 ```
 
-- [ ] **Step 4: Run (verify pass)**
+- [x] **Step 4: Run (verify pass)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_recap.py -v`
 Expected: 5 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/taskmaster_v3.py plugins/taskmaster/tests/test_v3_recap.py
@@ -390,7 +390,7 @@ git commit -m "feat(taskmaster): save_recap helper writes recap markdown to disk
 - Modify: `plugins/taskmaster/taskmaster_v3.py`
 - Modify: `plugins/taskmaster/tests/test_v3_recap.py`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```python
 def test_load_recap_returns_none_when_missing(tmp_path, monkeypatch):
@@ -421,12 +421,12 @@ def test_load_recap_round_trip(tmp_path, monkeypatch):
     assert rec["whats_next"] == "C"
 ```
 
-- [ ] **Step 2: Run (verify fail)**
+- [x] **Step 2: Run (verify fail)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_recap.py -v -k load_recap`
 Expected: FAIL — ImportError.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 def load_recap(session_id: str) -> dict | None:
@@ -439,12 +439,12 @@ def load_recap(session_id: str) -> dict | None:
     return _parse_recap_markdown(p.read_text(encoding="utf-8"))
 ```
 
-- [ ] **Step 4: Run (verify pass)**
+- [x] **Step 4: Run (verify pass)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_recap.py -v`
 Expected: 7 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/taskmaster_v3.py plugins/taskmaster/tests/test_v3_recap.py
@@ -459,7 +459,7 @@ git commit -m "feat(taskmaster): load_recap reads + parses recap markdown"
 - Modify: `plugins/taskmaster/taskmaster_v3.py`
 - Modify: `plugins/taskmaster/tests/test_v3_recap.py`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```python
 def test_list_recaps_returns_session_ids_sorted_desc(tmp_path, monkeypatch):
@@ -485,12 +485,12 @@ def test_list_recaps_empty_when_dir_missing(tmp_path, monkeypatch):
     assert list_recaps() == []
 ```
 
-- [ ] **Step 2: Run (verify fail)**
+- [x] **Step 2: Run (verify fail)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_recap.py -v -k list_recaps`
 Expected: FAIL — ImportError.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 def list_recaps() -> list[str]:
@@ -503,12 +503,12 @@ def list_recaps() -> list[str]:
     return ids
 ```
 
-- [ ] **Step 4: Run (verify pass)**
+- [x] **Step 4: Run (verify pass)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_recap.py -v`
 Expected: 9 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/taskmaster_v3.py plugins/taskmaster/tests/test_v3_recap.py
@@ -523,7 +523,7 @@ git commit -m "feat(taskmaster): list_recaps enumerates recap files newest-first
 - Modify: `plugins/taskmaster/taskmaster_v3.py`
 - Modify: `plugins/taskmaster/tests/test_v3_snapshot_diff.py` (new file)
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 Create `plugins/taskmaster/tests/test_v3_snapshot_diff.py`:
 
@@ -542,12 +542,12 @@ def test_save_session_snapshot_writes_named_file(tmp_path, monkeypatch):
     assert body["tasks"]["T-1"]["status"] == "done"
 ```
 
-- [ ] **Step 2: Run (verify fail)**
+- [x] **Step 2: Run (verify fail)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_snapshot_diff.py -v`
 Expected: FAIL — ImportError.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add to `plugins/taskmaster/taskmaster_v3.py`:
 
@@ -572,12 +572,12 @@ def load_session_snapshot(snapshot_id: str) -> dict | None:
     return _json.loads(p.read_text(encoding="utf-8"))
 ```
 
-- [ ] **Step 4: Run (verify pass)**
+- [x] **Step 4: Run (verify pass)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_snapshot_diff.py -v`
 Expected: 1 test PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/taskmaster_v3.py plugins/taskmaster/tests/test_v3_snapshot_diff.py
@@ -592,7 +592,7 @@ git commit -m "feat(taskmaster): per-session snapshot writer/reader"
 - Modify: `plugins/taskmaster/taskmaster_v3.py`
 - Modify: `plugins/taskmaster/tests/test_v3_snapshot_diff.py`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```python
 def test_snapshot_diff_detects_added_removed_changed_tasks():
@@ -640,12 +640,12 @@ def test_snapshot_diff_detects_issue_transitions():
     assert d["issues_transitioned"][0]["to"]   == "fixed"
 ```
 
-- [ ] **Step 2: Run (verify fail)**
+- [x] **Step 2: Run (verify fail)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_snapshot_diff.py -v -k snapshot_diff`
 Expected: FAIL — ImportError.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 def snapshot_diff(a: dict, b: dict) -> dict:
@@ -695,12 +695,12 @@ def snapshot_diff(a: dict, b: dict) -> dict:
     }
 ```
 
-- [ ] **Step 4: Run (verify pass)**
+- [x] **Step 4: Run (verify pass)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_snapshot_diff.py -v`
 Expected: 3 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/taskmaster_v3.py plugins/taskmaster/tests/test_v3_snapshot_diff.py
@@ -715,7 +715,7 @@ git commit -m "feat(taskmaster): snapshot_diff returns structured task/issue/fil
 - Modify: `plugins/taskmaster/taskmaster_v3.py`
 - Create: `plugins/taskmaster/tests/test_v3_sessions.py`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```python
 import textwrap
@@ -792,12 +792,12 @@ def test_list_sessions_marks_parallel_when_overlapping(tmp_path, monkeypatch):
     assert b["id"] in a["parallel_with"]
 ```
 
-- [ ] **Step 2: Run (verify fail)**
+- [x] **Step 2: Run (verify fail)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_sessions.py -v`
 Expected: FAIL — ImportError.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add to `plugins/taskmaster/taskmaster_v3.py`:
 
@@ -897,12 +897,12 @@ def list_sessions() -> list[dict]:
     return sessions
 ```
 
-- [ ] **Step 4: Run (verify pass)**
+- [x] **Step 4: Run (verify pass)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_sessions.py -v`
 Expected: 2 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/taskmaster_v3.py plugins/taskmaster/tests/test_v3_sessions.py
@@ -917,7 +917,7 @@ git commit -m "feat(taskmaster): list_sessions synthesises sessions from handove
 - Modify: `plugins/taskmaster/taskmaster_v3.py`
 - Modify: `plugins/taskmaster/tests/test_v3_sessions.py`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```python
 def test_get_session_detail_bundles_handovers_recap(tmp_path, monkeypatch):
@@ -958,12 +958,12 @@ def test_get_session_detail_returns_none_when_missing(tmp_path, monkeypatch):
     assert get_session_detail("SES-9999") is None
 ```
 
-- [ ] **Step 2: Run (verify fail)**
+- [x] **Step 2: Run (verify fail)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_sessions.py -v -k get_session_detail`
 Expected: FAIL — ImportError.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 def _load_handover_full(handover_id: str) -> dict | None:
@@ -1004,12 +1004,12 @@ def get_session_detail(session_id: str) -> dict | None:
     }
 ```
 
-- [ ] **Step 4: Run (verify pass)**
+- [x] **Step 4: Run (verify pass)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_sessions.py -v`
 Expected: 4 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/taskmaster_v3.py plugins/taskmaster/tests/test_v3_sessions.py
@@ -1026,7 +1026,7 @@ git commit -m "feat(taskmaster): get_session_detail bundles handovers/recap/task
 - Modify: `plugins/taskmaster/backlog_server.py`
 - Create: `plugins/taskmaster/tests/test_server_sessions_recap.py`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 Create `plugins/taskmaster/tests/test_server_sessions_recap.py`:
 
@@ -1106,12 +1106,12 @@ def test_snapshot_diff_via_mcp():
     assert body["tasks_changed"][0]["id"] == "T-1"
 ```
 
-- [ ] **Step 2: Run (verify fail)**
+- [x] **Step 2: Run (verify fail)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_sessions_recap.py -v -k "recap_set_then_get or recap_list_via_mcp or snapshot_diff_via_mcp"`
 Expected: FAIL — ImportError on the new tools.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add to `plugins/taskmaster/backlog_server.py` near the other v3 entity tools:
 
@@ -1174,12 +1174,12 @@ def snapshot_diff(snapshot_a_json: str, snapshot_b_json: str) -> str:
 
 Re-export the helpers at the top of `backlog_server.py` if not already (`from taskmaster_v3 import (..., load_recap, save_recap, list_recaps, list_sessions, get_session_detail, load_session_snapshot, snapshot_diff as _snapshot_diff)`).
 
-- [ ] **Step 4: Run (verify pass)**
+- [x] **Step 4: Run (verify pass)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_sessions_recap.py -v -k "recap_set_then_get or recap_list_via_mcp or snapshot_diff_via_mcp"`
 Expected: 3 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_server_sessions_recap.py
@@ -1194,7 +1194,7 @@ git commit -m "feat(taskmaster): MCP tools recap_get/set/list + snapshot_diff"
 - Modify: `plugins/taskmaster/backlog_server.py`
 - Modify: `plugins/taskmaster/tests/test_server_sessions_recap.py`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```python
 def test_http_get_sessions_returns_list(running_server, tmp_path):
@@ -1229,12 +1229,12 @@ def test_http_get_unknown_session_returns_404(running_server):
     assert exc.value.code == 404
 ```
 
-- [ ] **Step 2: Run (verify fail)**
+- [x] **Step 2: Run (verify fail)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_sessions_recap.py -v -k http_get_sessions`
 Expected: FAIL — 404.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `_Handler.do_GET` (before the catch-all 404), add:
 
@@ -1253,12 +1253,12 @@ if self.path.startswith("/api/sessions/"):
     return
 ```
 
-- [ ] **Step 4: Run (verify pass)**
+- [x] **Step 4: Run (verify pass)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_sessions_recap.py -v -k http_get_sessions`
 Expected: 2 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_server_sessions_recap.py
@@ -1273,7 +1273,7 @@ git commit -m "feat(taskmaster): GET /api/sessions and /api/sessions/<sid>"
 - Modify: `plugins/taskmaster/backlog_server.py`
 - Modify: `plugins/taskmaster/tests/test_server_sessions_recap.py`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```python
 def test_http_recap_put_then_get_round_trip(running_server):
@@ -1312,12 +1312,12 @@ def test_http_recap_get_unknown_returns_404(running_server):
     assert exc.value.code == 404
 ```
 
-- [ ] **Step 2: Run (verify fail)**
+- [x] **Step 2: Run (verify fail)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_sessions_recap.py -v -k http_recap`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `_Handler.do_GET` add:
 
@@ -1362,12 +1362,12 @@ if self.path.startswith("/api/recap/"):
     return
 ```
 
-- [ ] **Step 4: Run (verify pass)**
+- [x] **Step 4: Run (verify pass)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_sessions_recap.py -v -k http_recap`
 Expected: 2 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_server_sessions_recap.py
@@ -1382,7 +1382,7 @@ git commit -m "feat(taskmaster): GET/PUT /api/recap/<sid>"
 - Modify: `plugins/taskmaster/backlog_server.py`
 - Modify: `plugins/taskmaster/tests/test_server_sessions_recap.py`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```python
 def test_http_snapshot_diff_endpoint(running_server, tmp_path):
@@ -1404,12 +1404,12 @@ def test_http_snapshot_diff_missing_param_400(running_server):
     assert exc.value.code == 400
 ```
 
-- [ ] **Step 2: Run (verify fail)**
+- [x] **Step 2: Run (verify fail)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_sessions_recap.py -v -k http_snapshot_diff`
 Expected: FAIL — 404.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `_Handler.do_GET` add (before the catch-all 404):
 
@@ -1433,12 +1433,12 @@ if self.path.startswith("/api/snapshots/diff"):
     return
 ```
 
-- [ ] **Step 4: Run (verify pass)**
+- [x] **Step 4: Run (verify pass)**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_server_sessions_recap.py -v -k http_snapshot_diff`
 Expected: 2 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_server_sessions_recap.py
@@ -1468,7 +1468,7 @@ Expected: All PASS (≥18 tests).
 - Create: `plugins/taskmaster/viewer/js/components/diff-row.js`
 - Create: `plugins/taskmaster/viewer/tests/unit/diff-row.test.js`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 Create `plugins/taskmaster/viewer/tests/unit/diff-row.test.js`:
 
@@ -1501,12 +1501,12 @@ test('del row sets pre to -', () => {
 });
 ```
 
-- [ ] **Step 2: Run (verify fail)**
+- [x] **Step 2: Run (verify fail)**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/diff-row.test.js`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `plugins/taskmaster/viewer/js/components/diff-row.js`:
 
@@ -1529,12 +1529,12 @@ export function renderDiffRow({ kind, body }) {
 export default renderDiffRow;
 ```
 
-- [ ] **Step 4: Run (verify pass)**
+- [x] **Step 4: Run (verify pass)**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/diff-row.test.js`
 Expected: 3 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/diff-row.js plugins/taskmaster/viewer/tests/unit/diff-row.test.js
@@ -1600,7 +1600,7 @@ test('cluster boundary: session that starts after all previous end gets its own 
 });
 ```
 
-- [ ] **Step 2: Run (verify fail)**
+- [x] **Step 2: Run (verify fail)**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/parallel-block.test.js`
 Expected: FAIL — module not found.
@@ -1816,7 +1816,7 @@ git commit -m "feat(viewer): timeline component with parallel-block clustering"
 - Create: `plugins/taskmaster/viewer/js/components/right-rail.js`
 - Create: `plugins/taskmaster/viewer/tests/unit/right-rail.test.js`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 Create `plugins/taskmaster/viewer/tests/unit/right-rail.test.js`:
 
@@ -1849,12 +1849,12 @@ test('open() twice swaps the content', () => {
 });
 ```
 
-- [ ] **Step 2: Run (verify fail)**
+- [x] **Step 2: Run (verify fail)**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/right-rail.test.js`
 Expected: FAIL — module not found. (Install jsdom locally is the user's existing test infra; if absent, the test is illustrative — server tests still cover the behaviour.)
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `plugins/taskmaster/viewer/js/components/right-rail.js`:
 
@@ -1909,7 +1909,7 @@ export default RightRail;
 Run: `node --test plugins/taskmaster/viewer/tests/unit/right-rail.test.js`
 Expected: PASS if jsdom is installed; otherwise the Playwright smoke test (Task 33) covers the contract.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/right-rail.js plugins/taskmaster/viewer/tests/unit/right-rail.test.js
@@ -1924,7 +1924,7 @@ git commit -m "feat(viewer): generic RightRail component (480px slide-in panel)"
 - Create: `plugins/taskmaster/viewer/js/components/recap-receipts-grid.js`
 - Create: `plugins/taskmaster/viewer/tests/unit/recap-receipts-grid.test.js`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 Create `plugins/taskmaster/viewer/tests/unit/recap-receipts-grid.test.js`:
 
@@ -1965,12 +1965,12 @@ test('empty diff still renders four cards with empty hint', () => {
 });
 ```
 
-- [ ] **Step 2: Run (verify fail)**
+- [x] **Step 2: Run (verify fail)**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/recap-receipts-grid.test.js`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `plugins/taskmaster/viewer/js/components/recap-receipts-grid.js`:
 
@@ -2077,12 +2077,12 @@ function issuesCard(d) {
 export default renderReceiptsGrid;
 ```
 
-- [ ] **Step 4: Run (verify pass)**
+- [x] **Step 4: Run (verify pass)**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/recap-receipts-grid.test.js`
 Expected: 2 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/recap-receipts-grid.js plugins/taskmaster/viewer/tests/unit/recap-receipts-grid.test.js
@@ -2097,7 +2097,7 @@ git commit -m "feat(viewer): recap-receipts-grid (2×2 Tasks/Files/Lessons/Issue
 - Create: `plugins/taskmaster/viewer/js/components/snapshot-diff.js`
 - Create: `plugins/taskmaster/viewer/tests/unit/snapshot-diff.test.js`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 Create `plugins/taskmaster/viewer/tests/unit/snapshot-diff.test.js`:
 
@@ -2135,7 +2135,7 @@ test('passes through lessons_fired and files_touched', () => {
 });
 ```
 
-- [ ] **Step 2: Run (verify fail)**
+- [x] **Step 2: Run (verify fail)**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/snapshot-diff.test.js`
 Expected: FAIL — module not found.
@@ -2184,12 +2184,12 @@ export function snapshotDiff(a, b) {
 export default snapshotDiff;
 ```
 
-- [ ] **Step 4: Run (verify pass)**
+- [x] **Step 4: Run (verify pass)**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/snapshot-diff.test.js`
 Expected: 3 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/snapshot-diff.js plugins/taskmaster/viewer/tests/unit/snapshot-diff.test.js
@@ -3449,7 +3449,7 @@ test('clicking a receipt filter chip hides non-matching cards', async ({ page })
 });
 ```
 
-- [ ] **Step 2: Run (verify fail)**
+- [x] **Step 2: Run (verify fail)**
 
 Run: `npx playwright test plugins/taskmaster/viewer/tests/recap.spec.js -g "filter chip" --reporter=line`
 Expected: FAIL.
@@ -3502,12 +3502,12 @@ bindFilterChips(root);
 
 And inside `bindActions`'s edit handler and `cancel` handler, call `bindFilterChips(root)` after `renderRecapPage`.
 
-- [ ] **Step 4: Run (verify pass)**
+- [x] **Step 4: Run (verify pass)**
 
 Run: `npx playwright test plugins/taskmaster/viewer/tests/recap.spec.js --reporter=line`
 Expected: All recap tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/screens/recap.js plugins/taskmaster/viewer/tests/recap.spec.js

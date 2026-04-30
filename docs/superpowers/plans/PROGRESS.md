@@ -164,17 +164,17 @@
 - [x] T4.35 Final integration smoke (Playwright 5/5 FAIL — see notes)
 - [x] T4.36 Plan handoff — type/contract self-review
 
-## Plan 5a — Sessions + Recap (0/38)
+## Plan 5a — Sessions + Recap (9/38)
 *See `2026-04-26-viewer-redesign-plan-5a-sessions-recap.md` for task definitions.*
-- [ ] T5a.1 Add `RECAP_SCHEMA_VERSION` and handover-kind mapping
-- [ ] T5a.2 `recap_path()` + `_format_recap_markdown()` helper
-- [ ] T5a.3 `save_recap()` writes file with frontmatter + 3 sections
-- [ ] T5a.4 `load_recap()` returns parsed dict; missing → None
-- [ ] T5a.5 `list_recaps()` enumerates the recaps directory
-- [ ] T5a.6 `save_session_snapshot()` writes per-session snapshot
-- [ ] T5a.7 `snapshot_diff(a, b)` returns structured delta
-- [ ] T5a.8 `list_sessions()` synthesises sessions from PROGRESS.md + handovers
-- [ ] T5a.9 `get_session_detail(sid)` bundles handovers + recap + tasks
+- [x] T5a.1 Add `RECAP_SCHEMA_VERSION` and handover-kind mapping
+- [x] T5a.2 `recap_path()` + `_format_recap_markdown()` helper
+- [x] T5a.3 `save_recap()` writes file with frontmatter + 3 sections
+- [x] T5a.4 `load_recap()` returns parsed dict; missing → None
+- [x] T5a.5 `list_recaps()` enumerates the recaps directory
+- [x] T5a.6 `save_session_snapshot()` writes per-session snapshot
+- [x] T5a.7 `snapshot_diff(a, b)` returns structured delta
+- [x] T5a.8 `list_sessions()` synthesises sessions from PROGRESS.md + handovers
+- [x] T5a.9 `get_session_detail(sid)` bundles handovers + recap + tasks
 - [ ] T5a.10 MCP tools `recap_get`, `recap_set`, `recap_list`, `snapshot_diff`
 - [ ] T5a.11 HTTP `GET /api/sessions` + `GET /api/sessions/<sid>`
 - [ ] T5a.12 HTTP `GET /api/recap/<sid>` + `PUT /api/recap/<sid>`
