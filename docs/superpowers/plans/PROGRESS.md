@@ -125,7 +125,7 @@
 - [x] T3.45 Spec coverage audit — all §3.9 items present (Variant A + Rail + Variant B)
 - [x] T3.46 Final integration smoke + plan handoff — server 5/5, unit 30/30, Playwright 10/10; tag pending user OK
 
-## Plan 4 — Dashboard (6/36)
+## Plan 4 — Dashboard (7/36)
 *See `2026-04-26-viewer-redesign-plan-4-dashboard.md` for task definitions.*
 - [x] T4.1 Read mockups + seed dashboard.css with bento grid skeleton
 - [x] T4.2 `dashboard-grid.js` — `computePlacements` (pure)
@@ -133,7 +133,7 @@
 - [x] T4.4 `widget-frame.js` — common chrome
 - [x] T4.5 Briefing strip component
 - [x] T4.6 Center board surface component (preview of Up next + In progress)
-- [ ] T4.7 Replace `js/screens/dashboard.js` stub with the orchestrator skeleton (no widgets yet)
+- [x] T4.7 Replace `js/screens/dashboard.js` stub with the orchestrator skeleton (no widgets yet)
 - [ ] T4.8 `widget-catalog.js` — empty registry + helpers
 - [ ] T4.9 Wire briefing strip + auto-mode-strip + catalog mounting into `dashboard.js`
 - [ ] T4.10 Default-layout seeding test

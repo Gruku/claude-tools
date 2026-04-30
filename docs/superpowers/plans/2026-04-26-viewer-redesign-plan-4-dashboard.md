@@ -863,7 +863,7 @@ git commit -m "feat(viewer): dashboard center board surface (Up next + In progre
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/screens/dashboard.js`
 
-- [ ] **Step 1: Replace the Plan 1 stub**
+- [x] **Step 1: Replace the Plan 1 stub**
 
 Overwrite `plugins/taskmaster/viewer/js/screens/dashboard.js` with:
 
@@ -909,7 +909,7 @@ export async function mount(root, { store, api, prefs }) {
 }
 ```
 
-- [ ] **Step 2: Verify it loads in the browser flow**
+- [x] **Step 2: Verify it loads in the browser flow**
 
 Start the server (Plan 1’s `_make_server`) and visit `/v3#/dashboard`. The page should render the briefing strip, an empty auto-mode slot, the board preview, and an empty bottom row. Run:
 
@@ -918,7 +918,7 @@ python -c "import sys; sys.path.insert(0, 'plugins/taskmaster'); from backlog_se
 ```
 Expected output: a line like `PORT=53123`. (The dashboard render is verified visually here; Playwright smoke comes in M6.)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/screens/dashboard.js
