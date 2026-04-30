@@ -1896,7 +1896,7 @@ git commit -m "feat(viewer): widget — auto-mode-stepper slot reserved (Plan 6 
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/edit-mode.js`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 Create `plugins/taskmaster/viewer/js/components/edit-mode.js`:
 
@@ -1990,14 +1990,14 @@ function showPicker(anchor, rail, onAdd) {
 }
 ```
 
-- [ ] **Step 2: Smoke-load**
+- [x] **Step 2: Smoke-load**
 
 ```bash
 node --input-type=module -e "import('./plugins/taskmaster/viewer/js/components/edit-mode.js').then(m => console.log(typeof m.createEditMode, typeof m.createAddTile)).catch(e => { console.error(e.message); process.exit(1); })"
 ```
 Expected output: `function function`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/edit-mode.js
