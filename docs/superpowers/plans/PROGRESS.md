@@ -125,7 +125,7 @@
 - [x] T3.45 Spec coverage audit — all §3.9 items present (Variant A + Rail + Variant B)
 - [x] T3.46 Final integration smoke + plan handoff — server 5/5, unit 30/30, Playwright 10/10; tag pending user OK
 
-## Plan 4 — Dashboard (36/36 — BLOCKED: Playwright 5/5 FAIL)
+## Plan 4 — Dashboard (36/36)
 *See `2026-04-26-viewer-redesign-plan-4-dashboard.md` for task definitions.*
 - [x] T4.1 Read mockups + seed dashboard.css with bento grid skeleton
 - [x] T4.2 `dashboard-grid.js` — `computePlacements` (pure)
