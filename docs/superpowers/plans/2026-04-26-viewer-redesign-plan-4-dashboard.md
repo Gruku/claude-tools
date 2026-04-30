@@ -2328,7 +2328,7 @@ git commit -m "test(viewer): dashboard mount + edit-mode add/remove smoke"
 **Files:**
 - Create: `plugins/taskmaster/tests/test_server_dashboard_events.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `plugins/taskmaster/tests/test_server_dashboard_events.py`:
 
@@ -2374,14 +2374,14 @@ def test_recent_events_filters_by_since(running_server, tmp_path):
     assert body == []
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_server_dashboard_events.py -v
 ```
 Expected output: 3 FAIL with HTTP 404 on the new endpoint.
 
-- [ ] **Step 3: Commit (test only — RED)**
+- [x] **Step 3: Commit (test only — RED)**
 
 ```bash
 git add plugins/taskmaster/tests/test_server_dashboard_events.py
