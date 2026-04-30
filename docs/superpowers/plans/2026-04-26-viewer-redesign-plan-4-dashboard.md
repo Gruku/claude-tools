@@ -132,7 +132,7 @@ Every layout mutation (add / remove / move / size-change) immediately calls `api
 - Create: `plugins/taskmaster/viewer/css/screens/dashboard.css`
 - Modify: `plugins/taskmaster/viewer/index.html`
 
-- [ ] **Step 1: Read all five dashboard mockups for visual reference (no code yet)**
+- [x] **Step 1: Read all five dashboard mockups for visual reference (no code yet)**
 
 Read in full:
 - `.superpowers/brainstorm/15283-1777223061/content/dashboard-v1.html`
@@ -143,7 +143,7 @@ Read in full:
 
 Confirm by listing the structural pieces you saw: briefing strip, auto-mode strip, 3-col bento (left rail / center board surface / right rail), bottom row, edit-mode dashed borders, drag handle top-left, red × top-right, “+ Add widget” tile.
 
-- [ ] **Step 2: Create the CSS skeleton**
+- [x] **Step 2: Create the CSS skeleton**
 
 Create `plugins/taskmaster/viewer/css/screens/dashboard.css`:
 
@@ -345,7 +345,7 @@ Create `plugins/taskmaster/viewer/css/screens/dashboard.css`:
 .dash-picker__item-sub { font-size: 10px; color: var(--ink-3); }
 ```
 
-- [ ] **Step 3: Wire dashboard.css into the shell**
+- [x] **Step 3: Wire dashboard.css into the shell**
 
 Open `plugins/taskmaster/viewer/index.html`, locate the `<link rel="stylesheet" href="css/screens/_placeholders.css">` line added in Plan 1, and add immediately below it:
 
@@ -353,7 +353,7 @@ Open `plugins/taskmaster/viewer/index.html`, locate the `<link rel="stylesheet" 
 <link rel="stylesheet" href="css/screens/dashboard.css">
 ```
 
-- [ ] **Step 4: Verify the file loads**
+- [x] **Step 4: Verify the file loads**
 
 Run from the repo root:
 
@@ -367,7 +367,7 @@ kill $SERVER_PID
 ```
 Expected output: `200`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/css/screens/dashboard.css plugins/taskmaster/viewer/index.html
