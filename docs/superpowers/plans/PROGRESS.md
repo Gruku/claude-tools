@@ -164,7 +164,7 @@
 - [x] T4.35 Final integration smoke (Playwright 5/5 FAIL — see notes)
 - [x] T4.36 Plan handoff — type/contract self-review
 
-## Plan 5a — Sessions + Recap (9/38)
+## Plan 5a — Sessions + Recap (14/38)
 *See `2026-04-26-viewer-redesign-plan-5a-sessions-recap.md` for task definitions.*
 - [x] T5a.1 Add `RECAP_SCHEMA_VERSION` and handover-kind mapping
 - [x] T5a.2 `recap_path()` + `_format_recap_markdown()` helper
@@ -175,11 +175,11 @@
 - [x] T5a.7 `snapshot_diff(a, b)` returns structured delta
 - [x] T5a.8 `list_sessions()` synthesises sessions from PROGRESS.md + handovers
 - [x] T5a.9 `get_session_detail(sid)` bundles handovers + recap + tasks
-- [ ] T5a.10 MCP tools `recap_get`, `recap_set`, `recap_list`, `snapshot_diff`
-- [ ] T5a.11 HTTP `GET /api/sessions` + `GET /api/sessions/<sid>`
-- [ ] T5a.12 HTTP `GET /api/recap/<sid>` + `PUT /api/recap/<sid>`
-- [ ] T5a.13 HTTP `GET /api/snapshots/diff?from=&to=`
-- [ ] T5a.14 Final server-side test sweep
+- [x] T5a.10 MCP tools `recap_get`, `recap_set`, `recap_list`, `snapshot_diff`
+- [x] T5a.11 HTTP `GET /api/sessions` + `GET /api/sessions/<sid>`
+- [x] T5a.12 HTTP `GET /api/recap/<sid>` + `PUT /api/recap/<sid>`
+- [x] T5a.13 HTTP `GET /api/snapshots/diff?from=&to=`
+- [x] T5a.14 Final server-side test sweep
 - [ ] T5a.15 `diff-row.js` — `+`/`~`/`-` row component
 - [ ] T5a.16 `parallel-block.test.js` — overlap-cluster algorithm
 - [ ] T5a.17 `timeline.js` — clustering algorithm + render

@@ -1451,12 +1451,12 @@ git commit -m "feat(taskmaster): GET /api/snapshots/diff?from=&to="
 
 **Files:** none modified.
 
-- [ ] **Step 1: Run the full server suite**
+- [x] **Step 1: Run the full server suite**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_recap.py plugins/taskmaster/tests/test_v3_snapshot_diff.py plugins/taskmaster/tests/test_v3_sessions.py plugins/taskmaster/tests/test_server_sessions_recap.py -v`
 Expected: All PASS (≥18 tests).
 
-- [ ] **Step 2: No commit needed (verification only)**
+- [x] **Step 2: No commit needed (verification only)**
 
 ---
 
