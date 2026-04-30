@@ -1121,7 +1121,7 @@ git commit -m "feat(viewer): wire briefing + auto-mode strip + catalog mounting"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/tests/unit/dashboard-grid.test.js`
 
-- [ ] **Step 1: Append default-layout sanity test**
+- [x] **Step 1: Append default-layout sanity test**
 
 Append:
 
@@ -1140,14 +1140,14 @@ test('defaultLayout: every entry has rail, type, and unique id', async () => {
 });
 ```
 
-- [ ] **Step 2: Run tests**
+- [x] **Step 2: Run tests**
 
 ```bash
 node --test plugins/taskmaster/viewer/tests/unit/dashboard-grid.test.js
 ```
 Expected: `# tests 6  # pass 6  # fail 0`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/unit/dashboard-grid.test.js
