@@ -2395,7 +2395,7 @@ git commit -m "test(taskmaster): pytest for /api/dashboard/recent-events (red)"
 **Files:**
 - Modify: `plugins/taskmaster/backlog_server.py`
 
-- [ ] **Step 1: Add a helper that synthesizes events from the backlog**
+- [x] **Step 1: Add a helper that synthesizes events from the backlog**
 
 In `plugins/taskmaster/backlog_server.py`, add (near the other synthesis helpers — look for any `_load_backlog`-adjacent block):
 
@@ -2461,7 +2461,7 @@ def _compute_recent_events(since_iso: str) -> list:
 
 If `_load_backlog_yaml` is not the existing helper name, use whatever the file already exposes (search for an existing `/api/backlog` handler — it will already load the yaml; reuse that path).
 
-- [ ] **Step 2: Add the route to `_Handler.do_GET`**
+- [x] **Step 2: Add the route to `_Handler.do_GET`**
 
 In `plugins/taskmaster/backlog_server.py`, add to `_Handler.do_GET` **before** the unknown-path 404 fallback:
 
@@ -2483,14 +2483,14 @@ if self.path.startswith("/api/dashboard/recent-events"):
     return
 ```
 
-- [ ] **Step 3: Run tests to verify they pass**
+- [x] **Step 3: Run tests to verify they pass**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_server_dashboard_events.py -v
 ```
 Expected output: `3 passed`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py
