@@ -1001,7 +1001,7 @@ git commit -m "feat(viewer): widget-catalog registry + default-layout seeder"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/screens/dashboard.js`
 
-- [ ] **Step 1: Update orchestrator**
+- [x] **Step 1: Update orchestrator**
 
 Overwrite `plugins/taskmaster/viewer/js/screens/dashboard.js` with:
 
@@ -1100,14 +1100,14 @@ export async function mount(root, { store, api, prefs }) {
 }
 ```
 
-- [ ] **Step 2: Smoke-load**
+- [x] **Step 2: Smoke-load**
 
 ```bash
 node --input-type=module -e "import('./plugins/taskmaster/viewer/js/screens/dashboard.js').then(m => console.log(typeof m.mount)).catch(e => { console.error(e.message); process.exit(1); })"
 ```
 Expected: errors about missing widget modules — that's expected at this point, the widget files are added in M3. The orchestrator file itself should parse cleanly. Confirm the error message names `widgets/suggested-next.js` (or similar), proving the import path resolves to the right place.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/screens/dashboard.js
