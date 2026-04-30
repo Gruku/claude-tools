@@ -382,7 +382,7 @@ git commit -m "feat(viewer): scaffold dashboard.css bento + widget frame skeleto
 - Create: `plugins/taskmaster/viewer/js/components/dashboard-grid.js`
 - Create: `plugins/taskmaster/viewer/tests/unit/dashboard-grid.test.js`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `plugins/taskmaster/viewer/tests/unit/dashboard-grid.test.js`:
 
@@ -423,14 +423,14 @@ test('computePlacements assigns deterministic order for missing index', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 node --test plugins/taskmaster/viewer/tests/unit/dashboard-grid.test.js
 ```
 Expected: FAIL with `ERR_MODULE_NOT_FOUND` for `dashboard-grid.js`.
 
-- [ ] **Step 3: Implement `computePlacements`**
+- [x] **Step 3: Implement `computePlacements`**
 
 Create `plugins/taskmaster/viewer/js/components/dashboard-grid.js`:
 
@@ -505,14 +505,14 @@ export function moveWidget(layout, instanceId, target) {
 export const __RAILS__ = RAILS;
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 ```bash
 node --test plugins/taskmaster/viewer/tests/unit/dashboard-grid.test.js
 ```
 Expected: `# tests 2  # pass 2  # fail 0`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/dashboard-grid.js plugins/taskmaster/viewer/tests/unit/dashboard-grid.test.js
