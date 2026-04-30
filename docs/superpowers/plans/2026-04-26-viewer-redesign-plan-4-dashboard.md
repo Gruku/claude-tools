@@ -757,7 +757,7 @@ git commit -m "feat(viewer): dashboard briefing strip (italic-serif + ⌘K hint)
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/board-surface.js`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 Create `plugins/taskmaster/viewer/js/components/board-surface.js`:
 
@@ -842,14 +842,14 @@ export function createBoardSurface({ store }) {
 }
 ```
 
-- [ ] **Step 2: Smoke-load**
+- [x] **Step 2: Smoke-load**
 
 ```bash
 node --input-type=module -e "import('./plugins/taskmaster/viewer/js/components/board-surface.js').then(m => console.log(typeof m.createBoardSurface)).catch(e => { console.error(e.message); process.exit(1); })"
 ```
 Expected output: `function` (Plan 2's `card.js` is assumed present; if running ahead of Plan 2 the import will error — that is acceptable in isolation, integration smoke runs in M6).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/board-surface.js
