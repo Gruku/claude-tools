@@ -2276,7 +2276,7 @@ git commit -m "feat(viewer): api client for sessions/recap/snapshot-diff"
 **Files:**
 - Create: `plugins/taskmaster/viewer/css/screens/sessions.css`
 
-- [ ] **Step 1: Write the file**
+- [x] **Step 1: Write the file**
 
 Create `plugins/taskmaster/viewer/css/screens/sessions.css`:
 
@@ -2428,7 +2428,7 @@ body.rail-open .tl { opacity: 0.5; pointer-events: none; }
 body.rail-open .tl .selected { opacity: 1; pointer-events: auto; }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/css/screens/sessions.css
@@ -2442,7 +2442,7 @@ git commit -m "feat(viewer): sessions.css — diary, parallel-block, nested rows
 **Files:**
 - Modify: `plugins/taskmaster/viewer/css/components.css` (append)
 
-- [ ] **Step 1: Append**
+- [x] **Step 1: Append**
 
 ```css
 /* RightRail (shared with task-detail in Plan 3) */
@@ -2541,7 +2541,7 @@ git commit -m "feat(viewer): sessions.css — diary, parallel-block, nested rows
 .right-rail .files-list .more { color: var(--ink-3); font-style: italic; padding-top: var(--sp-2); }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/css/components.css
@@ -2556,7 +2556,7 @@ git commit -m "feat(viewer): right-rail shared component styling"
 - Modify: `plugins/taskmaster/viewer/js/screens/sessions.js` (replace stub)
 - Modify: `plugins/taskmaster/viewer/index.html` (add `<link>` for sessions.css)
 
-- [ ] **Step 1: Add the CSS link**
+- [x] **Step 1: Add the CSS link**
 
 In `plugins/taskmaster/viewer/index.html`, inside the `<head>` near other screen CSS:
 
@@ -2564,7 +2564,7 @@ In `plugins/taskmaster/viewer/index.html`, inside the `<head>` near other screen
 <link rel="stylesheet" href="css/screens/sessions.css">
 ```
 
-- [ ] **Step 2: Replace the stub**
+- [x] **Step 2: Replace the stub**
 
 Overwrite `plugins/taskmaster/viewer/js/screens/sessions.js`:
 
@@ -2806,7 +2806,7 @@ function renderHandoverRail(h, owner) {
 export default mount;
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/index.html plugins/taskmaster/viewer/js/screens/sessions.js
@@ -2820,7 +2820,7 @@ git commit -m "feat(viewer): sessions screen — diary, kind filter, right-rail 
 **Files:**
 - Create: `plugins/taskmaster/viewer/tests/sessions.spec.js`
 
-- [ ] **Step 1: Write the test**
+- [x] **Step 1: Write the test**
 
 Create `plugins/taskmaster/viewer/tests/sessions.spec.js`:
 
@@ -2862,12 +2862,12 @@ test.describe('Sessions screen', () => {
 });
 ```
 
-- [ ] **Step 2: Run (verify pass)**
+- [x] **Step 2: Run (verify pass)**
 
 Run: `npx playwright test plugins/taskmaster/viewer/tests/sessions.spec.js --reporter=line`
 Expected: 3 tests PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/sessions.spec.js
@@ -2881,7 +2881,7 @@ git commit -m "test(viewer): Playwright smoke for Sessions screen"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/main.js`
 
-- [ ] **Step 1: Append global listener**
+- [x] **Step 1: Append global listener**
 
 In `plugins/taskmaster/viewer/js/main.js` after the boot block, append:
 
@@ -2909,12 +2909,12 @@ export async function savePrefs(patch) {
 }
 ```
 
-- [ ] **Step 2: Run sessions Playwright again to confirm no regression**
+- [x] **Step 2: Run sessions Playwright again to confirm no regression**
 
 Run: `npx playwright test plugins/taskmaster/viewer/tests/sessions.spec.js --reporter=line`
 Expected: 3 tests PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/main.js plugins/taskmaster/viewer/js/api.js
@@ -2930,7 +2930,7 @@ git commit -m "feat(viewer): viewer:prefs-patch event → savePrefs round-trip"
 **Files:**
 - Create: `plugins/taskmaster/viewer/css/screens/recap.css`
 
-- [ ] **Step 1: Write the file**
+- [x] **Step 1: Write the file**
 
 Create `plugins/taskmaster/viewer/css/screens/recap.css`:
 
@@ -3085,7 +3085,7 @@ Create `plugins/taskmaster/viewer/css/screens/recap.css`:
 .recap-footer a { color: var(--accent); text-decoration: none; }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/css/screens/recap.css
