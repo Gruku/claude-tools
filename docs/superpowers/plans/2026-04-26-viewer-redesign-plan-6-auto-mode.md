@@ -625,7 +625,7 @@ git commit -m "feat(taskmaster): read hook firings count from auto/hooks.jsonl"
 **Files:**
 - Create: `plugins/taskmaster/tests/test_server_auto_mode.py`
 
-- [ ] **Step 1: Write the test file**
+- [x] **Step 1: Write the test file**
 
 Create `plugins/taskmaster/tests/test_server_auto_mode.py`:
 
@@ -682,14 +682,14 @@ def test_get_auto_sessions_lists_all(running_server, tmp_path, monkeypatch):
     assert ids == ["v3-014", "v3-022"]
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_server_auto_mode.py::test_get_auto_sessions_lists_all -v
 ```
 Expected: FAIL — 404 on `/api/auto/sessions`.
 
-- [ ] **Step 3: Implement the endpoint**
+- [x] **Step 3: Implement the endpoint**
 
 In `plugins/taskmaster/backlog_server.py`, add to `_Handler.do_GET` before the existing fallback:
 
@@ -707,14 +707,14 @@ if self.path == "/api/auto/sessions":
     return
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_server_auto_mode.py::test_get_auto_sessions_lists_all -v
 ```
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_server_auto_mode.py
@@ -729,7 +729,7 @@ git commit -m "feat(taskmaster): GET /api/auto/sessions endpoint"
 - Modify: `plugins/taskmaster/backlog_server.py`
 - Modify: `plugins/taskmaster/tests/test_server_auto_mode.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append:
 
@@ -752,14 +752,14 @@ def test_get_auto_session_detail_404(running_server):
     assert exc.value.code == 404
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_server_auto_mode.py -v -k auto_session_detail
 ```
 Expected: FAIL.
 
-- [ ] **Step 3: Implement endpoint**
+- [x] **Step 3: Implement endpoint**
 
 In `_Handler.do_GET`, add (before the fallback):
 
@@ -787,14 +787,14 @@ if self.path.startswith("/api/auto/sessions/"):
 
 Order matters: this branch must come **after** the `/api/auto/sessions` exact match (Task 7), since `startswith` would otherwise swallow it. Verify the exact-match check is checked first.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_server_auto_mode.py -v -k auto_session_detail
 ```
 Expected: 2 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_server_auto_mode.py
@@ -811,7 +811,7 @@ Plan 2 introduced `GET /api/auto/state` returning the single-state file. After P
 - Modify: `plugins/taskmaster/backlog_server.py`
 - Modify: `plugins/taskmaster/tests/test_server_auto_mode.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append:
 
@@ -831,14 +831,14 @@ def test_auto_state_no_sessions(running_server):
     assert body == {"running": False}
 ```
 
-- [ ] **Step 2: Run tests**
+- [x] **Step 2: Run tests**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_server_auto_mode.py -v -k auto_state
 ```
 Expected: behavior depends on Plan 2's existing impl. Replace it.
 
-- [ ] **Step 3: Replace `/api/auto/state` handler**
+- [x] **Step 3: Replace `/api/auto/state` handler**
 
 Locate the existing `if self.path == "/api/auto/state":` branch in `_Handler.do_GET` (introduced in Plan 2) and replace it with:
 
@@ -860,14 +860,14 @@ if self.path == "/api/auto/state":
     return
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_server_auto_mode.py -v -k auto_state
 ```
 Expected: 2 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_server_auto_mode.py
@@ -882,7 +882,7 @@ git commit -m "refactor(taskmaster): /api/auto/state returns most-recent session
 - Modify: `plugins/taskmaster/backlog_server.py`
 - Modify: `plugins/taskmaster/tests/test_server_auto_mode.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append:
 
@@ -935,14 +935,14 @@ def test_post_auto_pause_unknown_session_404(running_server):
     assert exc.value.code == 404
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_server_auto_mode.py -v -k "pause or stop"
 ```
 Expected: FAIL — 405/404.
 
-- [ ] **Step 3: Implement `do_POST`**
+- [x] **Step 3: Implement `do_POST`**
 
 Add (or extend if Plan 2 already added) `_Handler.do_POST`:
 
@@ -998,14 +998,14 @@ def _send_json(self, status: int, payload: dict) -> None:
     self.wfile.write(body)
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_server_auto_mode.py -v -k "pause or stop"
 ```
 Expected: 3 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_server_auto_mode.py
@@ -1020,7 +1020,7 @@ git commit -m "feat(taskmaster): POST /api/auto/pause and /api/auto/stop"
 - Modify: `plugins/taskmaster/backlog_server.py`
 - Modify: `plugins/taskmaster/tests/test_server_auto_mode.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append:
 
@@ -1049,14 +1049,14 @@ def test_get_auto_events_missing_sid_400(running_server):
     assert exc.value.code == 400
 ```
 
-- [ ] **Step 2: Run tests**
+- [x] **Step 2: Run tests**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_server_auto_mode.py -v -k auto_events
 ```
 Expected: FAIL.
 
-- [ ] **Step 3: Implement endpoint**
+- [x] **Step 3: Implement endpoint**
 
 Add to `_Handler.do_GET` (before the fallback):
 
@@ -1076,14 +1076,14 @@ if self.path.startswith("/api/auto/events"):
     return
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_server_auto_mode.py -v -k auto_events
 ```
 Expected: 2 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_server_auto_mode.py
@@ -1099,7 +1099,7 @@ git commit -m "feat(taskmaster): GET /api/auto/events polling endpoint"
 - Modify: `plugins/taskmaster/backlog_server.py`
 - Modify: `plugins/taskmaster/tests/test_server_auto_mode.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append:
 
@@ -1128,14 +1128,14 @@ def test_get_auto_budget_tiers(running_server, tmp_path):
     assert body["meters"]["time_seconds"]["tier"] == "crit"
 ```
 
-- [ ] **Step 2: Run tests**
+- [x] **Step 2: Run tests**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_server_auto_mode.py -v -k auto_budget
 ```
 Expected: FAIL.
 
-- [ ] **Step 3: Implement helper + endpoint**
+- [x] **Step 3: Implement helper + endpoint**
 
 Add to `taskmaster_v3.py`:
 
@@ -1172,14 +1172,14 @@ if self.path.startswith("/api/auto/budget/"):
     return
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_server_auto_mode.py -v -k auto_budget
 ```
 Expected: 2 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/taskmaster_v3.py plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_server_auto_mode.py
@@ -1194,7 +1194,7 @@ git commit -m "feat(taskmaster): GET /api/auto/budget/<sid> with tiered meters"
 - Modify: `plugins/taskmaster/backlog_server.py`
 - Modify: `plugins/taskmaster/tests/test_server_auto_mode.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append:
 
@@ -1233,14 +1233,14 @@ def test_mcp_auto_state_get_round_trip(tmp_path, monkeypatch):
     assert result["session_id"] == "v3-014"
 ```
 
-- [ ] **Step 2: Run tests**
+- [x] **Step 2: Run tests**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_server_auto_mode.py -v -k mcp_auto
 ```
 Expected: FAIL — `ImportError`.
 
-- [ ] **Step 3: Implement MCP tools**
+- [x] **Step 3: Implement MCP tools**
 
 In `plugins/taskmaster/backlog_server.py`, near the other v3 entity tools:
 
@@ -1309,14 +1309,14 @@ def auto_event_log(session_id: str, since: str | None = None) -> str:
     return json.dumps({"events": read_auto_events(session_id, since=since)}, indent=2)
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_server_auto_mode.py -v -k mcp_auto
 ```
 Expected: 2 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_server_auto_mode.py
@@ -1332,7 +1332,7 @@ git commit -m "feat(taskmaster): MCP tools for auto-mode state/pause/stop/histor
 
 (No tests here — pure transport. Behavior is exercised by the screen-level Playwright tests in M8.)
 
-- [ ] **Step 1: Add wrappers**
+- [x] **Step 1: Add wrappers**
 
 Append to `plugins/taskmaster/viewer/js/api.js`:
 
@@ -1389,7 +1389,7 @@ export async function autoBudget(sid) {
 
 If `api.js` uses a default export object, also add the methods there: `api.autoListSessions = autoListSessions`, etc., so existing call sites that import the default still work.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/api.js

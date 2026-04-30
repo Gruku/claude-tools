@@ -1,6 +1,6 @@
 # Viewer Redesign — Progress
 
-**Total:** 271 tasks · 7 plans · ~16% complete (38/38 Plan 5a, 32/32 Plan 5b, 6/58 Plan 6 M1 done)
+**Total:** 271 tasks · 7 plans · ~18% complete (38/38 Plan 5a, 32/32 Plan 5b, 14/58 Plan 6 M1+M2 done)
 
 ## Pre-execution
 - [x] Plan 1 layout-shape reconciliation applied
@@ -240,7 +240,7 @@
 - [x] T5b.31 Reinforce-event source enforcement (viewer must send valid source)
 - [x] T5b.32 Final spec-coverage walk + plan handoff
 
-## Plan 6 — Auto Mode (6/58)
+## Plan 6 — Auto Mode (14/58)
 *See `2026-04-26-viewer-redesign-plan-6-auto-mode.md` for task definitions.*
 - [x] T6.1 Define auto-mode storage layout constants
 - [x] T6.2 Implement `load_auto_session`, `save_auto_session`, `list_auto_sessions`
@@ -248,14 +248,14 @@
 - [x] T6.4 Wire migration into server startup
 - [x] T6.5 Implement `append_auto_event` and `read_auto_events`
 - [x] T6.6 Implement `read_hook_events` (read-only scrape)
-- [ ] T6.7 Create `tests/test_server_auto_mode.py` skeleton + first endpoint test
-- [ ] T6.8 `GET /api/auto/sessions/<sid>` — single session detail
-- [ ] T6.9 `GET /api/auto/state` returns most-recent session (Plan-2 compat shim)
-- [ ] T6.10 `POST /api/auto/pause` and `POST /api/auto/stop`
-- [ ] T6.11 `GET /api/auto/events?sid=&since=`
-- [ ] T6.12 `GET /api/auto/budget/<sid>` + `compute_budget`
-- [ ] T6.13 MCP tools — `auto_state_get`, `auto_pause`, `auto_stop`, `auto_history`, `auto_event_log`
-- [ ] T6.14 Extend `js/api.js` with auto-mode HTTP wrappers
+- [x] T6.7 Create `tests/test_server_auto_mode.py` skeleton + first endpoint test
+- [x] T6.8 `GET /api/auto/sessions/<sid>` — single session detail
+- [x] T6.9 `GET /api/auto/state` returns most-recent session (Plan-2 compat shim)
+- [x] T6.10 `POST /api/auto/pause` and `POST /api/auto/stop`
+- [x] T6.11 `GET /api/auto/events?sid=&since=`
+- [x] T6.12 `GET /api/auto/budget/<sid>` + `compute_budget`
+- [x] T6.13 MCP tools — `auto_state_get`, `auto_pause`, `auto_stop`, `auto_history`, `auto_event_log`
+- [x] T6.14 Extend `js/api.js` with auto-mode HTTP wrappers
 - [ ] T6.15 Define exported function signatures for `auto-spine-layout.js`
 - [ ] T6.16 Lock node radii (active=18, others=10) and y-positions
 - [ ] T6.17 Lock connector geometry (start at edge, end at edge)
