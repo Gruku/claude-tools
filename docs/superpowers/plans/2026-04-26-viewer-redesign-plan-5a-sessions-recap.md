@@ -3100,7 +3100,7 @@ git commit -m "feat(viewer): recap.css — hero + narrative + receipts grid"
 - Modify: `plugins/taskmaster/viewer/js/screens/recap.js` (replace stub)
 - Modify: `plugins/taskmaster/viewer/index.html` (add `<link>` for recap.css)
 
-- [ ] **Step 1: Add CSS link**
+- [x] **Step 1: Add CSS link**
 
 In `index.html` head:
 
@@ -3108,7 +3108,7 @@ In `index.html` head:
 <link rel="stylesheet" href="css/screens/recap.css">
 ```
 
-- [ ] **Step 2: Replace the stub**
+- [x] **Step 2: Replace the stub**
 
 Overwrite `plugins/taskmaster/viewer/js/screens/recap.js`:
 
@@ -3351,7 +3351,7 @@ function formatDuration(seconds) {
 export default mount;
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/index.html plugins/taskmaster/viewer/js/screens/recap.js
@@ -3365,7 +3365,7 @@ git commit -m "feat(viewer): recap screen — picker, hero, receipts, edit/regen
 **Files:**
 - Create: `plugins/taskmaster/viewer/tests/recap.spec.js`
 
-- [ ] **Step 1: Write the test**
+- [x] **Step 1: Write the test**
 
 ```js
 import { test, expect } from '@playwright/test';
@@ -3415,12 +3415,12 @@ test.describe('Recap screen', () => {
 });
 ```
 
-- [ ] **Step 2: Run (verify pass)**
+- [x] **Step 2: Run (verify pass)**
 
 Run: `npx playwright test plugins/taskmaster/viewer/tests/recap.spec.js --reporter=line`
 Expected: 3 tests PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/recap.spec.js
@@ -3434,7 +3434,7 @@ git commit -m "test(viewer): Playwright smoke for Recap screen"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/screens/recap.js`
 
-- [ ] **Step 1: Failing assertion (in the existing recap.spec.js, append)**
+- [x] **Step 1: Failing assertion (in the existing recap.spec.js, append)**
 
 Append to `plugins/taskmaster/viewer/tests/recap.spec.js`:
 
@@ -3454,7 +3454,7 @@ test('clicking a receipt filter chip hides non-matching cards', async ({ page })
 Run: `npx playwright test plugins/taskmaster/viewer/tests/recap.spec.js -g "filter chip" --reporter=line`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement filter wiring**
+- [x] **Step 3: Implement filter wiring**
 
 In `recap.js`, after the `bindActions` call inside `mount`, add:
 
@@ -3521,7 +3521,7 @@ git commit -m "feat(viewer): receipts filter chips hide/show cards by category"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/tests/recap.spec.js`
 
-- [ ] **Step 1: Add guard test**
+- [x] **Step 1: Add guard test**
 
 Append:
 
@@ -3534,12 +3534,12 @@ test('hero stat strip has exactly 5 cells (Handovers excluded per spec §3.16)',
 });
 ```
 
-- [ ] **Step 2: Run (verify pass)**
+- [x] **Step 2: Run (verify pass)**
 
 Run: `npx playwright test plugins/taskmaster/viewer/tests/recap.spec.js -g "5 cells" --reporter=line`
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/recap.spec.js
@@ -3553,7 +3553,7 @@ git commit -m "test(viewer): guard recap hero stat strip is 5 cells, no handover
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/components/right-rail.js`
 
-- [ ] **Step 1: Append guard test in sessions.spec.js**
+- [x] **Step 1: Append guard test in sessions.spec.js**
 
 ```js
 test('Escape closes the right-rail', async ({ page }) => {
@@ -3569,7 +3569,7 @@ test('Escape closes the right-rail', async ({ page }) => {
 });
 ```
 
-- [ ] **Step 2: Implement key + outside-click handlers in `right-rail.js`**
+- [x] **Step 2: Implement key + outside-click handlers in `right-rail.js`**
 
 Replace the `open()` body's tail with:
 
@@ -3590,12 +3590,12 @@ In `close()`, before clearing `el`:
     }
 ```
 
-- [ ] **Step 3: Run (verify pass)**
+- [x] **Step 3: Run (verify pass)**
 
 Run: `npx playwright test plugins/taskmaster/viewer/tests/sessions.spec.js -g "Escape closes" --reporter=line`
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/right-rail.js plugins/taskmaster/viewer/tests/sessions.spec.js
@@ -3608,12 +3608,12 @@ git commit -m "feat(viewer): Escape closes right-rail; smoke covers it"
 
 **Files:** none modified.
 
-- [ ] **Step 1: Run all tests**
+- [x] **Step 1: Run all tests**
 
 Run: `python -m pytest plugins/taskmaster/tests/test_v3_recap.py plugins/taskmaster/tests/test_v3_snapshot_diff.py plugins/taskmaster/tests/test_v3_sessions.py plugins/taskmaster/tests/test_server_sessions_recap.py -v && node --test plugins/taskmaster/viewer/tests/unit/ && npx playwright test plugins/taskmaster/viewer/tests/sessions.spec.js plugins/taskmaster/viewer/tests/recap.spec.js --reporter=line`
 Expected: server suite PASS (≥18 tests), node-test PASS (≥12 tests), Playwright PASS (≥7 tests).
 
-- [ ] **Step 2: No commit (verification only)**
+- [x] **Step 2: No commit (verification only)**
 
 ---
 

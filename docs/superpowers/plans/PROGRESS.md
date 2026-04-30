@@ -1,6 +1,6 @@
 # Viewer Redesign — Progress
 
-**Total:** 271 tasks · 7 plans · ~10% complete (27/38 Plan 5a tasks done)
+**Total:** 271 tasks · 7 plans · ~10% complete (34/38 Plan 5a tasks done)
 
 ## Pre-execution
 - [x] Plan 1 layout-shape reconciliation applied
@@ -164,7 +164,7 @@
 - [x] T4.35 Final integration smoke (Playwright 5/5 FAIL — see notes)
 - [x] T4.36 Plan handoff — type/contract self-review
 
-## Plan 5a — Sessions + Recap (27/38)
+## Plan 5a — Sessions + Recap (34/38)
 *See `2026-04-26-viewer-redesign-plan-5a-sessions-recap.md` for task definitions.*
 - [x] T5a.1 Add `RECAP_SCHEMA_VERSION` and handover-kind mapping
 - [x] T5a.2 `recap_path()` + `_format_recap_markdown()` helper
@@ -193,13 +193,13 @@
 - [x] T5a.25 `sessions.js` — module skeleton + mount
 - [x] T5a.26 Sessions screen — Playwright smoke test
 - [x] T5a.27 Wire `viewer:prefs-patch` event into store/api
-- [ ] T5a.28 `recap.css` — hero + receipts styling
-- [ ] T5a.29 `recap.js` skeleton + picker + prev/next
-- [ ] T5a.30 Recap screen — Playwright smoke test
-- [ ] T5a.31 Receipt-filter chips wire-up
-- [ ] T5a.32 Hero stat-strip exclusion of handovers (regression guard)
-- [ ] T5a.33 Right-rail close on Escape + outside-click
-- [ ] T5a.34 Run full Plan 5a test sweep
+- [x] T5a.28 `recap.css` — hero + receipts styling
+- [x] T5a.29 `recap.js` skeleton + picker + prev/next
+- [x] T5a.30 Recap screen — Playwright smoke test
+- [x] T5a.31 Receipt-filter chips wire-up
+- [x] T5a.32 Hero stat-strip exclusion of handovers (regression guard)
+- [x] T5a.33 Right-rail close on Escape + outside-click
+- [x] T5a.34 Run full Plan 5a test sweep
 - [ ] T5a.35 Spec §3.12 coverage walk — checklist tied to assertions
 - [ ] T5a.36 Spec §3.16 coverage walk — checklist tied to assertions
 - [ ] T5a.37 Cross-screen integration — Sessions row → Recap deep link
