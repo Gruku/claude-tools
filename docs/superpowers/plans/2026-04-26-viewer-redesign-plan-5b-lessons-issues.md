@@ -2468,7 +2468,7 @@ Create `plugins/taskmaster/viewer/css/screens/issues.css`:
 .issue-row__when { font-size: 11px; color: var(--ink-3); text-align: right; }
 ```
 
-- [ ] **Step 2: Link the CSS**
+- [x] **Step 2: Link the CSS**
 
 Append to `<head>` in `plugins/taskmaster/viewer/index.html`:
 
@@ -2841,7 +2841,7 @@ export async function mount(root, { store, prefs }) {
 }
 ```
 
-- [ ] **Step 2: Add `getIssues` / `setIssues` to `store.js`**
+- [x] **Step 2: Add `getIssues` / `setIssues` to `store.js`**
 
 In `plugins/taskmaster/viewer/js/store.js`, add (alongside `getLessons` / `setLessons`):
 

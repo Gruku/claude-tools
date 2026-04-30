@@ -1,6 +1,6 @@
 # Viewer Redesign — Progress
 
-**Total:** 271 tasks · 7 plans · ~14% complete (38/38 Plan 5a tasks done, 21/32 Plan 5b M1+M2+M3+M4 done)
+**Total:** 271 tasks · 7 plans · ~14% complete (38/38 Plan 5a tasks done, 25/32 Plan 5b M1+M2+M3+M4+M5 done)
 
 ## Pre-execution
 - [x] Plan 1 layout-shape reconciliation applied
@@ -205,7 +205,7 @@
 - [x] T5a.37 Cross-screen integration — Sessions row → Recap deep link
 - [x] T5a.38 Final integration sweep + plan handoff commit
 
-## Plan 5b — Lessons + Issues (21/32)
+## Plan 5b — Lessons + Issues (25/32)
 *See `2026-04-26-viewer-redesign-plan-5b-lessons-issues.md` for task definitions.*
 - [x] T5b.1 Extend the lesson schema with `reinforce_events`
 - [x] T5b.2 Implement `lesson_reinforce()` helper
@@ -228,10 +228,10 @@
 - [x] T5b.19 `lesson-card.js` — full card with all signals
 - [x] T5b.20 `js/screens/lessons.js` — Shelves view (default)
 - [x] T5b.21 Playwright smoke — Lessons screen mounts and Reinforce works
-- [ ] T5b.22 `css/screens/issues.css` — hybrid layout + card
-- [ ] T5b.23 `issue-card.js` — bug-report flavor
-- [ ] T5b.24 `js/screens/issues.js` — Hybrid view (default)
-- [ ] T5b.25 Playwright smoke — Issues screen renders + repro expands
+- [x] T5b.22 `css/screens/issues.css` — hybrid layout + card
+- [x] T5b.23 `issue-card.js` — bug-report flavor
+- [x] T5b.24 `js/screens/issues.js` — Hybrid view (default)
+- [x] T5b.25 Playwright smoke — Issues screen renders + repro expands
 - [ ] T5b.26 Lessons screen — anchor-pills, since-caption, kind-icon assertions
 - [ ] T5b.27 Issues screen — location, symptom, blocks-chip assertions
 - [ ] T5b.28 Cross-screen routing smoke
