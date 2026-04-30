@@ -2504,11 +2504,11 @@ git commit -m "feat(taskmaster): GET /api/dashboard/recent-events (synth from ba
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/api.js`
 
-- [ ] **Step 1: Locate the existing API methods**
+- [x] **Step 1: Locate the existing API methods**
 
 Open `plugins/taskmaster/viewer/js/api.js` (created in Plan 1).
 
-- [ ] **Step 2: Add helper methods**
+- [x] **Step 2: Add helper methods**
 
 Inside the exported `api` object, alongside `getBacklog`, `savePrefs`, etc., add:
 
@@ -2574,14 +2574,14 @@ async quickCapture(text) {
 
 Note: endpoints other than `/api/dashboard/recent-events` and `/api/auto/state` may not yet exist in this plan's scope. Widgets that consume them are designed to fall back gracefully (the `try/catch` blocks in M3 widgets already swallow the failures). Plan 5 fills in lessons/issues/sessions endpoints; Plan 6 fills in any missing auto-mode bits.
 
-- [ ] **Step 3: Smoke-load**
+- [x] **Step 3: Smoke-load**
 
 ```bash
 node --input-type=module -e "import('./plugins/taskmaster/viewer/js/api.js').then(m => console.log(typeof m.api.getRecentEvents)).catch(e => { console.error(e.message); process.exit(1); })"
 ```
 Expected output: `function`
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/api.js
