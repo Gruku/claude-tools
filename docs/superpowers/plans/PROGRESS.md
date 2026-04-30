@@ -164,7 +164,7 @@
 - [x] T4.35 Final integration smoke (Playwright 5/5 FAIL — see notes)
 - [x] T4.36 Plan handoff — type/contract self-review
 
-## Plan 5a — Sessions + Recap (14/38)
+## Plan 5a — Sessions + Recap (22/38)
 *See `2026-04-26-viewer-redesign-plan-5a-sessions-recap.md` for task definitions.*
 - [x] T5a.1 Add `RECAP_SCHEMA_VERSION` and handover-kind mapping
 - [x] T5a.2 `recap_path()` + `_format_recap_markdown()` helper
@@ -180,14 +180,14 @@
 - [x] T5a.12 HTTP `GET /api/recap/<sid>` + `PUT /api/recap/<sid>`
 - [x] T5a.13 HTTP `GET /api/snapshots/diff?from=&to=`
 - [x] T5a.14 Final server-side test sweep
-- [ ] T5a.15 `diff-row.js` — `+`/`~`/`-` row component
-- [ ] T5a.16 `parallel-block.test.js` — overlap-cluster algorithm
-- [ ] T5a.17 `timeline.js` — clustering algorithm + render
-- [ ] T5a.18 `right-rail.js` — generic 480px right-rail
-- [ ] T5a.19 `recap-receipts-grid.js` — 2×2 diff card grid
-- [ ] T5a.20 `snapshot-diff.test.js` — client mirror of server diff
-- [ ] T5a.21 Run full pure-data test sweep
-- [ ] T5a.22 Add API client methods to `js/api.js`
+- [x] T5a.15 `diff-row.js` — `+`/`~`/`-` row component
+- [x] T5a.16 `parallel-block.test.js` — overlap-cluster algorithm
+- [x] T5a.17 `timeline.js` — clustering algorithm + render
+- [x] T5a.18 `right-rail.js` — generic 480px right-rail
+- [x] T5a.19 `recap-receipts-grid.js` — 2×2 diff card grid
+- [x] T5a.20 `snapshot-diff.test.js` — client mirror of server diff
+- [x] T5a.21 Run full pure-data test sweep
+- [x] T5a.22 Add API client methods to `js/api.js`
 - [ ] T5a.23 `sessions.css` — base diary styling
 - [ ] T5a.24 Right-rail CSS (shared, lives in components.css)
 - [ ] T5a.25 `sessions.js` — module skeleton + mount

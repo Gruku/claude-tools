@@ -1548,7 +1548,7 @@ git commit -m "feat(viewer): diff-row component (+/~/- with from→to body)"
 **Files:**
 - Create: `plugins/taskmaster/viewer/tests/unit/parallel-block.test.js`
 
-- [ ] **Step 1: Failing test (algo lives in `timeline.js`, not yet written)**
+- [x] **Step 1: Failing test (algo lives in `timeline.js`, not yet written)**
 
 Create `plugins/taskmaster/viewer/tests/unit/parallel-block.test.js`:
 
@@ -1607,7 +1607,7 @@ Expected: FAIL — module not found.
 
 (The implementation lives in Task 17.)
 
-- [ ] **Step 3: Commit (test only)**
+- [x] **Step 3: Commit (test only)**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/unit/parallel-block.test.js
@@ -1621,7 +1621,7 @@ git commit -m "test(viewer): parallel-block clustering (failing — impl in next
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/timeline.js`
 
-- [ ] **Step 1: Implement clustering + render**
+- [x] **Step 1: Implement clustering + render**
 
 Create `plugins/taskmaster/viewer/js/components/timeline.js`:
 
@@ -1796,12 +1796,12 @@ function escapeHtml(s) {
 }
 ```
 
-- [ ] **Step 2: Run unit tests (verify pass)**
+- [x] **Step 2: Run unit tests (verify pass)**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/parallel-block.test.js`
 Expected: 4 tests PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/timeline.js
@@ -1904,7 +1904,7 @@ export class RightRail {
 export default RightRail;
 ```
 
-- [ ] **Step 4: Run (verify pass — only if jsdom present)**
+- [x] **Step 4: Run (verify pass — only if jsdom present)**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/right-rail.test.js`
 Expected: PASS if jsdom is installed; otherwise the Playwright smoke test (Task 33) covers the contract.
@@ -2140,7 +2140,7 @@ test('passes through lessons_fired and files_touched', () => {
 Run: `node --test plugins/taskmaster/viewer/tests/unit/snapshot-diff.test.js`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement client mirror**
+- [x] **Step 3: Implement client mirror**
 
 Create `plugins/taskmaster/viewer/js/components/snapshot-diff.js`:
 
@@ -2202,12 +2202,12 @@ git commit -m "feat(viewer): client-side snapshot-diff helper (mirror of server)
 
 **Files:** none modified.
 
-- [ ] **Step 1: Run all unit tests**
+- [x] **Step 1: Run all unit tests**
 
 Run: `node --test plugins/taskmaster/viewer/tests/unit/`
 Expected: All PASS (≥12 tests across diff-row / parallel-block / snapshot-diff / recap-receipts-grid; +2 right-rail when jsdom present).
 
-- [ ] **Step 2: No commit (verification only)**
+- [x] **Step 2: No commit (verification only)**
 
 ---
 
@@ -2216,7 +2216,7 @@ Expected: All PASS (≥12 tests across diff-row / parallel-block / snapshot-diff
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/api.js`
 
-- [ ] **Step 1: Append helpers**
+- [x] **Step 1: Append helpers**
 
 Append to `plugins/taskmaster/viewer/js/api.js`:
 
@@ -2260,7 +2260,7 @@ export async function getSnapshotDiff(fromId, toId) {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/api.js
