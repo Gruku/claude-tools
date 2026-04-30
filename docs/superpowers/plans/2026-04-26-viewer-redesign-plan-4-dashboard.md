@@ -2595,7 +2595,7 @@ git commit -m "feat(viewer): api.js — recent-events + dashboard widget data fe
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/screens/dashboard.js`
 
-- [ ] **Step 1: Update `mount()`**
+- [x] **Step 1: Update `mount()`**
 
 At the end of `mount()` in `plugins/taskmaster/viewer/js/screens/dashboard.js`, **before** the `return async () => …` cleanup, add:
 
@@ -2623,7 +2623,7 @@ And modify the cleanup `return` block to call `stampOnLeave`:
   };
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/screens/dashboard.js
