@@ -125,7 +125,7 @@
 - [x] T3.45 Spec coverage audit — all §3.9 items present (Variant A + Rail + Variant B)
 - [x] T3.46 Final integration smoke + plan handoff — server 5/5, unit 30/30, Playwright 10/10; tag pending user OK
 
-## Plan 4 — Dashboard (32/36)
+## Plan 4 — Dashboard (36/36 — BLOCKED: Playwright 5/5 FAIL)
 *See `2026-04-26-viewer-redesign-plan-4-dashboard.md` for task definitions.*
 - [x] T4.1 Read mockups + seed dashboard.css with bento grid skeleton
 - [x] T4.2 `dashboard-grid.js` — `computePlacements` (pure)
@@ -159,10 +159,10 @@
 - [x] T4.30 Implement the endpoint
 - [x] T4.31 Add `api.getRecentEvents()` to `js/api.js`
 - [x] T4.32 Stamp `last_seen_at` on dashboard mount
-- [ ] T4.33 Spec §3.4 coverage walkthrough
-- [ ] T4.34 150% zoom verification
-- [ ] T4.35 Final integration smoke
-- [ ] T4.36 Plan handoff — type/contract self-review
+- [x] T4.33 Spec §3.4 coverage walkthrough
+- [x] T4.34 150% zoom verification
+- [x] T4.35 Final integration smoke (Playwright 5/5 FAIL — see notes)
+- [x] T4.36 Plan handoff — type/contract self-review
 
 ## Plan 5a — Sessions + Recap (0/38)
 *See `2026-04-26-viewer-redesign-plan-5a-sessions-recap.md` for task definitions.*

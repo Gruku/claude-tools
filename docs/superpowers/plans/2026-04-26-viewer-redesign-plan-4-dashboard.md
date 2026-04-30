@@ -2638,7 +2638,7 @@ git commit -m "feat(viewer): stamp dashboard.last_seen_at on screen unmount"
 
 **Files:** none modified — this is a verification task.
 
-- [ ] **Step 1: Walk the spec checklist**
+- [x] **Step 1: Walk the spec checklist**
 
 For each line in spec §3.4, point to the code that satisfies it. Confirm by running, against your local checkout:
 
@@ -2675,14 +2675,14 @@ Spec → file mapping (verify each):
 - Persistence to `viewer.dashboard` → `api.savePrefs({dashboard:{layout}})` in `edit-mode.js`
 - Default 150% zoom → already in Plan 1's `tokens.css` (`--shell-zoom: 1.5`)
 
-- [ ] **Step 2: Manual placeholder/TBD scan**
+- [x] **Step 2: Manual placeholder/TBD scan**
 
 ```bash
 git ls-files 'plugins/taskmaster/viewer/js/screens/dashboard.js' 'plugins/taskmaster/viewer/js/components/widget-*' 'plugins/taskmaster/viewer/js/components/widgets/*' 'plugins/taskmaster/viewer/js/components/edit-mode.js' 'plugins/taskmaster/viewer/js/components/briefing-strip.js' 'plugins/taskmaster/viewer/js/components/board-surface.js' 'plugins/taskmaster/viewer/css/screens/dashboard.css' | xargs grep -nE 'TODO|TBD|FIXME|placeholder|similar to' || echo OK
 ```
 Expected output: `OK` (or only the literal text `(implemented in Plan 6 — Auto Mode page)` from `auto-mode-stepper.js`, which is intentional).
 
-- [ ] **Step 3: Commit (no-op if clean)**
+- [x] **Step 3: Commit (no-op if clean)**
 
 No changes expected. If the placeholder scan flagged anything, fix it now and commit:
 
@@ -2696,14 +2696,14 @@ git commit -am "chore(viewer): scrub dashboard placeholders"
 
 **Files:** none modified.
 
-- [ ] **Step 1: Confirm Plan 1 token**
+- [x] **Step 1: Confirm Plan 1 token**
 
 ```bash
 grep -n -- '--shell-zoom' plugins/taskmaster/viewer/css/tokens.css
 ```
 Expected output: a single line setting `--shell-zoom: 1.5` (Plan 1 defines it).
 
-- [ ] **Step 2: Inspect the dashboard at 1.5x in a browser**
+- [x] **Step 2: Inspect the dashboard at 1.5x in a browser**
 
 Open `http://127.0.0.1:<port>/v3#/dashboard` and confirm:
 - Briefing strip reads cleanly (italic serif, no clipping)
@@ -2712,7 +2712,7 @@ Open `http://127.0.0.1:<port>/v3#/dashboard` and confirm:
 
 If any element clips or the rails wrap unexpectedly, narrow `--dash-rail-w` or relax `--dash-board-min` in `dashboard.css`. Document the verification in your session notes.
 
-- [ ] **Step 3: No commit needed unless adjustments were made**
+- [x] **Step 3: No commit needed unless adjustments were made**
 
 ---
 
@@ -2747,14 +2747,14 @@ Expected output: all tests pass. If a Plan 1 test regressed, fix it before conti
 
 **Files:** none modified — this is a final review task.
 
-- [ ] **Step 1: Re-verify the three contracts**
+- [x] **Step 1: Re-verify the three contracts**
 
 Confirm by reading these files end-to-end:
 - `js/components/widget-catalog.js` — every widget self-registers via `registerWidget({meta, mount})`.
 - `js/components/dashboard-grid.js` — `computePlacements`, `addWidget`, `removeWidget`, `moveWidget` are pure and unit-tested.
 - `js/screens/dashboard.js` — `mount(root, {store, api, prefs})` returns an async cleanup that calls every widget's cleanup.
 
-- [ ] **Step 2: Type-shape consistency check**
+- [x] **Step 2: Type-shape consistency check**
 
 For each widget file in `js/components/widgets/*.js`, confirm:
 - `meta.id` matches the filename (kebab-case, no extension)
@@ -2781,7 +2781,7 @@ import('./plugins/taskmaster/viewer/js/components/widget-catalog.js').then(async
 ```
 Expected output: `OK 13`
 
-- [ ] **Step 3: Plan-4 done. Commit a checkpoint marker if your team uses one**
+- [x] **Step 3: Plan-4 done. Commit a checkpoint marker if your team uses one**
 
 ```bash
 git commit --allow-empty -m "chore(viewer): plan-4 dashboard complete"
