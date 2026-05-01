@@ -1750,7 +1750,7 @@ git commit -m "test(taskmaster-viewer): spine layout handles null cursor (paused
 
 (Smoke-tested via the screen-level Playwright in Task 56; no separate test here for trivial stub.)
 
-- [ ] **Step 1: Write the file**
+- [x] **Step 1: Write the file**
 
 Create `plugins/taskmaster/viewer/js/components/quest-spine.js`:
 
@@ -1882,7 +1882,7 @@ function stageLabel(stage) {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/quest-spine.js
@@ -1897,7 +1897,7 @@ git commit -m "feat(taskmaster-viewer): Quest Spine SVG renderer skeleton"
 - Create: `plugins/taskmaster/viewer/css/screens/auto-mode.css`
 - Modify: `plugins/taskmaster/viewer/index.html` (add `<link>` tag)
 
-- [ ] **Step 1: Write the CSS**
+- [x] **Step 1: Write the CSS**
 
 Create `plugins/taskmaster/viewer/css/screens/auto-mode.css`:
 
@@ -2019,7 +2019,7 @@ Create `plugins/taskmaster/viewer/css/screens/auto-mode.css`:
 }
 ```
 
-- [ ] **Step 2: Add the link tag**
+- [x] **Step 2: Add the link tag**
 
 In `plugins/taskmaster/viewer/index.html`, in the `<head>` near other screen CSS links, add:
 
@@ -2027,7 +2027,7 @@ In `plugins/taskmaster/viewer/index.html`, in the `<head>` near other screen CSS
 <link rel="stylesheet" href="css/screens/auto-mode.css" />
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/css/screens/auto-mode.css plugins/taskmaster/viewer/index.html
@@ -2041,7 +2041,7 @@ git commit -m "feat(taskmaster-viewer): auto-mode screen + spine base styles"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/screens/auto-mode.js`
 
-- [ ] **Step 1: Replace the stub**
+- [x] **Step 1: Replace the stub**
 
 Replace the entire contents of `plugins/taskmaster/viewer/js/screens/auto-mode.js` with:
 
@@ -2096,7 +2096,7 @@ export async function mount(root, ctx) {
 }
 ```
 
-- [ ] **Step 2: Smoke check via dev server**
+- [x] **Step 2: Smoke check via dev server**
 
 ```bash
 python -m plugins.taskmaster.backlog_server --port 8765 &
@@ -2107,7 +2107,7 @@ kill $SERVER_PID
 ```
 Expected: an HTTP `<!DOCTYPE html>` line. (No assertion needed; the Playwright smoke in M8 Task 53 covers behavior.)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/screens/auto-mode.js
@@ -2121,7 +2121,7 @@ git commit -m "feat(taskmaster-viewer): mount Quest Spine in auto-mode screen"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/screens/auto-mode.js`
 
-- [ ] **Step 1: Add toggle handler**
+- [x] **Step 1: Add toggle handler**
 
 Inside `mount()`, after `root.appendChild(grid);` and before the initial render, add:
 
@@ -2158,7 +2158,7 @@ Inside `mount()`, after `root.appendChild(grid);` and before the initial render,
 
 Replace the original `let cleanup = renderQuestSpine(center, initial);` with `let cleanup; renderActiveView();`. Update the subscribe callback to also call `renderActiveView()` (so spine state changes re-render in Spine view, log view re-renders in Log view).
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/screens/auto-mode.js
@@ -2172,7 +2172,7 @@ git commit -m "feat(taskmaster-viewer): persist Spine|Log toggle to viewer prefs
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/screens/auto-mode.js`
 
-- [ ] **Step 1: Add handlers**
+- [x] **Step 1: Add handlers**
 
 Inside `mount()`, after the toggle wiring:
 
@@ -2201,7 +2201,7 @@ Inside `mount()`, after the toggle wiring:
   });
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/screens/auto-mode.js
@@ -2217,7 +2217,7 @@ The dismissal flag lives at `prefs.screens.auto_mode.helper_dismissed: true`.
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/screens/auto-mode.js`
 
-- [ ] **Step 1: Add helper note**
+- [x] **Step 1: Add helper note**
 
 Inside `mount()`, after `root.appendChild(header);`:
 
@@ -2237,7 +2237,7 @@ Inside `mount()`, after `root.appendChild(header);`:
   }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/screens/auto-mode.js
@@ -2254,7 +2254,7 @@ The mockup shows a small task header above the spine (`v3-014 · Auto-mode statu
 - Modify: `plugins/taskmaster/viewer/js/components/quest-spine.js`
 - Modify: `plugins/taskmaster/viewer/css/screens/auto-mode.css`
 
-- [ ] **Step 1: Update renderer**
+- [x] **Step 1: Update renderer**
 
 In `renderQuestSpine`, before creating `wrap`, add:
 
@@ -2281,7 +2281,7 @@ In `renderQuestSpine`, before creating `wrap`, add:
 
 (The existing `wrap` and SVG block stay below.)
 
-- [ ] **Step 2: Add CSS**
+- [x] **Step 2: Add CSS**
 
 Append to `plugins/taskmaster/viewer/css/screens/auto-mode.css`:
 
@@ -2304,7 +2304,7 @@ Append to `plugins/taskmaster/viewer/css/screens/auto-mode.css`:
 .spine-head-empty { color: var(--ink-3); font-size: 12px; }
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/quest-spine.js plugins/taskmaster/viewer/css/screens/auto-mode.css
@@ -2315,7 +2315,7 @@ git commit -m "feat(taskmaster-viewer): spine head shows session id + title + wo
 
 ### Task 27: Empty-state — when there is no running auto-mode session
 
-- [ ] **Step 1: Update `renderQuestSpine` empty branch**
+- [x] **Step 1: Update `renderQuestSpine` empty branch**
 
 Replace the SVG-creating block with a guard at the top:
 
@@ -2341,7 +2341,7 @@ Append to `auto-mode.css`:
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/quest-spine.js plugins/taskmaster/viewer/css/screens/auto-mode.css
@@ -2357,7 +2357,7 @@ Plan 1 set up `store.subscribe('autoState')`. Plan 6 ensures the *publish* side 
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/store.js`
 
-- [ ] **Step 1: Inspect and patch**
+- [x] **Step 1: Inspect and patch**
 
 Open `plugins/taskmaster/viewer/js/store.js`. Locate the slice handling `autoState`. If there's no public `setAutoState`, add:
 
@@ -2371,7 +2371,7 @@ export { setAutoState };
 
 If the store already polls `/api/auto/state` on an interval, ensure the result is passed through `setAutoState` so subscribers (sidebar live-dot, screen) all fire. The sidebar `live-dot` element added in Plan 1 reacts to `state?.cursor?.stage` being defined; verify by reading the existing subscribe callback near `js/components/sidebar.js`.
 
-- [ ] **Step 2: Smoke commit**
+- [x] **Step 2: Smoke commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/store.js

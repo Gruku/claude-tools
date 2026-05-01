@@ -1,6 +1,6 @@
 # Viewer Redesign — Progress
 
-**Total:** 271 tasks · 7 plans · ~18% complete (38/38 Plan 5a, 32/32 Plan 5b, 19/58 Plan 6 M1+M2+M3 done)
+**Total:** 271 tasks · 7 plans · ~21% complete (38/38 Plan 5a, 32/32 Plan 5b, 28/58 Plan 6 M1+M2+M3+M4 done)
 
 ## Pre-execution
 - [x] Plan 1 layout-shape reconciliation applied
@@ -240,7 +240,7 @@
 - [x] T5b.31 Reinforce-event source enforcement (viewer must send valid source)
 - [x] T5b.32 Final spec-coverage walk + plan handoff
 
-## Plan 6 — Auto Mode (19/58)
+## Plan 6 — Auto Mode (28/58)
 *See `2026-04-26-viewer-redesign-plan-6-auto-mode.md` for task definitions.*
 - [x] T6.1 Define auto-mode storage layout constants
 - [x] T6.2 Implement `load_auto_session`, `save_auto_session`, `list_auto_sessions`
@@ -261,15 +261,15 @@
 - [x] T6.17 Lock connector geometry (start at edge, end at edge)
 - [x] T6.18 Lock satellite bezier control points (horizontal in/out tangents)
 - [x] T6.19 Edge case — no cursor stage (session paused/stopped)
-- [ ] T6.20 Stub `quest-spine.js` — render an empty SVG into a root element
-- [ ] T6.21 Add `auto-mode.css` — deep-recess frame and base spine styles
-- [ ] T6.22 Mount the spine inside the auto-mode screen (smoke wiring only)
-- [ ] T6.23 Wire Spine|Log toggle to `prefs.screens.auto_mode.view` (persisted)
-- [ ] T6.24 Wire pause/stop buttons to `api.autoPause` / `api.autoStop`
-- [ ] T6.25 Helper note shown on first visit only (persisted dismissal)
-- [ ] T6.26 Spine renders title + worktree above the SVG
-- [ ] T6.27 Empty-state — when there is no running auto-mode session
-- [ ] T6.28 Sidebar live-dot publish — extend `store.autoState` setter
+- [x] T6.20 Stub `quest-spine.js` — render an empty SVG into a root element
+- [x] T6.21 Add `auto-mode.css` — deep-recess frame and base spine styles
+- [x] T6.22 Mount the spine inside the auto-mode screen (smoke wiring only)
+- [x] T6.23 Wire Spine|Log toggle to `prefs.screens.auto_mode.view` (persisted)
+- [x] T6.24 Wire pause/stop buttons to `api.autoPause` / `api.autoStop`
+- [x] T6.25 Helper note shown on first visit only (persisted dismissal)
+- [x] T6.26 Spine renders title + worktree above the SVG
+- [x] T6.27 Empty-state — when there is no running auto-mode session
+- [x] T6.28 Sidebar live-dot publish — extend `store.autoState` setter
 - [ ] T6.29 Flight log component skeleton
 - [ ] T6.30 Flight log styles
 - [ ] T6.31 Wire flight log into the auto-mode screen (Log view branch)
