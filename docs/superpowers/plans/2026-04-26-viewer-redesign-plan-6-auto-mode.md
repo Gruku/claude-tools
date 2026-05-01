@@ -2387,7 +2387,7 @@ git commit -m "chore(taskmaster-viewer): ensure setAutoState fires subscribers"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/flight-log.js`
 
-- [ ] **Step 1: Write the file**
+- [x] **Step 1: Write the file**
 
 ```javascript
 // Flight Log — chronological waterfall of auto-mode events.
@@ -2464,7 +2464,7 @@ function escape(s) {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/flight-log.js
@@ -2478,7 +2478,7 @@ git commit -m "feat(taskmaster-viewer): flight log waterfall component"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/css/screens/auto-mode.css`
 
-- [ ] **Step 1: Append CSS**
+- [x] **Step 1: Append CSS**
 
 ```css
 /* ── Flight Log ── */
@@ -2540,7 +2540,7 @@ git commit -m "feat(taskmaster-viewer): flight log waterfall component"
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/css/screens/auto-mode.css
@@ -2554,7 +2554,7 @@ git commit -m "feat(taskmaster-viewer): flight log styles"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/screens/auto-mode.js`
 
-- [ ] **Step 1: Replace the placeholder Log branch**
+- [x] **Step 1: Replace the placeholder Log branch**
 
 In `renderActiveView()` (added in Task 23), replace the `else` branch with:
 
@@ -2578,7 +2578,7 @@ In `renderActiveView()` (added in Task 23), replace the `else` branch with:
 
 Add the import at the top: `import { renderFlightLog } from '../components/flight-log.js';`.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/screens/auto-mode.js
@@ -2592,7 +2592,7 @@ git commit -m "feat(taskmaster-viewer): wire flight log into auto-mode Log view"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/screens/auto-mode.js`
 
-- [ ] **Step 1: Add polling**
+- [x] **Step 1: Add polling**
 
 Inside `mount()`, alongside other state, add:
 
@@ -2617,7 +2617,7 @@ Inside `mount()`, alongside other state, add:
 
 Call `startLogPolling()` once at mount end. In the cleanup function, call `stopLogPolling()`.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/screens/auto-mode.js
@@ -2631,7 +2631,7 @@ git commit -m "feat(taskmaster-viewer): poll auto-mode events while Log view act
 **Files:**
 - Create: `plugins/taskmaster/viewer/tests/auto-mode.spec.js`
 
-- [ ] **Step 1: Write the smoke test**
+- [x] **Step 1: Write the smoke test**
 
 Create `plugins/taskmaster/viewer/tests/auto-mode.spec.js`:
 
@@ -2666,14 +2666,14 @@ test.describe('Auto Mode page', () => {
 });
 ```
 
-- [ ] **Step 2: Run** (assumes server + viewer dev fixture from Plan 1's smoke harness)
+- [x] **Step 2: Run** (assumes server + viewer dev fixture from Plan 1's smoke harness)
 
 ```bash
 cd plugins/taskmaster/viewer && npx playwright test tests/auto-mode.spec.js
 ```
 Expected: 3 tests PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/auto-mode.spec.js

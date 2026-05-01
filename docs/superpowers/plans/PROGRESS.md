@@ -240,7 +240,7 @@
 - [x] T5b.31 Reinforce-event source enforcement (viewer must send valid source)
 - [x] T5b.32 Final spec-coverage walk + plan handoff
 
-## Plan 6 — Auto Mode (28/58)
+## Plan 6 — Auto Mode (33/58)
 *See `2026-04-26-viewer-redesign-plan-6-auto-mode.md` for task definitions.*
 - [x] T6.1 Define auto-mode storage layout constants
 - [x] T6.2 Implement `load_auto_session`, `save_auto_session`, `list_auto_sessions`
@@ -270,11 +270,11 @@
 - [x] T6.26 Spine renders title + worktree above the SVG
 - [x] T6.27 Empty-state — when there is no running auto-mode session
 - [x] T6.28 Sidebar live-dot publish — extend `store.autoState` setter
-- [ ] T6.29 Flight log component skeleton
-- [ ] T6.30 Flight log styles
-- [ ] T6.31 Wire flight log into the auto-mode screen (Log view branch)
-- [ ] T6.32 Poll events at 3-second cadence while Log view is active
-- [ ] T6.33 Playwright smoke for Spine|Log toggle
+- [x] T6.29 Flight log component skeleton
+- [x] T6.30 Flight log styles
+- [x] T6.31 Wire flight log into the auto-mode screen (Log view branch)
+- [x] T6.32 Poll events at 3-second cadence while Log view is active
+- [x] T6.33 Playwright smoke for Spine|Log toggle
 - [ ] T6.34 Sessions strip component
 - [ ] T6.35 Wire sessions strip into auto-mode screen
 - [ ] T6.36 `store.setActiveAutoSession` + `getActiveAutoSession`
