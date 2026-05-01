@@ -1,6 +1,6 @@
 # Viewer Redesign — Progress
 
-**Total:** 271 tasks · 7 plans · ~21% complete (38/38 Plan 5a, 32/32 Plan 5b, 28/58 Plan 6 M1+M2+M3+M4 done)
+**Total:** 271 tasks · 7 plans · ~25% complete (38/38 Plan 5a, 32/32 Plan 5b, 43/58 Plan 6 M1+M2+M3+M4+M5+M6 done)
 
 ## Pre-execution
 - [x] Plan 1 layout-shape reconciliation applied
@@ -240,7 +240,7 @@
 - [x] T5b.31 Reinforce-event source enforcement (viewer must send valid source)
 - [x] T5b.32 Final spec-coverage walk + plan handoff
 
-## Plan 6 — Auto Mode (33/58)
+## Plan 6 — Auto Mode (43/58)
 *See `2026-04-26-viewer-redesign-plan-6-auto-mode.md` for task definitions.*
 - [x] T6.1 Define auto-mode storage layout constants
 - [x] T6.2 Implement `load_auto_session`, `save_auto_session`, `list_auto_sessions`
@@ -275,16 +275,16 @@
 - [x] T6.31 Wire flight log into the auto-mode screen (Log view branch)
 - [x] T6.32 Poll events at 3-second cadence while Log view is active
 - [x] T6.33 Playwright smoke for Spine|Log toggle
-- [ ] T6.34 Sessions strip component
-- [ ] T6.35 Wire sessions strip into auto-mode screen
-- [ ] T6.36 `store.setActiveAutoSession` + `getActiveAutoSession`
-- [ ] T6.37 Budget meter component
-- [ ] T6.38 Side-panels component (left + right)
-- [ ] T6.39 Side-panel styles
-- [ ] T6.40 Server endpoint augmentation — include `hook_counts` in session detail
-- [ ] T6.41 Wire side panels into the auto-mode screen
-- [ ] T6.42 Playwright — sessions strip with multiple sessions
-- [ ] T6.43 Playwright — pause button fires API
+- [x] T6.34 Sessions strip component
+- [x] T6.35 Wire sessions strip into auto-mode screen
+- [x] T6.36 `store.setActiveAutoSession` + `getActiveAutoSession`
+- [x] T6.37 Budget meter component
+- [x] T6.38 Side-panels component (left + right)
+- [x] T6.39 Side-panel styles
+- [x] T6.40 Server endpoint augmentation — include `hook_counts` in session detail
+- [x] T6.41 Wire side panels into the auto-mode screen
+- [x] T6.42 Playwright — sessions strip with multiple sessions
+- [x] T6.43 Playwright — pause button fires API
 - [ ] T6.44 Replace the Plan-4 stub `auto-mode-stepper.js` with the real widget
 - [ ] T6.45 Stepper widget styles — circles, labels, footer
 - [ ] T6.46 Unit test — stepper connector geometry

@@ -2689,7 +2689,7 @@ git commit -m "test(taskmaster-viewer): playwright smoke for auto-mode page"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/sessions-strip.js`
 
-- [ ] **Step 1: Write the file**
+- [x] **Step 1: Write the file**
 
 ```javascript
 /**
@@ -2740,7 +2740,7 @@ function escape(s) {
 }
 ```
 
-- [ ] **Step 2: Append CSS** to `auto-mode.css`:
+- [x] **Step 2: Append CSS** to `auto-mode.css`:
 
 ```css
 /* ── Sessions strip ── */
@@ -2769,7 +2769,7 @@ function escape(s) {
 }
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/sessions-strip.js plugins/taskmaster/viewer/css/screens/auto-mode.css
@@ -2783,7 +2783,7 @@ git commit -m "feat(taskmaster-viewer): sessions strip component"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/screens/auto-mode.js`
 
-- [ ] **Step 1: Mount strip above grid**
+- [x] **Step 1: Mount strip above grid**
 
 After `root.appendChild(grid);`, wait — actually, strip belongs above the grid but below the helper note. Insert before `grid`:
 
@@ -2814,11 +2814,11 @@ After `root.appendChild(grid);`, wait — actually, strip belongs above the grid
 
 Add the import: `import { renderSessionsStrip } from '../components/sessions-strip.js';`. In cleanup, `clearInterval(sessionsPoll)`.
 
-- [ ] **Step 2: Update `renderActiveView` to use `activeSid`**
+- [x] **Step 2: Update `renderActiveView` to use `activeSid`**
 
 When fetching events for the Log view (Task 31), use `activeSid` instead of `getAutoState().session_id` if it differs.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/screens/auto-mode.js
@@ -2832,7 +2832,7 @@ git commit -m "feat(taskmaster-viewer): mount sessions strip above spine/log"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/store.js`
 
-- [ ] **Step 1: Add slice**
+- [x] **Step 1: Add slice**
 
 In the existing state initialiser:
 
@@ -2850,7 +2850,7 @@ export function setActiveAutoSession(sid) {
 export function getActiveAutoSession() { return state.activeAutoSessionId; }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/store.js
@@ -2864,7 +2864,7 @@ git commit -m "feat(taskmaster-viewer): store slice for activeAutoSessionId"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/budget-meter.js`
 
-- [ ] **Step 1: Write the file**
+- [x] **Step 1: Write the file**
 
 ```javascript
 /**
@@ -2909,7 +2909,7 @@ function formatVal(v, fmt) {
 }
 ```
 
-- [ ] **Step 2: Append CSS**
+- [x] **Step 2: Append CSS**
 
 ```css
 /* ── Budget meter ── */
@@ -2930,7 +2930,7 @@ function formatVal(v, fmt) {
 .bmeter--crit .bmeter-fill { background: var(--red); }
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/budget-meter.js plugins/taskmaster/viewer/css/screens/auto-mode.css
@@ -2944,7 +2944,7 @@ git commit -m "feat(taskmaster-viewer): budget meter component"
 **Files:**
 - Create: `plugins/taskmaster/viewer/js/components/auto-side-panels.js`
 
-- [ ] **Step 1: Write the file**
+- [x] **Step 1: Write the file**
 
 ```javascript
 import { buildBudgetMeter } from './budget-meter.js';
@@ -3068,7 +3068,7 @@ function escape(s) {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/components/auto-side-panels.js
@@ -3082,7 +3082,7 @@ git commit -m "feat(taskmaster-viewer): auto-mode side panels (subagents+hooks, 
 **Files:**
 - Modify: `plugins/taskmaster/viewer/css/screens/auto-mode.css`
 
-- [ ] **Step 1: Append CSS**
+- [x] **Step 1: Append CSS**
 
 ```css
 /* ── Side panels ── */
@@ -3141,7 +3141,7 @@ git commit -m "feat(taskmaster-viewer): auto-mode side panels (subagents+hooks, 
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/css/screens/auto-mode.css
@@ -3158,7 +3158,7 @@ The left panel reads `state.hook_counts`. Have the server compute and inject it 
 - Modify: `plugins/taskmaster/backlog_server.py`
 - Modify: `plugins/taskmaster/tests/test_server_auto_mode.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append:
 
@@ -3177,13 +3177,13 @@ def test_session_detail_includes_hook_counts(running_server, tmp_path):
     assert body["hook_counts"]["PreCompact"] == 1
 ```
 
-- [ ] **Step 2: Run test** — Expected: FAIL.
+- [x] **Step 2: Run test** — Expected: FAIL.
 
 ```bash
 python -m pytest plugins/taskmaster/tests/test_server_auto_mode.py -v -k hook_counts
 ```
 
-- [ ] **Step 3: Update endpoint**
+- [x] **Step 3: Update endpoint**
 
 In the `/api/auto/sessions/<sid>` handler, after loading state and before serializing:
 
@@ -3192,9 +3192,9 @@ from taskmaster_v3 import read_hook_events
 state["hook_counts"] = read_hook_events(sid)
 ```
 
-- [ ] **Step 4: Run test** — Expected: PASS.
+- [x] **Step 4: Run test** — Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_server_auto_mode.py
@@ -3208,7 +3208,7 @@ git commit -m "feat(taskmaster): inject hook_counts into session detail response
 **Files:**
 - Modify: `plugins/taskmaster/viewer/js/screens/auto-mode.js`
 
-- [ ] **Step 1: Add render calls**
+- [x] **Step 1: Add render calls**
 
 Add imports:
 
@@ -3246,7 +3246,7 @@ In cleanup: `clearInterval(panelsPoll); leftCleanup?.(); rightCleanup?.();`.
 
 Also call `refreshSidePanels()` from inside the sessions-strip `onSelect`.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/js/screens/auto-mode.js
@@ -3260,7 +3260,7 @@ git commit -m "feat(taskmaster-viewer): wire side panels into auto-mode page"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/tests/auto-mode.spec.js`
 
-- [ ] **Step 1: Add test**
+- [x] **Step 1: Add test**
 
 Append:
 
@@ -3274,13 +3274,13 @@ test('sessions strip renders one tab per session', async ({ page }) => {
 });
 ```
 
-- [ ] **Step 2: Run** — Expected: PASS.
+- [x] **Step 2: Run** — Expected: PASS.
 
 ```bash
 cd plugins/taskmaster/viewer && npx playwright test tests/auto-mode.spec.js -g "sessions strip"
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/auto-mode.spec.js
@@ -3294,7 +3294,7 @@ git commit -m "test(taskmaster-viewer): smoke for sessions strip"
 **Files:**
 - Modify: `plugins/taskmaster/viewer/tests/auto-mode.spec.js`
 
-- [ ] **Step 1: Add test**
+- [x] **Step 1: Add test**
 
 Append:
 
@@ -3317,13 +3317,13 @@ test('clicking Pause posts to /api/auto/pause', async ({ page }) => {
 });
 ```
 
-- [ ] **Step 2: Run** — Expected: PASS or SKIP.
+- [x] **Step 2: Run** — Expected: PASS or SKIP.
 
 ```bash
 cd plugins/taskmaster/viewer && npx playwright test tests/auto-mode.spec.js -g "Pause"
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/taskmaster/viewer/tests/auto-mode.spec.js
