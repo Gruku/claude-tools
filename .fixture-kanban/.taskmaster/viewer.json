@@ -36,7 +36,7 @@
       {
         "id": "pd-0",
         "type": "phase-deliverables",
-        "size": "medium",
+        "size": "tall",
         "rail": "left",
         "index": 1
       },
@@ -50,7 +50,7 @@
       {
         "id": "wc-0",
         "type": "what-changed",
-        "size": "medium",
+        "size": "tall",
         "rail": "right",
         "index": 0
       },
