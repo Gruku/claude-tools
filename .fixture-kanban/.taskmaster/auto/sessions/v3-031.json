@@ -5,16 +5,40 @@
   "worktree": ".worktrees/v3-031",
   "mode": "walk",
   "started_at": "2026-04-30T15:30:00Z",
-  "cursor": {"task_id": "v3-031", "stage": "IMPLEMENT", "model": "sonnet"},
-  "completed": ["PICK"],
-  "pending": ["PLAN", "REVIEW", "HANDOVER_STUB", "COMPLETE"],
+  "cursor": {
+    "task_id": "v3-031",
+    "stage": "IMPLEMENT",
+    "model": "sonnet"
+  },
+  "completed": [
+    "PICK"
+  ],
+  "pending": [
+    "PLAN",
+    "REVIEW",
+    "HANDOVER_STUB",
+    "COMPLETE"
+  ],
   "failed": [],
   "subagents": [],
   "tool_log": [],
   "budget": {
-    "tokens": {"used": 3000, "limit": 200000},
-    "time_seconds": {"used": 300, "limit": 14400},
-    "context": {"used": 0.04, "limit": 1.0},
-    "cost_usd": {"used": 0.08, "limit": 5.00}
-  }
+    "tokens": {
+      "used": 3000,
+      "limit": 200000
+    },
+    "time_seconds": {
+      "used": 300,
+      "limit": 14400
+    },
+    "context": {
+      "used": 0.04,
+      "limit": 1.0
+    },
+    "cost_usd": {
+      "used": 0.08,
+      "limit": 5.0
+    }
+  },
+  "stopped": true
 }
