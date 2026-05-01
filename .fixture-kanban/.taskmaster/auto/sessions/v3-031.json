@@ -24,9 +24,9 @@
     {"id": "code-reviewer-1", "type": "R", "stage": "REVIEW", "model": "sonnet", "status": "queued"}
   ],
   "tool_log": [
-    {"at": "2026-04-30T15:31:00Z", "tool": "Read", "target": ".taskmaster/backlog.yaml", "status": "ok"},
-    {"at": "2026-04-30T15:32:14Z", "tool": "Edit", "target": "viewer/js/screens/auto-mode.js", "status": "ok"},
-    {"at": "2026-04-30T15:33:05Z", "tool": "Bash", "target": "node --test tests/unit/auto.test.js", "status": "ok"}
+    {"ts": "2026-04-30T15:31:00Z", "name": "Read", "args": ".taskmaster/backlog.yaml", "status": "ok"},
+    {"ts": "2026-04-30T15:32:14Z", "name": "Edit", "args": "viewer/js/screens/auto-mode.js", "status": "ok"},
+    {"ts": "2026-04-30T15:33:05Z", "name": "Bash", "args": "node --test tests/unit/auto.test.js", "status": "ok"}
   ],
   "budget": {
     "tokens": {
