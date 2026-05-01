@@ -4079,3 +4079,18 @@ All §3.15 requirements have at least one task. Confirmed.
 - **Plan 1 contract:** reconciled. Plan 6 now uses `ctx.store.getPrefs()?.screens?.auto_mode?.view` for reads and `ctx.prefs.patch({screens: {auto_mode: {...}}})` for writes, matching Plan 1's actual `store.getPrefs()` / `prefs.patch()` API.
 - **Hook log producer:** Plan 6 only reads `.taskmaster/auto/hooks.jsonl`. Schema is documented in Task 6's intro. The producer (real auto-mode runner) is out of scope. If the runner uses a different schema or path, Tasks 6 + 40 are the only places to update.
 - **Subagent type labels:** the abbreviation map (`G`/`E`/`P`/`R`/`A`) is hard-coded in two places (`quest-spine.js`, `auto-side-panels.js`). If the type taxonomy expands, lift to a shared module.
+
+---
+
+## Completion notes (filled when M8 is green)
+
+- All 57 tasks executed (Task 58 is a manual visual review left for the user); commit count ≈ matches task count.
+- `python -m pytest plugins/taskmaster/tests/test_server_auto_mode.py plugins/taskmaster/tests/test_v3_layout.py` — 144 tests PASS
+- `node --test plugins/taskmaster/viewer/tests/unit/*.test.js` — 77 tests PASS
+- `npx playwright test plugins/taskmaster/viewer/tests/auto-mode.spec.js` — 9 tests PASS, 2 SKIP (by design)
+
+Open follow-ups for downstream plans:
+- Real auto-mode runner (the producer of state + events + hook log) is out of scope here.
+- Subagent satellite styling could later upgrade to per-type colors when the type taxonomy stabilizes.
+- **`api.autoState()` wrapper bug (T56 watchpoint):** `api.autoState` in `plugins/taskmaster/viewer/js/api.js` had a `.then(r => r && r.state)` that incorrectly unwrapped the response (the endpoint returns the session dict directly, not `{state: ...}`). This was fixed as part of T54 since without it T54 and T55 would fail.
+- **`auto-mode-stepper` not in `defaultLayout()`:** The dashboard stepper widget skips in T64/T65 (Playwright tests 6–7) because the widget is not included in `defaultLayout()`. These two tests will remain SKIP until the widget is added to the default layout in a downstream plan.
