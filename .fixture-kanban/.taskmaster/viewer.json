@@ -103,7 +103,8 @@
         "rail": "left",
         "index": 3
       }
-    ]
+    ],
+    "last_seen_at": "2026-05-01T16:01:07.905Z"
   },
   "kanban": {
     "filters": {
@@ -117,11 +118,7 @@
       },
       "search": ""
     },
-    "collapsed_columns": [
-      "done",
-      "blocked",
-      "in_review"
-    ]
+    "collapsed_columns": []
   },
   "lessons": {
     "thresholds": {
@@ -140,6 +137,19 @@
     }
   },
   "ui": {
-    "sidebar_collapsed": false
+    "sidebar_collapsed": false,
+    "last_task_id": "v3-050"
+  },
+  "table": {
+    "sort": {
+      "by": "status",
+      "dir": "asc"
+    },
+    "search": "",
+    "filters": {
+      "status": [],
+      "priority": [],
+      "epic": []
+    }
   }
 }
