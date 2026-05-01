@@ -71,11 +71,13 @@ Three layers, each independently shippable. Do them in order — Layer 1 unblock
 
 **Goal:** create the canonical CSS vocabulary by extracting Kanban's existing styles into `components.css`. Doesn't move any DOM yet; just gives us reusable classes.
 
-- [ ] `.tm-search` — pulls from `.kanban-search`. Includes `⌘K` kbd hint variant. `<input>` shell with icon slot.
-- [ ] `.tm-segmented` — pulls from `.kanban-head-right` view toggle. The `▤ ▦` style segmented button group. Used today by Kanban, Lessons, Issues, Task Detail (Document/Graph), Auto Mode (Spine/Log).
-- [ ] `.tm-action` — primary in-context button. Replaces ad-hoc `.recap-action`, `.td-action`, `.dash-edit-toggle`, `.sessions-newnote`. Two variants: bare and with icon prefix (✎ / ⧉ / + / etc.).
-- [ ] `.tm-subcount` — the muted "X items · Y visible" line. Pulls from `.kanban-head-subcount`.
-- [ ] `.tm-chip-row` — wraps the priority/category chip row. Pulls from `.kanban-pri-row`.
+- [x] `.tm-search` — pulls from `.kanban-search`. Includes `⌘K` kbd hint variant. `<input>` shell with icon slot.
+- [x] `.tm-segmented` — pulls from `.kanban-density` (the `▤ ▦` group). Supports `.on` / `.is-active` / `aria-pressed="true"` for selected state, and a `--icon` modifier for fixed-square glyph buttons.
+- [x] `.tm-action` — primary in-context button. Variants: default (bare `.tm-action`), `--primary` (accent fill), `--ghost` (transparent), `--icon` (square). Replaces `.recap-action`, `.td-action`, `.dash-edit-toggle`, `.sessions-newnote`.
+- [x] `.tm-subcount` — the muted "X items · Y visible" line. Pulls from `.kanban-head-subcount`.
+- [x] `.tm-chip-row` — wraps the priority/category chip row. Pulls from `.kanban-pri-row`.
+
+**Landed:** commit `<L1>` — primitives appended to `viewer/css/components.css`. No DOM changes, no regression. Layer 2 can now relocate per-screen markup into these classes.
 
 After Layer 1: the new classes exist alongside the screen-specific ones. Nothing visually changes yet; we just have a vocabulary.
 
