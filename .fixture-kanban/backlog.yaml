@@ -97,6 +97,7 @@ tasks:
     notes: "Schema versioning needs a hard call before this lands — propose `schema_version: 1` on every record, viewer rejects mismatches."
     review_instructions: "Verify all event types from `events.jsonl` have a corresponding handler in `viewer/js/screens/auto-mode.js`. Eyeball the spine renders correctly when a session is paused."
     spec_review:
+      verdict: concerns
       codex_note: "Schema looks good; one concern — `hooks.jsonl` format varies by hook source. Consider a discriminator field rather than relying on shape inference."
     depends_on: [v3-009]
     unblocks: [v3-014, v3-031]
@@ -170,6 +171,7 @@ tasks:
     description: "Tighten the bezier-chain rendering on task-detail Variant B. Curves should not cross when L−2/L+2 columns are sparse."
     review_instructions: "Open /v3/#/task/v3-009 in graph mode. Compare visual quality against task-detail-graph.html mockup. Validate non-crossing for the v3-009 dependency chain."
     spec_review:
+      verdict: ok
       codex_note: "Considered using d3-dag for layout but rejected — overkill for graphs ≤20 nodes. The current columnar approach is simpler and matches the mockup."
     depends_on: [v3-023]
     anchors:
