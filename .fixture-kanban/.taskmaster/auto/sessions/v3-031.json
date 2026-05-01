@@ -5,7 +5,7 @@
   "worktree": ".worktrees/v3-031",
   "mode": "walk",
   "started_at": "2026-04-30T15:30:00Z",
-  "cursor": {"task_id": "v3-031", "stage": "TESTS", "model": "sonnet"},
+  "cursor": {"task_id": "v3-031", "stage": "IMPLEMENT", "model": "sonnet"},
   "completed": ["PICK"],
   "pending": ["PLAN", "REVIEW", "HANDOVER_STUB", "COMPLETE"],
   "failed": [],
