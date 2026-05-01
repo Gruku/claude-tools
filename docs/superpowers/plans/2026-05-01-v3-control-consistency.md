@@ -97,31 +97,37 @@ Leave inside the screen body:
 - The right-rail / detail content
 
 Per-screen task list:
-- [ ] Dashboard — move "Edit layout" into topbar
-- [ ] Table — move search + filter chips arrangement, add row count subcount
-- [ ] Lessons — move "Shelves / Flat / By Anchor" segmented + lesson count subcount into topbar
-- [ ] Issues — move "Hybrid / Kanban / List" segmented + issue count subcount into topbar
-- [ ] Sessions — move search + "+ New note" + session count subcount into topbar
-- [ ] Auto Mode — move "Spine / Log" segmented into topbar (control buttons stay in body — they target a specific spine node)
-- [ ] Recap — move prev/next arrows + "⧉ copy resume" + "Open in Sessions" + "✎ edit recap" into topbar
-- [ ] Task Detail — move "Document / Graph" segmented + "Edit" + "Archive" into topbar
+- [x] Dashboard — `✎ Edit layout` (`tm-action`, `--primary` while editing)
+- [x] Table — subcount · search · `+ Task`
+- [x] Lessons — subcount · Shelves/Flat/By-Anchor segmented · `+ Lesson`
+- [x] Issues — subcount · severity chip-row · Hybrid/Kanban/List · `+ Issue`
+- [x] Sessions — subcount · search · Diary/Lanes/By-Task · `+ New note`
+- [x] Auto Mode — Spine/Log segmented · `⏸ Pause` · `■ Stop` (pause/stop are top-level for the active session)
+- [x] Recap — `‹` `›` nav · `⧉ Copy resume` · `↗ Open in Sessions` · `✎ Edit recap` (editing: `Cancel` · `✓ Save` · `↻ Regenerate`)
+- [x] Task Detail — Document/Graph segmented · `✎ Edit` · `✕ Archive`
 
-When this lands: every screen has the same anatomy. Open any screen, your eye lands on the topbar to find search/toggle/actions; the body is for content + filters that depend on content.
+**Landed:** commit `a510d61` — shared helper at `viewer/js/lib/topbar.js`, all screens migrated. Auto-status pill restyled to match the topbar family and pinned to the left of the cluster (`order:-1`, `margin-right:auto`). Verified across all 9 routes via Chrome MCP probe — no overflow at 1500px, pill survives every navigation pair.
 
 ### Layer 3 — action button consolidation (low risk, ~1-2hr)
 
 **Goal:** every primary action across every screen uses the same icon-prefix convention and the same `.tm-action` shell.
 
-- [ ] Settle the icon-prefix convention. Current usage: `✎ Edit layout`, `✎ edit recap`, `+ New note`, `+ Add widget`, `⧉ copy resume`, `↑ Reinforce`. Pick one icon per verb (✎ edit, + add/new, ⧉ copy, ↑ reinforce/promote, ↻ regenerate, ✕ archive/remove) and use it everywhere.
-- [ ] Drop the per-screen action classes (`.recap-action`, `.td-action`, `.dash-edit-toggle`, `.sessions-newnote`, `.lesson-card__reinforce`) in favor of `.tm-action`.
-- [ ] Audit empty/missing actions. Some screens are missing actions they should have:
-  - Issues has no primary action (should have `+ New issue`?)
-  - Lessons has no top-level action (should have `+ New lesson`?)
-  - Table has no primary action (should have `+ New task`?)
-  - Auto Mode has no `Open session log` link in topbar
-- [ ] Tooltip + aria-label coverage on all icon-only action buttons.
+- [x] Settle the icon-prefix convention. Active vocabulary: **✎ edit · + add/new · ⧉ copy · ↑ reinforce · ↻ regenerate · ✕ archive/remove · ‹ › prev/next · ↗ open · ⏸ pause · ■ stop**. Applied across all migrated screens.
+- [x] Drop the per-screen action classes from JS — DOM no longer emits `.recap-action`, `.td-action`, `.dash-edit-toggle`, `.sessions-newnote`, `.recap-nav-arrow`, `.td-seg-btn`. Action buttons everywhere now use `.tm-action`. (Per-card affordances like `.lesson-card__reinforce` stay scoped to their card — they're not topbar controls.)
+- [x] Audit empty/missing actions:
+  - Table → `+ Task` (primary)
+  - Lessons → `+ Lesson` (primary; click handler is a Layer-3-follow-up stub)
+  - Issues → `+ Issue` (primary; click handler is a Layer-3-follow-up stub)
+  - Auto Mode → `⏸ Pause` / `■ Stop` lifted into topbar
+- [x] Tooltip + aria-label coverage — `tmAction({ title })` writes both `title` and `aria-label`; `tmSegmented` writes `aria-pressed` and per-button labels. Verified via DOM probe.
 
-When this lands: actions feel like a system, not a collection of one-offs. Verb language is consistent. Nothing is missing where the user expects it to be.
+**Landed:** in the same commit as Layer 2 (`a510d61`). Actions are now a system, not a collection of one-offs.
+
+### Follow-ups (out of scope for L1–L3 but flagged)
+
+- [ ] Sweep dead CSS — `.kanban-search`, `.kanban-density`, `.kanban-add-btn`, `.kanban-head-subcount`, `.recap-action`, `.recap-topbar`, `.recap-nav-arrow`, `.recap-picker`, `.td-action`, `.td-seg`, `.td-right`, `.dash-edit-toggle`, `.sessions-newnote`, `.sessions-topbar`, `.sessions-search`, `.sessions-view-toggle`, `.tbl-header`, `.tbl-search`, `.tbl-subcount`, `.auto-header`, `.auto-toggle`, `.auto-control-btn`, `.auto-title`, `.lessons__header`, `.lessons__view-toggle`, `.issues__header`, `.issues__filters`. All harmless dead code today (no DOM emits these classes anymore); ~70 lines across `viewer/css/screens/*.css`.
+- [ ] Wire real click handlers for `+ Lesson` and `+ Issue` (currently no-op stubs).
+- [ ] Decide whether the Auto Mode `pause/stop` buttons should reflect run-state (disabled when no session, danger-coloured when running, etc.).
 
 ---
 
