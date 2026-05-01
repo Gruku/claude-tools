@@ -77,7 +77,7 @@ Three layers, each independently shippable. Do them in order — Layer 1 unblock
 - [x] `.tm-subcount` — the muted "X items · Y visible" line. Pulls from `.kanban-head-subcount`.
 - [x] `.tm-chip-row` — wraps the priority/category chip row. Pulls from `.kanban-pri-row`.
 
-**Landed:** commit `<L1>` — primitives appended to `viewer/css/components.css`. No DOM changes, no regression. Layer 2 can now relocate per-screen markup into these classes.
+**Landed:** commit `a4d5166` — primitives appended to `viewer/css/components.css`. No DOM changes, no regression. Layer 2 can now relocate per-screen markup into these classes.
 
 After Layer 1: the new classes exist alongside the screen-specific ones. Nothing visually changes yet; we just have a vocabulary.
 
