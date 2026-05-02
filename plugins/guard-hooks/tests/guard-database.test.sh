@@ -86,4 +86,12 @@ assert_blocked "redis-cli with host flushall" 'redis-cli -h prod.example.com FLU
 assert_allowed "redis-cli get"           'redis-cli GET mykey'
 assert_allowed "redis-cli info"          'redis-cli INFO'
 
+echo "-- supabase --"
+assert_blocked "supabase db reset"          'supabase db reset'
+assert_blocked "npx supabase db reset"      'npx supabase db reset'
+assert_blocked "supabase projects delete"   'supabase projects delete abc123'
+assert_blocked "supabase db push"           'supabase db push'
+assert_allowed "supabase db diff"           'supabase db diff'
+assert_allowed "supabase status"            'supabase status'
+
 exit "$FAILS"

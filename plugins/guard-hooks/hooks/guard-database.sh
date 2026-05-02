@@ -130,4 +130,18 @@ if echo "$COMMAND" | grep -qiE '\bredis-cli\b[^|;&]*\bflushdb\b'; then
              "If a snapshot exists, restore via SAVE/BGSAVE artifacts."
 fi
 
+# --- Supabase CLI ---
+if echo "$COMMAND" | grep -qE '(^|[[:space:]])(npx[[:space:]]+)?supabase[[:space:]]+db[[:space:]]+reset\b'; then
+  block_hard "supabase db reset — wipes the local DB and re-runs migrations." \
+             "Take a pg_dump of the local DB first if its state matters."
+fi
+if echo "$COMMAND" | grep -qE '(^|[[:space:]])(npx[[:space:]]+)?supabase[[:space:]]+projects[[:space:]]+delete\b'; then
+  block_hard "supabase projects delete — destroys a remote Supabase project." \
+             "There is no recovery. Confirm the project ID before proceeding."
+fi
+if echo "$COMMAND" | grep -qE '(^|[[:space:]])(npx[[:space:]]+)?supabase[[:space:]]+db[[:space:]]+push\b'; then
+  block_soft "supabase db push — applies local migrations to the linked remote." \
+             "Run \`supabase db diff\` first to confirm what will change."
+fi
+
 exit 0
