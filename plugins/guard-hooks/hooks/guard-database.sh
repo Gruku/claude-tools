@@ -144,4 +144,29 @@ if echo "$COMMAND" | grep -qE '(^|[[:space:]])(npx[[:space:]]+)?supabase[[:space
              "Run \`supabase db diff\` first to confirm what will change."
 fi
 
+# --- Docker DB lifecycle ---
+# HARD: anything that destroys volumes
+if echo "$COMMAND" | grep -qE '\bdocker(-compose)?[[:space:]]+(compose[[:space:]]+)?down\b[^|;&]*([[:space:]](-v|--volumes))\b'; then
+  block_hard "docker compose down -v — removes named volumes; DB data is lost." \
+             "Dump the DB first: docker exec <container> pg_dump|mysqldump|mongodump > backup."
+fi
+if echo "$COMMAND" | grep -qE '\bdocker[[:space:]]+volume[[:space:]]+(rm|prune)\b'; then
+  block_hard "docker volume rm/prune — removes Docker volumes; any DB data inside is lost." \
+             "List volumes (docker volume ls) and back up before removal."
+fi
+if echo "$COMMAND" | grep -qE '\bdocker[[:space:]]+system[[:space:]]+prune\b[^|;&]*(--volumes|[[:space:]]-a\b)'; then
+  block_hard "docker system prune --volumes/-a — removes unused volumes and images." \
+             "Run \`docker volume ls\` first; back up any DB volumes before pruning."
+fi
+
+# SOFT: container removal with -v, or stop/rm/kill of a DB-named container
+if echo "$COMMAND" | grep -qE '\bdocker[[:space:]]+rm\b[^|;&]*[[:space:]]-v\b'; then
+  block_soft "docker rm -v — removes the container AND its anonymous volumes." \
+             "Drop the -v flag if the volume should persist."
+fi
+if echo "$COMMAND" | grep -qE '\bdocker[[:space:]]+(stop|rm|kill)\b[^|;&]*\b(postgres|mysql|mariadb|mongo|redis|supabase)[a-zA-Z0-9_-]*\b'; then
+  block_soft "Stopping/removing a database container — running connections will drop." \
+             "Dump the DB first if it holds state you care about: docker exec <container> pg_dump > backup."
+fi
+
 exit 0

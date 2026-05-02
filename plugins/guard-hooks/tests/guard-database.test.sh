@@ -94,4 +94,24 @@ assert_blocked "supabase db push"           'supabase db push'
 assert_allowed "supabase db diff"           'supabase db diff'
 assert_allowed "supabase status"            'supabase status'
 
+echo "-- docker --"
+# HARD
+assert_blocked "compose down -v"            'docker compose down -v'
+assert_blocked "compose down --volumes"     'docker compose down --volumes'
+assert_blocked "docker-compose down -v"     'docker-compose down -v'
+assert_blocked "volume rm"                  'docker volume rm pgdata'
+assert_blocked "volume prune"               'docker volume prune -f'
+assert_blocked "system prune --volumes"     'docker system prune --volumes'
+assert_blocked "system prune -a"            'docker system prune -a'
+# SOFT
+assert_blocked "docker rm -v"               'docker rm -v old_container'
+assert_blocked "docker stop pg container"   'docker stop my-postgres'
+assert_blocked "docker kill mongo"          'docker kill mongo-dev'
+assert_blocked "docker rm redis container"  'docker rm redis-cache'
+# ALLOW
+assert_allowed "compose up"                 'docker compose up -d'
+assert_allowed "compose down (no -v)"       'docker compose down'
+assert_allowed "docker stop unrelated"      'docker stop my-app'
+assert_allowed "docker ps"                  'docker ps -a'
+
 exit "$FAILS"
