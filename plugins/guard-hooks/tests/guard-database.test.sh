@@ -45,11 +45,11 @@ assert_allowed() {
   fi
 }
 
-# Always-failing placeholder so the runner reports FAIL until Task 2 adds the hook.
-echo "-- harness self-check --"
-if [ ! -f "$HOOK" ]; then
-  echo "  [pending] hook not yet created"
-  FAILS=$((FAILS + 1))
-fi
+echo "-- skeleton --"
+assert_allowed "empty command" ""
+assert_allowed "harmless command" "ls -la"
+assert_blocked "AI cannot create guard-approve" "touch ~/.claude/guard-approve"
+assert_blocked "AI cannot create guard-approve via echo" "echo x > $HOME/.claude/guard-approve"
+assert_allowed "AI may create guard-ack" "touch $HOME/.claude/guard-ack"
 
 exit "$FAILS"
