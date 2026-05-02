@@ -1,11 +1,15 @@
 meta:
   project: claude-tools
-  updated: '2026-05-03T00:35'
+  updated: '2026-05-03T00:50'
 context:
   active_epic: v3-polish
   in_progress: []
   blocked: []
   recent_completed:
+  - id: v3-polish-008
+    title: Auto-mode page — fix data-state empty render (spine works)
+    completed: 2026-05-03T00:50
+    epic: v3-polish
   - id: v3-polish-019
     title: Empty-state copy convention + shared component
     completed: 2026-05-03T00:35
@@ -22,15 +26,7 @@ context:
     title: Fix pre-existing dashboard test failures
     completed: 2026-05-02T10:15
     epic: v3-polish
-  - id: v3-polish-016
-    title: Audit & fix dead/stub buttons across viewer
-    completed: 2026-05-02T10:00
-    epic: v3-polish
   next_up:
-  - id: v3-polish-008
-    title: Auto-mode empty-state — data-state race
-    priority: medium
-    epic: v3-polish
   - id: v3-polish-009
     title: Issues screen — align with design concept
     priority: high
@@ -45,10 +41,10 @@ context:
     epic: v3-polish
   stats:
     total: 51
-    done: 14
+    done: 15
     in_progress: 0
     in_review: 0
-    todo: 37
+    todo: 36
     blocked: 0
     archived: 0
   active_phase:
@@ -56,10 +52,10 @@ context:
     name: Ship V3
     stats:
       total: 51
-      todo: 37
+      todo: 36
       in-progress: 0
       in-review: 0
-      done: 14
+      done: 15
       blocked: 0
       archived: 0
     target_date: null
@@ -197,10 +193,11 @@ epics:
     - plugins/taskmaster/viewer/css/components/kanban-card.css
   - id: v3-polish-008
     title: Auto-mode page — fix data-state empty render (spine works)
-    status: todo
+    status: done
     priority: medium
     created: 2026-05-02T05:59
-    last_referenced: 2026-05-02T06:30
+    last_referenced: 2026-05-03T00:50
+    completed: 2026-05-03T00:50
     notes: 'polish-013 audit reframed this — the spine is fully implemented (quest-spine.js
       with SVG nodes/satellites/connectors/pulse), Spine|Log toggle works, controls
       render. The perceived "missing spine" is a data-absence: when store.getAutoState()
