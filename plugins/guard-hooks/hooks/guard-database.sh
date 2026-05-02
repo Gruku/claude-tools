@@ -75,6 +75,20 @@ EOF
   exit 2
 }
 
-# --- pattern matchers (filled in by later tasks) ---
+# --- SQL schema destruction ---
+# Case-insensitive match anywhere in the command string.
+if echo "$COMMAND" | grep -qiE 'DROP[[:space:]]+(DATABASE|SCHEMA)\b'; then
+  block_hard "DROP DATABASE/SCHEMA detected — entire database/schema removal." \
+             "Restore from a recent dump: pg_dump / mysqldump / .dump for SQLite."
+fi
+if echo "$COMMAND" | grep -qiE 'DROP[[:space:]]+TABLE\b'; then
+  block_soft "DROP TABLE detected — table and all its data will be removed." \
+             "If you have a recent dump, restore via psql -f / mysql < / sqlite3 .read."
+fi
+if echo "$COMMAND" | grep -qiE '\bTRUNCATE\b'; then
+  block_soft "TRUNCATE detected — all rows in the table will be removed." \
+             "Wrap in BEGIN; ... ROLLBACK; first to test, or take a dump."
+fi
+
 
 exit 0

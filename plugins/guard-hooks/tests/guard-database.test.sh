@@ -52,4 +52,15 @@ assert_blocked "AI cannot create guard-approve" "touch ~/.claude/guard-approve"
 assert_blocked "AI cannot create guard-approve via echo" "echo x > $HOME/.claude/guard-approve"
 assert_allowed "AI may create guard-ack" "touch $HOME/.claude/guard-ack"
 
+echo "-- sql schema --"
+assert_blocked "psql DROP DATABASE"      'psql -c "DROP DATABASE foo"'
+assert_blocked "psql DROP SCHEMA"        'psql -c "DROP SCHEMA public CASCADE"'
+assert_blocked "mysql DROP TABLE"        'mysql -e "DROP TABLE users"'
+assert_blocked "sqlite TRUNCATE"         'sqlite3 my.db "TRUNCATE TABLE logs"'
+assert_blocked "psql heredoc DROP TABLE" 'psql <<EOF
+DROP TABLE foo;
+EOF'
+assert_allowed "select with drop in name" 'psql -c "SELECT * FROM table_with_drop_in_name"'
+assert_allowed "create table"            'psql -c "CREATE TABLE foo (id int)"'
+
 exit "$FAILS"
