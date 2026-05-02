@@ -1,11 +1,23 @@
 meta:
   project: claude-tools
-  updated: '2026-05-02T08:20'
+  updated: '2026-05-02T08:50'
 context:
   active_epic: v3-polish
   in_progress: []
   blocked: []
   recent_completed:
+  - id: v3-polish-025
+    title: Fix spine-active-pulse — replace transform scale with opacity/stroke
+    completed: 2026-05-02T08:50
+    epic: v3-polish
+  - id: v3-polish-024
+    title: Cleanup td-page / td-page-A classes on task-detail unmount
+    completed: 2026-05-02T08:40
+    epic: v3-polish
+  - id: v3-polish-023
+    title: Hoist --sev-* CSS vars to :root (issue-detail labels flatten to gray)
+    completed: 2026-05-02T08:30
+    epic: v3-polish
   - id: v3-polish-022
     title: Migrate dev server to ThreadingHTTPServer (test-infra blocker)
     completed: 2026-05-02T08:20
@@ -14,23 +26,7 @@ context:
     title: Sanitize ${id} in not-found innerHTML across detail screens (security)
     completed: 2026-05-02T08:10
     epic: v3-polish
-  - id: v3-polish-013
-    title: End-to-end UI/UX review of the whole viewer experience
-    completed: 2026-05-02T07:30
-    epic: v3-polish
   next_up:
-  - id: v3-polish-023
-    title: Hoist --sev-* CSS vars to :root
-    priority: medium
-    epic: v3-polish
-  - id: v3-polish-024
-    title: Cleanup td-page classes on task-detail unmount
-    priority: medium
-    epic: v3-polish
-  - id: v3-polish-025
-    title: Fix spine-active-pulse transform scale violation
-    priority: medium
-    epic: v3-polish
   - id: v3-polish-015
     title: Fix recap routing contract (path-segment vs query-string mismatch)
     priority: high
@@ -39,12 +35,24 @@ context:
     title: Fix recap snapshot/diff plumbing (always renders 0 changes)
     priority: high
     epic: v3-polish
+  - id: v3-polish-016
+    title: Audit & fix dead/stub buttons across viewer
+    priority: high
+    epic: v3-polish
+  - id: v3-polish-005
+    title: Fix dashboard / sessions test failures
+    priority: medium
+    epic: v3-polish
+  - id: v3-polish-021
+    title: Fix mojibake on task-detail quoted text
+    priority: medium
+    epic: v3-polish
   stats:
     total: 51
-    done: 3
+    done: 6
     in_progress: 0
     in_review: 0
-    todo: 48
+    todo: 45
     blocked: 0
     archived: 0
   active_phase:
@@ -52,10 +60,10 @@ context:
     name: Ship V3
     stats:
       total: 51
-      todo: 48
+      todo: 45
       in-progress: 0
       in-review: 0
-      done: 3
+      done: 6
       blocked: 0
       archived: 0
     target_date: null
@@ -517,10 +525,11 @@ epics:
     - plugins/taskmaster/viewer/js/router.js
   - id: v3-polish-025
     title: Fix spine-active-pulse — replace transform scale with opacity/stroke
-    status: todo
+    status: done
     priority: medium
     created: 2026-05-02T07:30
-    last_referenced: 2026-05-02T07:30
+    last_referenced: 2026-05-02T08:50
+    completed: 2026-05-02T08:50
     notes: 'polish-013 audit found .spine-node--active .spine-node-circle uses
       animation: spine-active-pulse 1.6s ease-in-out infinite with transform: scale(1.11)
       — continuous geometric scale on a live element, an explicit project rule violation
