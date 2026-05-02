@@ -79,7 +79,7 @@ epics:
   created: 2026-05-02T05:46
   tasks:
   - id: v3-polish-001
-    title: Build recap picker (was: D·5 rebuild — there is no picker)
+    title: 'Build recap picker (was: D·5 rebuild — there is no picker)'
     status: todo
     priority: high
     created: 2026-05-02T05:46
@@ -357,18 +357,18 @@ epics:
     - plugins/taskmaster/viewer/js/screens/recap.js
   - id: v3-polish-016
     title: Audit & fix dead/stub buttons across viewer
-    status: todo
+    status: done
     priority: high
     created: 2026-05-02T07:30
-    last_referenced: 2026-05-02T07:30
-    notes: 'polish-013 surfaced a dead-button anti-pattern across 5+ screens. Confirmed
-      live: Sessions "New note" (dead route), Sessions handover-rail Edit/Open (no
-      listeners), Lessons "+ Lesson" (aria-disabled but full-opacity primary style),
-      Issues "+ Issue" (same), Issues "Kanban" view toggle (flips pressed state but
-      layout unchanged), Task-detail Edit + Archive (tmAction without onClick),
-      Auto-mode side panels (silently empty when no session). Either wire up or
-      remove — affordances that lie about being interactive are worse than missing.
-      Sweep can also extract a shared aria-disabled visual pattern for consistency.'
+    last_referenced: 2026-05-02T10:00
+    completed: 2026-05-02T10:00
+    notes: 'Fixed: Lessons "+ Lesson", Issues "+ Issue", Sessions "New note",
+      Task-detail Edit + Archive, Sessions handover-rail Edit / Open file. All now
+      use real disabled (opacity 0.5 + not-allowed cursor) + "— coming soon" title
+      via tmAction({disabled: true}) (or [disabled] attr for inline ic-btn buttons).
+      Deferred: Issues "Kanban" view toggle (no-op layout) — folded into polish-009
+      Issues alignment scope. Auto-mode side panels silently-empty — folded into
+      polish-008 (auto-mode data-state empty-render race).'
     estimate: M
     phase: ship-v3
     anchors:
@@ -449,10 +449,11 @@ epics:
     - plugins/taskmaster/viewer/js/components/**
   - id: v3-polish-021
     title: Fix mojibake on task-detail quoted text (UTF-8 / Latin-1)
-    status: todo
+    status: done
     priority: medium
     created: 2026-05-02T07:30
-    last_referenced: 2026-05-02T07:30
+    last_referenced: 2026-05-02T09:50
+    completed: 2026-05-02T09:50
     notes: 'polish-013 audit found "â€"" instead of "—" on codex review notes and
       handover quotes on task-detail (verified on v3-050 spec-review and v3-031
       handover quote). UTF-8 file decoded as Latin-1 somewhere in the data path.
@@ -809,6 +810,7 @@ epics:
     - v3-skills-003
     - v3-skills-004
     - v3-skills-006
+    - v3-skills-015
     estimate: M
     phase: ship-v3
     anchors:
@@ -831,6 +833,7 @@ epics:
     - v3-skills-002
     - v3-skills-003
     - v3-skills-004
+    - v3-skills-015
     estimate: M
     phase: ship-v3
     anchors:
@@ -959,6 +962,31 @@ epics:
     - v3-skills-012
     estimate: M
     phase: ship-v3
+  - id: v3-skills-015
+    title: 'Handover read MCP tool surface (get/list/latest)'
+    status: todo
+    priority: high
+    created: 2026-05-02T18:00
+    last_referenced: 2026-05-02T18:00
+    notes: 'Verify and complete the MCP tool surface for handover reads.
+      Python helpers exist in taskmaster_v3.py (read_handover, list_handover_ids,
+      latest_handover_id) but per v3-release-001 there is a known gap between
+      Python helpers existing and MCP tools being exposed by the running
+      server. Scope: (1) verify backlog_handover_get(id) is exposed and
+      returns frontmatter + body, (2) add backlog_handover_list(task_id?,
+      session_kind?, since?, limit?) thin wrapper if missing — needed by
+      pick-task retrofit (filter by task_id) and start-session retrofit
+      (filter by session_kind for context-handoff hint), (3) add
+      backlog_handover_latest() convenience tool — needed by start-session
+      retrofit. Smoke-test all three from a Claude session against the v3
+      fixture backlog. Pairs thematically with v3-release-001 (both are
+      MCP exposure verifications). Blocks v3-skills-007 and v3-skills-008
+      retrofits.'
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/backlog_server.py
+    - plugins/taskmaster/taskmaster_v3.py
 - id: v3-teams
   name: V3 Agent Teams (Optional)
   status: planned
