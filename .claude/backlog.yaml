@@ -1,11 +1,23 @@
 meta:
   project: claude-tools
-  updated: '2026-05-02T10:15'
+  updated: '2026-05-03T00:35'
 context:
   active_epic: v3-polish
   in_progress: []
   blocked: []
   recent_completed:
+  - id: v3-polish-019
+    title: Empty-state copy convention + shared component
+    completed: 2026-05-03T00:35
+    epic: v3-polish
+  - id: v3-polish-018
+    title: Shared time-format helper + unify formats across viewer
+    completed: 2026-05-03T00:30
+    epic: v3-polish
+  - id: v3-polish-017
+    title: Pluralization helper + sweep
+    completed: 2026-05-02T10:30
+    epic: v3-polish
   - id: v3-polish-005
     title: Fix pre-existing dashboard test failures
     completed: 2026-05-02T10:15
@@ -14,31 +26,7 @@ context:
     title: Audit & fix dead/stub buttons across viewer
     completed: 2026-05-02T10:00
     epic: v3-polish
-  - id: v3-polish-021
-    title: Fix mojibake on task-detail quoted text (UTF-8 / Latin-1)
-    completed: 2026-05-02T09:50
-    epic: v3-polish
-  - id: v3-polish-026
-    title: Recap snapshot/diff plumbing — receipts contradict narrative
-    completed: 2026-05-02T09:30
-    epic: v3-polish
-  - id: v3-polish-015
-    title: Fix recap routing contract (path-segment vs query-string mismatch)
-    completed: 2026-05-02T09:00
-    epic: v3-polish
   next_up:
-  - id: v3-polish-017
-    title: Pluralization helper + sweep
-    priority: low
-    epic: v3-polish
-  - id: v3-polish-018
-    title: Shared time-format helper
-    priority: medium
-    epic: v3-polish
-  - id: v3-polish-019
-    title: Empty-state copy convention + shared component
-    priority: medium
-    epic: v3-polish
   - id: v3-polish-008
     title: Auto-mode empty-state — data-state race
     priority: medium
@@ -47,12 +35,20 @@ context:
     title: Issues screen — align with design concept
     priority: high
     epic: v3-polish
+  - id: v3-polish-010
+    title: Lessons screen — usability refresh
+    priority: high
+    epic: v3-polish
+  - id: v3-polish-020
+    title: Viewer-wide accessibility sweep
+    priority: high
+    epic: v3-polish
   stats:
     total: 51
-    done: 11
+    done: 14
     in_progress: 0
     in_review: 0
-    todo: 40
+    todo: 37
     blocked: 0
     archived: 0
   active_phase:
@@ -60,10 +56,10 @@ context:
     name: Ship V3
     stats:
       total: 51
-      todo: 40
+      todo: 37
       in-progress: 0
       in-review: 0
-      done: 11
+      done: 14
       blocked: 0
       archived: 0
     target_date: null
@@ -380,10 +376,11 @@ epics:
     - plugins/taskmaster/viewer/js/screens/auto-mode.js
   - id: v3-polish-017
     title: Pluralization helper + sweep
-    status: todo
+    status: done
     priority: low
     created: 2026-05-02T07:30
-    last_referenced: 2026-05-02T07:30
+    last_referenced: 2026-05-02T10:30
+    completed: 2026-05-02T10:30
     notes: 'polish-013 found "1 issues" (issues resolved header) and "1 filters · clear
       all" (kanban filter badge) live. Almost certainly more elsewhere. Add a shared
       pluralize(n, singular, plural) helper to viewer/js/utils, then sweep all places
@@ -395,10 +392,11 @@ epics:
     - plugins/taskmaster/viewer/js/screens/kanban.js
   - id: v3-polish-018
     title: Shared time-format helper + unify formats across viewer
-    status: todo
+    status: done
     priority: medium
     created: 2026-05-02T07:30
-    last_referenced: 2026-05-02T07:30
+    last_referenced: 2026-05-03T00:30
+    completed: 2026-05-03T00:30
     notes: 'polish-013 surfaced time-format chaos. On kanban v3-031 alone, four formats
       visible at once: 48h31m / 2d / 48:31:15 / 48:30:45. Dashboard auto-strip uses
       raw toLocaleString ("4/30/2026, 5:30:00 PM"). Sessions timeline shows HH:MM with
@@ -412,10 +410,11 @@ epics:
     - plugins/taskmaster/viewer/js/screens/sessions.js
   - id: v3-polish-019
     title: Empty-state copy convention + shared component
-    status: todo
+    status: done
     priority: medium
     created: 2026-05-02T07:30
-    last_referenced: 2026-05-02T07:30
+    last_referenced: 2026-05-03T00:35
+    completed: 2026-05-03T00:35
     notes: 'polish-013 documented 8+ different empty-state phrasings on the dashboard
       alone ("Nothing newly unblocked." / "No prior session yet." / "Tests: 0/0
       passed" — last reads as data, not empty). Plus kanban "— filtered out —" lying
