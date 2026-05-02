@@ -69,6 +69,11 @@ assert_blocked "UPDATE no WHERE"             'mysql -e "UPDATE users SET active=
 assert_allowed "DELETE WITH WHERE"           'psql -c "DELETE FROM users WHERE id=1;"'
 assert_allowed "UPDATE WITH WHERE"           'psql -c "UPDATE users SET active=0 WHERE id=1;"'
 assert_allowed "SELECT not affected"         'psql -c "SELECT * FROM users;"'
+# CTE-wrapped statements: closing paren is the terminator, and a WHERE after the
+# CTE belongs to the outer SELECT, not the inner DELETE/UPDATE.
+assert_blocked "CTE DELETE no WHERE"         'psql -c "WITH x AS (DELETE FROM users) SELECT 1"'
+assert_blocked "CTE UPDATE outer WHERE"      'psql -c "WITH x AS (UPDATE users SET active=0) SELECT * FROM y WHERE id=1"'
+assert_allowed "CTE DELETE WITH WHERE"       'psql -c "WITH x AS (DELETE FROM users WHERE id=1) SELECT 1"'
 
 echo "-- mongo --"
 assert_blocked "mongosh dropDatabase" 'mongosh --eval "db.dropDatabase()"'
@@ -103,6 +108,8 @@ assert_blocked "volume rm"                  'docker volume rm pgdata'
 assert_blocked "volume prune"               'docker volume prune -f'
 assert_blocked "system prune --volumes"     'docker system prune --volumes'
 assert_blocked "system prune -a"            'docker system prune -a'
+assert_blocked "system prune -af"           'docker system prune -af'
+assert_blocked "system prune -fa"           'docker system prune -fa'
 # SOFT
 assert_blocked "docker rm -v"               'docker rm -v old_container'
 assert_blocked "docker stop pg container"   'docker stop my-postgres'

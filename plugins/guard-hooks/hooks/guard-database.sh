@@ -91,16 +91,20 @@ if echo "$COMMAND" | grep -qiE '\bTRUNCATE\b'; then
 fi
 
 # --- Unbounded DELETE / UPDATE (no WHERE before terminator) ---
-# Best-effort: matches DELETE FROM <table> ... ; or end-of-string,
+# Best-effort: matches DELETE FROM <table> ... ; or end-of-string or CTE close,
 # with no WHERE keyword between FROM/SET and the terminator.
-if echo "$COMMAND" | grep -qiE 'DELETE[[:space:]]+FROM[[:space:]]+[a-zA-Z_][a-zA-Z0-9_."]*[[:space:]]*(;|"|$)'; then
-  if ! echo "$COMMAND" | grep -qiE 'DELETE[[:space:]]+FROM[[:space:]]+[^;"]*\bWHERE\b'; then
+# Terminator includes ) so CTE-wrapped statements like
+#   WITH x AS (DELETE FROM users) SELECT 1
+# are caught. The negative WHERE check also stops at ) so a WHERE outside the
+# CTE doesn't get attributed to the inner DELETE/UPDATE.
+if echo "$COMMAND" | grep -qiE 'DELETE[[:space:]]+FROM[[:space:]]+[a-zA-Z_][a-zA-Z0-9_."]*[[:space:]]*(;|"|\)|$)'; then
+  if ! echo "$COMMAND" | grep -qiE 'DELETE[[:space:]]+FROM[[:space:]]+[^;")]*\bWHERE\b'; then
     block_soft "Unbounded DELETE detected — every row in the table will be removed." \
                "Add a WHERE clause, or wrap in BEGIN; ... ROLLBACK; to verify scope."
   fi
 fi
 if echo "$COMMAND" | grep -qiE 'UPDATE[[:space:]]+[a-zA-Z_][a-zA-Z0-9_."]*[[:space:]]+SET\b'; then
-  if ! echo "$COMMAND" | grep -qiE 'UPDATE[[:space:]]+[^;"]*\bWHERE\b'; then
+  if ! echo "$COMMAND" | grep -qiE 'UPDATE[[:space:]]+[^;")]*\bWHERE\b'; then
     block_soft "Unbounded UPDATE detected — every row in the table will be modified." \
                "Add a WHERE clause, or wrap in BEGIN; ... ROLLBACK; to verify scope."
   fi
@@ -154,7 +158,7 @@ if echo "$COMMAND" | grep -qE '\bdocker[[:space:]]+volume[[:space:]]+(rm|prune)\
   block_hard "docker volume rm/prune — removes Docker volumes; any DB data inside is lost." \
              "List volumes (docker volume ls) and back up before removal."
 fi
-if echo "$COMMAND" | grep -qE '\bdocker[[:space:]]+system[[:space:]]+prune\b[^|;&]*(--volumes|[[:space:]]-a\b)'; then
+if echo "$COMMAND" | grep -qE '\bdocker[[:space:]]+system[[:space:]]+prune\b[^|;&]*(--volumes|[[:space:]]-[a-zA-Z]*a[a-zA-Z]*\b)'; then
   block_hard "docker system prune --volumes/-a — removes unused volumes and images." \
              "Run \`docker volume ls\` first; back up any DB volumes before pruning."
 fi
