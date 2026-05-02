@@ -339,10 +339,11 @@ epics:
     - plugins/taskmaster/viewer/js/screens/recap.js
   - id: v3-polish-015
     title: Fix recap routing contract (path-segment vs query-string mismatch)
-    status: todo
+    status: done
     priority: high
     created: 2026-05-02T07:30
-    last_referenced: 2026-05-02T07:30
+    last_referenced: 2026-05-02T09:00
+    completed: 2026-05-02T09:00
     notes: 'polish-013 audit found the only recap nav control is silently broken.
       Topbar ‹ button updates URL to #/recap/SES-0002 (path-segment) but recap.js
       reads only ?id= (query-string), so params.id is undefined and the screen falls
@@ -542,10 +543,11 @@ epics:
     - plugins/taskmaster/viewer/js/components/quest-spine.js
   - id: v3-polish-026
     title: Recap snapshot/diff plumbing — receipts contradict narrative
-    status: todo
+    status: done
     priority: high
     created: 2026-05-02T07:30
-    last_referenced: 2026-05-02T07:30
+    last_referenced: 2026-05-02T09:30
+    completed: 2026-05-02T09:30
     notes: 'polish-013 audit confirmed live — recap receipts cards always render
       "0 · No changes" while the narrative reads e.g. "Plan 3 landed in 6 milestones..."
       Either getSnapshotDiff is buggy or the fixture snapshot IDs do not resolve, with
