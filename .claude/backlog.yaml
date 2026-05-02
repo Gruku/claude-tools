@@ -1,41 +1,57 @@
 meta:
   project: claude-tools
-  updated: '2026-05-02'
+  updated: '2026-05-02T07:30'
 context:
   active_epic: v3-polish
   in_progress: []
   blocked: []
-  recent_completed: []
-  next_up:
-  - id: v3-polish-001
-    title: D·5 Recap picker rebuild
-    priority: high
-    epic: v3-polish
-  - id: v3-polish-009
-    title: Issues screen — align with design concept
-    priority: high
-    epic: v3-polish
+  recent_completed:
   - id: v3-polish-013
     title: End-to-end UI/UX review of the whole viewer experience
+    completed: 2026-05-02T07:30
+    epic: v3-polish
+  next_up:
+  - id: v3-polish-014
+    title: Sanitize ${id} in not-found innerHTML across detail screens (security)
+    priority: critical
+    epic: v3-polish
+  - id: v3-polish-022
+    title: Migrate dev server to ThreadingHTTPServer (test-infra blocker)
     priority: high
     epic: v3-polish
+  - id: v3-polish-015
+    title: Fix recap routing contract (path-segment vs query-string mismatch)
+    priority: high
+    epic: v3-polish
+  - id: v3-polish-023
+    title: Hoist --sev-* CSS vars to :root
+    priority: medium
+    epic: v3-polish
+  - id: v3-polish-024
+    title: Cleanup td-page classes on task-detail unmount
+    priority: medium
+    epic: v3-polish
+  - id: v3-polish-025
+    title: Fix spine-active-pulse transform scale violation
+    priority: medium
+    epic: v3-polish
   stats:
-    total: 19
-    done: 0
+    total: 51
+    done: 1
     in_progress: 0
     in_review: 0
-    todo: 19
+    todo: 50
     blocked: 0
     archived: 0
   active_phase:
     id: ship-v3
     name: Ship V3
     stats:
-      total: 19
-      todo: 19
+      total: 51
+      todo: 50
       in-progress: 0
       in-review: 0
-      done: 0
+      done: 1
       blocked: 0
       archived: 0
     target_date: null
@@ -51,23 +67,29 @@ epics:
   created: 2026-05-02T05:46
   tasks:
   - id: v3-polish-001
-    title: D·5 Recap picker rebuild
+    title: Build recap picker (was: D·5 rebuild — there is no picker)
     status: todo
     priority: high
     created: 2026-05-02T05:46
-    last_referenced: 2026-05-02T05:46
-    notes: 'Existing /v3/#/recap picker needs a rebuild but no concept HTML exists.
-      Per handoff doc 2026-05-02-v3-pass-bcd-handoff.md: invoke superpowers:brainstorming
-      first to lock the picker shape. Three plausible directions: (a) calendar-style
-      date grid, (b) timeline-style spine variant, (c) flat searchable list.'
-    estimate: M
+    last_referenced: 2026-05-02T06:30
+    notes: 'Reframed by v3-polish-013 audit: there is no picker today, only a single
+      ‹ button in the recap topbar. polish-013 surfaced 5 concrete deficiencies for
+      the brainstorm: (1) no identity anchor (loaded recap''s date is invisible
+      everywhere; topbar h1 is the literal string "Recap"), (2) linear-only navigation
+      (can''t jump from today to last Tuesday), (3) ambiguous directionality without
+      a date anchor, (4) density/gap legibility unclear, (5) three picker shapes to
+      evaluate — calendar grid · timeline spine · flat searchable list. Invoke
+      superpowers:brainstorming first to lock the shape. Pairs with v3-polish-015
+      (recap routing contract) which must land first as a prerequisite. Estimate
+      bumped M → L.'
+    estimate: L
     phase: ship-v3
   - id: v3-polish-002
     title: C′ tm-card retrofit audit and rollout
     status: todo
-    priority: medium
+    priority: low
     created: 2026-05-02T05:46
-    last_referenced: 2026-05-02T05:46
+    last_referenced: 2026-05-02T06:30
     notes: .tm-card primitive is published in components.css but no component uses
       it. issue-card, lesson-card, kanban card, and side-rail blocks each have local
       definitions using specific tokens (--issues-card-bg, --bg-panel, etc.). Audit
@@ -78,14 +100,18 @@ epics:
     - plugins/taskmaster/viewer/css/components.css
     - plugins/taskmaster/viewer/css/components/**
   - id: v3-polish-003
-    title: Right-rail unification (.td-rail-h vs .rr-h)
+    title: Rename or unify rail systems (.td-rail-h vs .rr-h)
     status: todo
     priority: medium
     created: 2026-05-02T05:46
-    last_referenced: 2026-05-02T05:46
-    notes: task-detail-document.js uses .td-rail-h while sessions.js uses .rr-h, with
-      different close-button placement. Needs design judgment about whether all rails
-      should match. Probably worth one short brainstorm pass.
+    last_referenced: 2026-05-02T06:30
+    notes: 'polish-013 audit confirmed at depth — .td-rail-h (task-detail: always-visible,
+      no close button) and .rr-h (sessions: overlay, dismiss-on-click + close + Escape)
+      are two architecturally different rail systems sharing one source file. Naming
+      makes them look like a typo or near-variant; they are not. Either rename to
+      surface the distinction (e.g., .tm-rail-pinned-h vs .tm-rail-overlay-h) or
+      unify on one rail pattern and pick which screens get pinned vs overlay. Worth
+      one short brainstorm pass.'
     estimate: S
     phase: ship-v3
     anchors:
@@ -94,9 +120,9 @@ epics:
   - id: v3-polish-004
     title: Filter chip per-chip counts
     status: todo
-    priority: low
+    priority: medium
     created: 2026-05-02T05:46
-    last_referenced: 2026-05-02T05:46
+    last_referenced: 2026-05-02T06:30
     notes: Open review item from session 2026-05-02. Today a user can click category=ui
       while a search excludes all UI lessons, leaving an empty list. Show per-chip
       counts (e.g., "ui · 3") so users predict the result before clicking. Affects
@@ -145,9 +171,9 @@ epics:
   - id: v3-polish-007
     title: Tighten kanban visual gaps — reclaim wasted space
     status: todo
-    priority: medium
+    priority: low
     created: 2026-05-02T05:56
-    last_referenced: 2026-05-02T05:56
+    last_referenced: 2026-05-02T06:30
     notes: 'User feedback 2026-05-02 — kanban has noticeable gaps between cards, columns,
       and headers that don''t carry meaning, robbing usable surface. Audit gap/padding/margin
       tokens across kanban screens and tighten where the space isn''t communicating
@@ -161,45 +187,52 @@ epics:
     - plugins/taskmaster/viewer/js/screens/kanban.js
     - plugins/taskmaster/viewer/css/components/kanban-card.css
   - id: v3-polish-008
-    title: Auto-mode page — restore spine visual on stub
+    title: Auto-mode page — fix data-state empty render (spine works)
     status: todo
     priority: medium
     created: 2026-05-02T05:59
-    last_referenced: 2026-05-02T05:59
-    notes: User feedback 2026-05-02 — the auto-mode page stub at /v3/#/auto isn't
-      showing the spine. The spine is the vertical visual rhythm shared with sessions
-      timeline (see sessions.css parallel-block + spine pattern from commits 5035fb3,
-      ab4b650). Discover what the auto-mode page renders today, identify why the spine
-      is missing (stub state vs. data wiring), and restore it.
-    estimate: S
+    last_referenced: 2026-05-02T06:30
+    notes: 'polish-013 audit reframed this — the spine is fully implemented (quest-spine.js
+      with SVG nodes/satellites/connectors/pulse), Spine|Log toggle works, controls
+      render. The perceived "missing spine" is a data-absence: when store.getAutoState()
+      returns null (no active auto session), the empty-state node should render but
+      a render/clear race during async polling startup leaves the center column blank.
+      Fix the race so the "No auto-mode session is running." node renders cleanly when
+      idle. Pair with v3-polish-025 (scale-motion rule violation in spine-active-pulse).'
+    estimate: XS
     phase: ship-v3
     anchors:
     - plugins/taskmaster/viewer/js/screens/auto.js
     - plugins/taskmaster/viewer/js/components/auto-mode-stepper.js
     - plugins/taskmaster/viewer/css/screens/auto.css
   - id: v3-polish-009
-    title: Issues screen — align with design concept
+    title: Issues screen — align with design concept (concept deltas + 3 real bugs)
     status: todo
     priority: high
     created: 2026-05-02T05:59
-    last_referenced: 2026-05-02T05:59
-    notes: 'User feedback 2026-05-02 — issues screen drifts from the concept; needs
-      a closer alignment pass. Concepts to compare against: .superpowers/brainstorm/.../issues-hybrid.html
-      and issues-v2-bugreport.html (referenced in earlier review-gate). Audit current
-      rendering vs concept (card layout, severity hex, location/symptom fonts, repro
-      block, blocks chip, aging bar) and close the deltas.'
-    estimate: M
+    last_referenced: 2026-05-02T06:30
+    notes: 'polish-013 audit confirmed the concept-delta scope and surfaced 3 hard bugs:
+      (1) blocks chip is dead — store.getTasksIndex doesn''t exist, guard silently
+      returns 0 on every card; (2) "Kanban" view toggle is a no-op (button flips
+      pressed state but layout is unchanged from Hybrid); (3) aging bar always shows
+      "Fresh" — issues use a `created` field but computeAgingTier reads `discovered`,
+      so percent is always 0%. Concept deltas: severity chips missing colored dots +
+      count badges + "All" reset; column headers use uppercase 12px instead of concept''s
+      serif italic 14px + tagline + count; resolved shelf is single-column not 2-column
+      grid. Estimate bumped M → L given total scope. Concept refs: see
+      .superpowers/brainstorm/.../issues-hybrid.html and issues-v2-bugreport.html.'
+    estimate: L
     phase: ship-v3
     anchors:
     - plugins/taskmaster/viewer/js/screens/issues.js
     - plugins/taskmaster/viewer/js/components/issue-card.js
     - plugins/taskmaster/viewer/css/screens/issues.css
   - id: v3-polish-010
-    title: Lessons screen — usability refresh
+    title: Lessons screen — usability refresh (concept deltas validated)
     status: todo
-    priority: medium
+    priority: high
     created: 2026-05-02T05:59
-    last_referenced: 2026-05-02T05:59
+    last_referenced: 2026-05-02T06:30
     notes: 'User feedback 2026-05-02 — lessons screen needs a usability refresh. The
       visual polish (Pass A) landed in commit 184e9a1, but day-to-day use has surfaced
       friction. Worth a focused usability pass: card scannability, signal hierarchy
@@ -253,22 +286,257 @@ epics:
     - plugins/taskmaster/viewer/css/screens/**
   - id: v3-polish-013
     title: End-to-end UI/UX review of the whole viewer experience
-    status: todo
+    status: done
     priority: high
     created: 2026-05-02T06:04
-    last_referenced: 2026-05-02T06:04
-    notes: User feedback 2026-05-02 — comprehensive UI/UX walkthrough of the v3 viewer
-      end-to-end. Cover every screen (dashboard, kanban, table, sessions, recap, lessons,
-      issues, task-detail, lesson-detail, issue-detail, auto) plus shared chrome (sidebar,
-      topbar, right-rails, modals). Capture friction points, inconsistencies, broken
-      flows, and discoverability gaps. Likely spawns child tasks for each significant
-      finding. This is the meta-review that informs prioritization of the other v3-polish
-      items — recommend doing it before deep-diving into individual touchpoints.
+    last_referenced: 2026-05-02T07:30
+    completed: 2026-05-02T07:30
+    notes: 'DONE 2026-05-02. Walkthrough of all 11 screens at runtime produced 169
+      findings, captured per-screen at plugins/taskmaster/docs/v3-polish-013/<screen>.md
+      with synthesis at synthesis.md. Surfaced 13 new polish tasks (014-026) and
+      re-prioritized the existing 12. Top headline findings: self-XSS via unsanitized
+      ${id} on detail screens (014, critical), recap routing contract broken (015),
+      dead/stub buttons across 5+ screens (016), single-threaded HTTPServer dies
+      under parallel agent load (022, blocks reliable local testing). Process note:
+      first parallel-agent pass crashed the server; 6 screens were re-audited
+      sequentially on a fresh server.'
+    estimate: L
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/docs/v3-polish-013/README.md
+    - plugins/taskmaster/docs/v3-polish-013/synthesis.md
+  - id: v3-polish-014
+    title: Sanitize ${id} in not-found innerHTML across detail screens (security)
+    status: todo
+    priority: critical
+    created: 2026-05-02T07:30
+    last_referenced: 2026-05-02T07:30
+    notes: 'Self-XSS confirmed live on lesson-detail and issue-detail (polish-013):
+      crafted URL like /v3/#/issue/<img src=x onerror=...> injects real HTML elements
+      via root.innerHTML template. Same class likely exists on task-detail, recap-by-id,
+      and any other detail screen using template-literal innerHTML for missing-resource
+      paths. Fix: sweep all error-state renders for user-supplied identifiers and
+      switch to textContent (or proper escaping). Must land before any release work.'
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/screens/lesson-detail.js
+    - plugins/taskmaster/viewer/js/screens/issue-detail.js
+    - plugins/taskmaster/viewer/js/screens/task-detail.js
+    - plugins/taskmaster/viewer/js/screens/recap.js
+  - id: v3-polish-015
+    title: Fix recap routing contract (path-segment vs query-string mismatch)
+    status: todo
+    priority: high
+    created: 2026-05-02T07:30
+    last_referenced: 2026-05-02T07:30
+    notes: 'polish-013 audit found the only recap nav control is silently broken.
+      Topbar ‹ button updates URL to #/recap/SES-0002 (path-segment) but recap.js
+      reads only ?id= (query-string), so params.id is undefined and the screen falls
+      back to most-recent recap. Pick one form (recommend path-segment per /v3/#/task/<id>
+      convention), update both the link target and the screen reader. Prerequisite for
+      v3-polish-001 (build picker) — picker rebuild needs a working routing contract
+      first.'
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/screens/recap.js
+  - id: v3-polish-016
+    title: Audit & fix dead/stub buttons across viewer
+    status: todo
+    priority: high
+    created: 2026-05-02T07:30
+    last_referenced: 2026-05-02T07:30
+    notes: 'polish-013 surfaced a dead-button anti-pattern across 5+ screens. Confirmed
+      live: Sessions "New note" (dead route), Sessions handover-rail Edit/Open (no
+      listeners), Lessons "+ Lesson" (aria-disabled but full-opacity primary style),
+      Issues "+ Issue" (same), Issues "Kanban" view toggle (flips pressed state but
+      layout unchanged), Task-detail Edit + Archive (tmAction without onClick),
+      Auto-mode side panels (silently empty when no session). Either wire up or
+      remove — affordances that lie about being interactive are worse than missing.
+      Sweep can also extract a shared aria-disabled visual pattern for consistency.'
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/screens/sessions.js
+    - plugins/taskmaster/viewer/js/screens/lessons.js
+    - plugins/taskmaster/viewer/js/screens/issues.js
+    - plugins/taskmaster/viewer/js/screens/task-detail.js
+    - plugins/taskmaster/viewer/js/screens/auto-mode.js
+  - id: v3-polish-017
+    title: Pluralization helper + sweep
+    status: todo
+    priority: low
+    created: 2026-05-02T07:30
+    last_referenced: 2026-05-02T07:30
+    notes: 'polish-013 found "1 issues" (issues resolved header) and "1 filters · clear
+      all" (kanban filter badge) live. Almost certainly more elsewhere. Add a shared
+      pluralize(n, singular, plural) helper to viewer/js/utils, then sweep all places
+      that build "N <noun>" strings.'
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/screens/issues.js
+    - plugins/taskmaster/viewer/js/screens/kanban.js
+  - id: v3-polish-018
+    title: Shared time-format helper + unify formats across viewer
+    status: todo
+    priority: medium
+    created: 2026-05-02T07:30
+    last_referenced: 2026-05-02T07:30
+    notes: 'polish-013 surfaced time-format chaos. On kanban v3-031 alone, four formats
+      visible at once: 48h31m / 2d / 48:31:15 / 48:30:45. Dashboard auto-strip uses
+      raw toLocaleString ("4/30/2026, 5:30:00 PM"). Sessions timeline shows HH:MM with
+      no date context. Build one canonical relative-time helper (e.g. "2d ago" /
+      "48h31m running") and one canonical absolute-time helper, then sweep call sites.'
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/components/auto-mode-strip.js
+    - plugins/taskmaster/viewer/js/screens/kanban.js
+    - plugins/taskmaster/viewer/js/screens/sessions.js
+  - id: v3-polish-019
+    title: Empty-state copy convention + shared component
+    status: todo
+    priority: medium
+    created: 2026-05-02T07:30
+    last_referenced: 2026-05-02T07:30
+    notes: 'polish-013 documented 8+ different empty-state phrasings on the dashboard
+      alone ("Nothing newly unblocked." / "No prior session yet." / "Tests: 0/0
+      passed" — last reads as data, not empty). Plus kanban "— filtered out —" lying
+      about a non-existent filter, and several screens with no empty-state at all
+      (lessons/issues filtered to zero, sessions search to zero, auto side-panels).
+      Define a copy convention (tone, structure), build a shared <EmptyState> component,
+      sweep all surfaces.'
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/components/widgets/**
+    - plugins/taskmaster/viewer/js/screens/**
+  - id: v3-polish-020
+    title: Viewer-wide accessibility sweep (chips, links, headings, table ARIA)
+    status: todo
+    priority: high
+    created: 2026-05-02T07:30
+    last_referenced: 2026-05-02T07:30
+    notes: 'polish-013 surfaced systematic a11y gaps, not local ones. Filter chips
+      (lessons, issues, kanban) lack role="button" + aria-pressed — not keyboard-reachable.
+      Card link semantics (lessons, issues) use <article role="link"> with manual
+      keydown instead of <a href> — fragile in AT, breaks right-click → open in new tab.
+      Heading hierarchy broken throughout — widget banners / shelf headers / column
+      headers as <span> inside <header>. Two <h1>s on lesson-detail. Table semantics
+      destroyed by display: contents (strips columnheader/row roles). Hover-only
+      affordances invisible to keyboard. Plan: pick one screen as audit-and-fix
+      reference, then propagate corrections to siblings.'
     estimate: L
     phase: ship-v3
     anchors:
     - plugins/taskmaster/viewer/js/screens/**
     - plugins/taskmaster/viewer/js/components/**
+  - id: v3-polish-021
+    title: Fix mojibake on task-detail quoted text (UTF-8 / Latin-1)
+    status: todo
+    priority: medium
+    created: 2026-05-02T07:30
+    last_referenced: 2026-05-02T07:30
+    notes: 'polish-013 audit found "â€"" instead of "—" on codex review notes and
+      handover quotes on task-detail (verified on v3-050 spec-review and v3-031
+      handover quote). UTF-8 file decoded as Latin-1 somewhere in the data path.
+      Confirmed NOT viewer-wide — lesson-detail and issue-detail render em-dashes
+      correctly. Likely the response Content-Type or the file-read encoding for the
+      specific subtree feeding quoted human text on task-detail. Probably one
+      backlog_server.py line (charset on response, or encoding on the read).'
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/screens/task-detail.js
+    - plugins/taskmaster/backlog_server.py
+  - id: v3-polish-022
+    title: Migrate dev server to ThreadingHTTPServer (test-infra blocker)
+    status: todo
+    priority: high
+    created: 2026-05-02T07:30
+    last_referenced: 2026-05-02T07:30
+    notes: 'polish-013 process note — Python stdlib HTTPServer is single-threaded;
+      10× parallel agent traffic (read_page + javascript_tool) crashed it during the
+      first audit pass. The local-test phase the user wants before release relies on
+      this server. Switch _make_server to ThreadingHTTPServer (drop-in replacement)
+      so parallel test traffic does not take it down. Infrastructure, not viewer —
+      but blocks trustworthy local testing.'
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/backlog_server.py
+  - id: v3-polish-023
+    title: Hoist --sev-* CSS vars to :root (issue-detail labels flatten to gray)
+    status: todo
+    priority: medium
+    created: 2026-05-02T07:30
+    last_referenced: 2026-05-02T07:30
+    notes: 'polish-013 audit found --sev-critical / --sev-high / --sev-medium / --sev-low
+      defined inside .issues { ... } scope. Verified live: getComputedStyle("#issue-detail
+      .id-sev").color is the same gray on Critical / High / Medium issues — the glyph
+      (hardcoded inline) is colored, but the text label is flat gray on every severity,
+      killing the prominence the design intended. Fix: hoist the four --sev-* vars to
+      :root in tokens.css.'
+    estimate: XS
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/css/screens/issues.css
+    - plugins/taskmaster/viewer/css/tokens.css
+  - id: v3-polish-024
+    title: Cleanup td-page / td-page-A classes on task-detail unmount
+    status: todo
+    priority: medium
+    created: 2026-05-02T07:30
+    last_referenced: 2026-05-02T07:30
+    notes: 'polish-013 audit confirmed task-detail-document.js and task-detail-graph.js
+      add td-page / td-page-A / td-page-B classes to shared #screen-mount but never
+      remove them on cleanup. Router does replaceChildren but does not reset classList,
+      so classes leak — navigating from task-detail to /auto stacks task-detail padding
+      on top of .auto-page padding and pollutes specificity for subsequent screens. Two
+      fix paths: (a) add classList.remove in each cleanup closure, or (b) better, have
+      router reset className to "screen-mount" before each mount.'
+    estimate: XS
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/components/task-detail-document.js
+    - plugins/taskmaster/viewer/js/components/task-detail-graph.js
+    - plugins/taskmaster/viewer/js/router.js
+  - id: v3-polish-025
+    title: Fix spine-active-pulse — replace transform scale with opacity/stroke
+    status: todo
+    priority: medium
+    created: 2026-05-02T07:30
+    last_referenced: 2026-05-02T07:30
+    notes: 'polish-013 audit found .spine-node--active .spine-node-circle uses
+      animation: spine-active-pulse 1.6s ease-in-out infinite with transform: scale(1.11)
+      — continuous geometric scale on a live element, an explicit project rule violation
+      (CLAUDE.md "no motion on hover" extended to "no transform-based motion on solid
+      surfaces"). Replace with opacity or stroke-color pulse. Pairs with v3-polish-008.'
+    estimate: XS
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/css/screens/auto.css
+    - plugins/taskmaster/viewer/js/components/quest-spine.js
+  - id: v3-polish-026
+    title: Recap snapshot/diff plumbing — receipts contradict narrative
+    status: todo
+    priority: high
+    created: 2026-05-02T07:30
+    last_referenced: 2026-05-02T07:30
+    notes: 'polish-013 audit confirmed live — recap receipts cards always render
+      "0 · No changes" while the narrative reads e.g. "Plan 3 landed in 6 milestones..."
+      Either getSnapshotDiff is buggy or the fixture snapshot IDs do not resolve, with
+      no error or tell. Investigate the snapshot-diff data path (server side: snapshot
+      ingest, diff computation; client side: how recap.js calls/reads the diff).
+      Recap is unreliable until this is fixed. Pairs with v3-polish-001 (build picker)
+      — a working picker showing broken receipts is still a broken recap.'
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/screens/recap.js
+    - plugins/taskmaster/backlog_server.py
 - id: v3-release
   name: V3 Release (2.0)
   status: planned
