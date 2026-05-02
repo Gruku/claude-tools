@@ -1,0 +1,47 @@
+{
+  "tasks": {
+    "v3-001": { "status": "done", "title": "Worktree shadow setup",      "epic": "v3" },
+    "v3-002": { "status": "done", "title": "Review-gate stitching",      "epic": "v3" },
+    "v3-003": { "status": "done", "title": "Initial backlog seed",       "epic": "v3" },
+    "v3-014": { "status": "done", "title": "Auto-mode status pill",      "epic": "v3" },
+    "v3-015": { "status": "done", "title": "Final card layout",          "epic": "v3" },
+    "v3-017": { "status": "done", "title": "Kanban filter bar v2",       "epic": "v3" },
+    "v3-018": { "status": "done", "title": "Density toggle persistence", "epic": "v3" },
+    "v3-019": { "status": "done", "title": "Click-to-copy task IDs",     "epic": "v3" },
+    "v3-020": { "status": "done", "title": "Per-epic chip wiring",       "epic": "v3" },
+    "v3-023": { "status": "done", "title": "Task detail screen scaffold","epic": "v3" },
+    "v3-031": { "status": "done", "title": "Anchors panel",              "epic": "v3" },
+    "v3-032": { "status": "done", "title": "Dependency graph",           "epic": "v3" },
+    "v3-033": { "status": "done", "title": "Lock badge",                 "epic": "v3" },
+    "v3-034": { "status": "done", "title": "Codex-note slot",            "epic": "v3" },
+    "v3-035": { "status": "done", "title": "Docs / Notes / Dates accordions", "epic": "v3" },
+    "v3-036": { "status": "done", "title": "Variant toggle persistence", "epic": "v3" },
+    "v3-040": { "status": "done", "title": "Lessons screen scaffold",    "epic": "v3" },
+    "v3-041": { "status": "done", "title": "Issues screen scaffold",     "epic": "v3" },
+    "v3-042": { "status": "done", "title": "Sessions list",              "epic": "v3" },
+    "v3-050": { "status": "done", "title": "Auto-mode stepper widget",   "epic": "v3" },
+    "v3-051": { "status": "done", "title": "Spine SVG-attribute pulse fix", "epic": "v3" },
+    "v3-052": { "status": "done", "title": "Page padding rhythm tokens", "epic": "v3" },
+    "v3-053": { "status": "done", "title": "Header status pill",         "epic": "v3" },
+    "v3-058": { "status": "todo", "title": "Manual visual review (T58)", "epic": "v3" }
+  },
+  "issues": {
+    "ISS-001": { "severity": "high",     "status": "fixed",         "title": "Stepper detour during M7" },
+    "ISS-002": { "severity": "medium",   "status": "wontfix",       "title": "Force-directed graph too jittery" },
+    "ISS-003": { "severity": "critical", "status": "investigating", "title": "Spine SVG-attribute stutter" },
+    "ISS-004": { "severity": "low",      "status": "open",          "title": "Pulse animation desync on Firefox" }
+  },
+  "lessons_fired": [
+    { "id": "L-003", "fires": 2, "first_time": "2026-04-30T11:00:00Z" },
+    { "id": "L-004", "fires": 1, "first_time": "2026-05-01T09:00:00Z" }
+  ],
+  "files_touched": [
+    "plugins/taskmaster/viewer/js/screens/auto-mode.js",
+    "plugins/taskmaster/viewer/css/screens/auto-mode.css",
+    "plugins/taskmaster/viewer/js/components/auto-mode-strip.js",
+    "plugins/taskmaster/viewer/js/components/auto-mode-live-block.js",
+    "plugins/taskmaster/viewer/js/screens/lessons.js",
+    "plugins/taskmaster/viewer/js/screens/issues.js",
+    "plugins/taskmaster/viewer/css/tokens.css"
+  ]
+}

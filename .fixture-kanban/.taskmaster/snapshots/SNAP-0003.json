@@ -1,0 +1,34 @@
+{
+  "tasks": {
+    "v3-001": { "status": "done", "title": "Worktree shadow setup",      "epic": "v3" },
+    "v3-002": { "status": "done", "title": "Review-gate stitching",      "epic": "v3" },
+    "v3-003": { "status": "done", "title": "Initial backlog seed",       "epic": "v3" },
+    "v3-015": { "status": "done", "title": "Final card layout",          "epic": "v3" },
+    "v3-017": { "status": "done", "title": "Kanban filter bar v2",       "epic": "v3" },
+    "v3-018": { "status": "done", "title": "Density toggle persistence", "epic": "v3" },
+    "v3-019": { "status": "done", "title": "Click-to-copy task IDs",     "epic": "v3" },
+    "v3-020": { "status": "done", "title": "Per-epic chip wiring",       "epic": "v3" },
+    "v3-023": { "status": "done", "title": "Task detail screen scaffold","epic": "v3" },
+    "v3-031": { "status": "done", "title": "Anchors panel",              "epic": "v3" },
+    "v3-032": { "status": "done", "title": "Dependency graph",           "epic": "v3" },
+    "v3-033": { "status": "done", "title": "Lock badge",                 "epic": "v3" },
+    "v3-034": { "status": "done", "title": "Codex-note slot",            "epic": "v3" },
+    "v3-035": { "status": "done", "title": "Docs / Notes / Dates accordions", "epic": "v3" },
+    "v3-036": { "status": "done", "title": "Variant toggle persistence", "epic": "v3" }
+  },
+  "issues": {
+    "ISS-001": { "severity": "high",   "status": "fixed", "title": "Stepper detour during M7" },
+    "ISS-002": { "severity": "medium", "status": "open",  "title": "Force-directed graph too jittery" }
+  },
+  "lessons_fired": [
+    { "id": "L-002", "fires": 1, "first_time": "2026-04-29T20:00:00Z" }
+  ],
+  "files_touched": [
+    "plugins/taskmaster/viewer/js/screens/task-detail.js",
+    "plugins/taskmaster/viewer/js/components/task-detail-document.js",
+    "plugins/taskmaster/viewer/js/components/task-detail-graph.js",
+    "plugins/taskmaster/viewer/js/components/dependency-graph.js",
+    "plugins/taskmaster/viewer/js/components/right-rail.js",
+    "plugins/taskmaster/viewer/css/screens/task-detail.css"
+  ]
+}
