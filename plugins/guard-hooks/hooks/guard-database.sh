@@ -90,5 +90,20 @@ if echo "$COMMAND" | grep -qiE '\bTRUNCATE\b'; then
              "Wrap in BEGIN; ... ROLLBACK; first to test, or take a dump."
 fi
 
+# --- Unbounded DELETE / UPDATE (no WHERE before terminator) ---
+# Best-effort: matches DELETE FROM <table> ... ; or end-of-string,
+# with no WHERE keyword between FROM/SET and the terminator.
+if echo "$COMMAND" | grep -qiE 'DELETE[[:space:]]+FROM[[:space:]]+[a-zA-Z_][a-zA-Z0-9_."]*[[:space:]]*(;|"|$)'; then
+  if ! echo "$COMMAND" | grep -qiE 'DELETE[[:space:]]+FROM[[:space:]]+[^;"]*\bWHERE\b'; then
+    block_soft "Unbounded DELETE detected — every row in the table will be removed." \
+               "Add a WHERE clause, or wrap in BEGIN; ... ROLLBACK; to verify scope."
+  fi
+fi
+if echo "$COMMAND" | grep -qiE 'UPDATE[[:space:]]+[a-zA-Z_][a-zA-Z0-9_."]*[[:space:]]+SET\b'; then
+  if ! echo "$COMMAND" | grep -qiE 'UPDATE[[:space:]]+[^;"]*\bWHERE\b'; then
+    block_soft "Unbounded UPDATE detected — every row in the table will be modified." \
+               "Add a WHERE clause, or wrap in BEGIN; ... ROLLBACK; to verify scope."
+  fi
+fi
 
 exit 0

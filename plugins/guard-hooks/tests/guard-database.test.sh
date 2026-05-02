@@ -63,4 +63,11 @@ EOF'
 assert_allowed "select with drop in name" 'psql -c "SELECT * FROM table_with_drop_in_name"'
 assert_allowed "create table"            'psql -c "CREATE TABLE foo (id int)"'
 
+echo "-- unbounded dml --"
+assert_blocked "DELETE FROM no WHERE"        'psql -c "DELETE FROM users;"'
+assert_blocked "UPDATE no WHERE"             'mysql -e "UPDATE users SET active=0;"'
+assert_allowed "DELETE WITH WHERE"           'psql -c "DELETE FROM users WHERE id=1;"'
+assert_allowed "UPDATE WITH WHERE"           'psql -c "UPDATE users SET active=0 WHERE id=1;"'
+assert_allowed "SELECT not affected"         'psql -c "SELECT * FROM users;"'
+
 exit "$FAILS"
