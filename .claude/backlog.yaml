@@ -1,0 +1,372 @@
+meta:
+  project: claude-tools
+  updated: '2026-05-02'
+context:
+  active_epic: v3-polish
+  in_progress: []
+  blocked: []
+  recent_completed: []
+  next_up:
+  - id: v3-polish-001
+    title: D·5 Recap picker rebuild
+    priority: high
+    epic: v3-polish
+  - id: v3-polish-009
+    title: Issues screen — align with design concept
+    priority: high
+    epic: v3-polish
+  - id: v3-polish-013
+    title: End-to-end UI/UX review of the whole viewer experience
+    priority: high
+    epic: v3-polish
+  stats:
+    total: 19
+    done: 0
+    in_progress: 0
+    in_review: 0
+    todo: 19
+    blocked: 0
+    archived: 0
+  active_phase:
+    id: ship-v3
+    name: Ship V3
+    stats:
+      total: 19
+      todo: 19
+      in-progress: 0
+      in-review: 0
+      done: 0
+      blocked: 0
+      archived: 0
+    target_date: null
+    start_date: '2026-05-02'
+  stale: []
+epics:
+- id: v3-polish
+  name: V3 Polish
+  status: active
+  description: Final visual and UX passes on the v3 viewer redesign before the 1.12
+    release. Covers Pass D leftovers, Pass C′ tm-card retrofit, right-rail unification,
+    and small UX nits captured in handoff docs.
+  created: 2026-05-02T05:46
+  tasks:
+  - id: v3-polish-001
+    title: D·5 Recap picker rebuild
+    status: todo
+    priority: high
+    created: 2026-05-02T05:46
+    last_referenced: 2026-05-02T05:46
+    notes: 'Existing /v3/#/recap picker needs a rebuild but no concept HTML exists.
+      Per handoff doc 2026-05-02-v3-pass-bcd-handoff.md: invoke superpowers:brainstorming
+      first to lock the picker shape. Three plausible directions: (a) calendar-style
+      date grid, (b) timeline-style spine variant, (c) flat searchable list.'
+    estimate: M
+    phase: ship-v3
+  - id: v3-polish-002
+    title: C′ tm-card retrofit audit and rollout
+    status: todo
+    priority: medium
+    created: 2026-05-02T05:46
+    last_referenced: 2026-05-02T05:46
+    notes: .tm-card primitive is published in components.css but no component uses
+      it. issue-card, lesson-card, kanban card, and side-rail blocks each have local
+      definitions using specific tokens (--issues-card-bg, --bg-panel, etc.). Audit
+      per-variant first to avoid visual regressions, then retrofit.
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/css/components.css
+    - plugins/taskmaster/viewer/css/components/**
+  - id: v3-polish-003
+    title: Right-rail unification (.td-rail-h vs .rr-h)
+    status: todo
+    priority: medium
+    created: 2026-05-02T05:46
+    last_referenced: 2026-05-02T05:46
+    notes: task-detail-document.js uses .td-rail-h while sessions.js uses .rr-h, with
+      different close-button placement. Needs design judgment about whether all rails
+      should match. Probably worth one short brainstorm pass.
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/components/task-detail-document.js
+    - plugins/taskmaster/viewer/js/screens/sessions.js
+  - id: v3-polish-004
+    title: Filter chip per-chip counts
+    status: todo
+    priority: low
+    created: 2026-05-02T05:46
+    last_referenced: 2026-05-02T05:46
+    notes: Open review item from session 2026-05-02. Today a user can click category=ui
+      while a search excludes all UI lessons, leaving an empty list. Show per-chip
+      counts (e.g., "ui · 3") so users predict the result before clicking. Affects
+      lessons (.lessons__cat-chip) and issues (.issues__comp-chip).
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/screens/lessons.js
+    - plugins/taskmaster/viewer/js/screens/issues.js
+  - id: v3-polish-005
+    title: Fix pre-existing dashboard test failures
+    status: todo
+    priority: medium
+    created: 2026-05-02T05:46
+    last_referenced: 2026-05-02T05:46
+    notes: 3 dashboard.spec.js tests fail because they query .dash-edit-toggle which
+      no longer exists post-redesign (edit toggle is now in the topbar via createEditMode).
+      Plus 3 sessions specs failing on [data-role=view-toggle] .seg from the v2 era.
+      Update selectors.
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/tests/dashboard.spec.js
+    - plugins/taskmaster/viewer/tests/sessions.spec.js
+  - id: v3-polish-006
+    title: Slim down auto-mode header — remove strip + minimize pill
+    status: todo
+    priority: medium
+    created: 2026-05-02T05:50
+    last_referenced: 2026-05-02T05:50
+    notes: 'User feedback 2026-05-02 — auto-mode header chrome takes too much space.
+      Two parts: (1) Remove the auto-mode strip from the dashboard header (currently
+      rendered between briefing strip and bento via .dash-automode slot in dashboard.js:31-33;
+      the strip itself is plugins/taskmaster/viewer/js/components/auto-mode-strip.js
+      — full-width row showing "Auto-mode · N running · running Xd · per-run pills
+      · view all"). (2) Minimize the always-visible auto-run status pill in the global
+      topbar (added in commit 5974ea0 "header auto-mode status pill visible on every
+      screen") so it consumes less horizontal real estate — likely shrink to icon
+      + dot indicator with tooltip for details.'
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/components/auto-mode-strip.js
+    - plugins/taskmaster/viewer/js/screens/dashboard.js
+    - plugins/taskmaster/viewer/css/screens/kanban.css
+  - id: v3-polish-007
+    title: Tighten kanban visual gaps — reclaim wasted space
+    status: todo
+    priority: medium
+    created: 2026-05-02T05:56
+    last_referenced: 2026-05-02T05:56
+    notes: 'User feedback 2026-05-02 — kanban has noticeable gaps between cards, columns,
+      and headers that don''t carry meaning, robbing usable surface. Audit gap/padding/margin
+      tokens across kanban screens and tighten where the space isn''t communicating
+      structure. Compare against the v3 design tokens (--page-pad, --page-gap) and
+      surface stepping rules. Likely targets: card-to-card vertical gap, column inner
+      padding, column-header bottom margin, and any column-to-column horizontal gap.'
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/css/screens/kanban.css
+    - plugins/taskmaster/viewer/js/screens/kanban.js
+    - plugins/taskmaster/viewer/css/components/kanban-card.css
+  - id: v3-polish-008
+    title: Auto-mode page — restore spine visual on stub
+    status: todo
+    priority: medium
+    created: 2026-05-02T05:59
+    last_referenced: 2026-05-02T05:59
+    notes: User feedback 2026-05-02 — the auto-mode page stub at /v3/#/auto isn't
+      showing the spine. The spine is the vertical visual rhythm shared with sessions
+      timeline (see sessions.css parallel-block + spine pattern from commits 5035fb3,
+      ab4b650). Discover what the auto-mode page renders today, identify why the spine
+      is missing (stub state vs. data wiring), and restore it.
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/screens/auto.js
+    - plugins/taskmaster/viewer/js/components/auto-mode-stepper.js
+    - plugins/taskmaster/viewer/css/screens/auto.css
+  - id: v3-polish-009
+    title: Issues screen — align with design concept
+    status: todo
+    priority: high
+    created: 2026-05-02T05:59
+    last_referenced: 2026-05-02T05:59
+    notes: 'User feedback 2026-05-02 — issues screen drifts from the concept; needs
+      a closer alignment pass. Concepts to compare against: .superpowers/brainstorm/.../issues-hybrid.html
+      and issues-v2-bugreport.html (referenced in earlier review-gate). Audit current
+      rendering vs concept (card layout, severity hex, location/symptom fonts, repro
+      block, blocks chip, aging bar) and close the deltas.'
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/screens/issues.js
+    - plugins/taskmaster/viewer/js/components/issue-card.js
+    - plugins/taskmaster/viewer/css/screens/issues.css
+  - id: v3-polish-010
+    title: Lessons screen — usability refresh
+    status: todo
+    priority: medium
+    created: 2026-05-02T05:59
+    last_referenced: 2026-05-02T05:59
+    notes: 'User feedback 2026-05-02 — lessons screen needs a usability refresh. The
+      visual polish (Pass A) landed in commit 184e9a1, but day-to-day use has surfaced
+      friction. Worth a focused usability pass: card scannability, signal hierarchy
+      (active vs passive), search+chip discoverability, reinforce flow, drill-in to
+      detail. Concept reference: .superpowers/brainstorm/.../lessons-shelves.html.
+      May need a brainstorming pass before code.'
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/screens/lessons.js
+    - plugins/taskmaster/viewer/js/components/lesson-card.js
+    - plugins/taskmaster/viewer/css/screens/lessons.css
+  - id: v3-polish-011
+    title: Dashboard — second-pass design review
+    status: todo
+    priority: medium
+    created: 2026-05-02T06:04
+    last_referenced: 2026-05-02T06:04
+    notes: 'User feedback 2026-05-02 — dashboard wants another look. The current shape:
+      briefing strip + auto-mode strip (queued for slim-down in v3-polish-006) + bento
+      grid (12+ widgets) + bottom widget row. Audit: widget density and hierarchy,
+      information-to-pixel ratio, vertical rhythm with the briefing strip, edit-mode
+      chrome, and how the bento + bottom rows interact at different viewport widths.
+      Likely surface several smaller tasks once findings are clear.'
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/screens/dashboard.js
+    - plugins/taskmaster/viewer/js/components/widgets/**
+    - plugins/taskmaster/viewer/css/screens/dashboard.css
+  - id: v3-polish-012
+    title: Design tokens and color palette audit
+    status: todo
+    priority: medium
+    created: 2026-05-02T06:04
+    last_referenced: 2026-05-02T06:04
+    notes: 'User feedback 2026-05-02 — tokens and color palette want another pass.
+      tokens.css currently exposes --ink/--ink-2/--ink-3/--ink-4, --accent, --accent-2,
+      --accent-soft, --accent-blue, --accent-edit, --accent-green, --gold/--amber,
+      plus surface stepping (--bg-shell/-panel/-card/-deep) and per-screen overrides.
+      Audit for: (1) redundant or near-duplicate tokens (--accent vs --accent-blue
+      vs --accent-edit), (2) semantic vs raw naming (e.g., --warn, --critical, --resolved)
+      so callers express intent, (3) palette coherence across surfaces (pip-active
+      blue vs auto-status pill blue vs edit-mode chrome blue should harmonize). Cross-reference
+      per-screen CSS for phantom variables (history of c949b4c, 4704964 fixes).'
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/css/tokens.css
+    - plugins/taskmaster/viewer/css/components/**
+    - plugins/taskmaster/viewer/css/screens/**
+  - id: v3-polish-013
+    title: End-to-end UI/UX review of the whole viewer experience
+    status: todo
+    priority: high
+    created: 2026-05-02T06:04
+    last_referenced: 2026-05-02T06:04
+    notes: User feedback 2026-05-02 — comprehensive UI/UX walkthrough of the v3 viewer
+      end-to-end. Cover every screen (dashboard, kanban, table, sessions, recap, lessons,
+      issues, task-detail, lesson-detail, issue-detail, auto) plus shared chrome (sidebar,
+      topbar, right-rails, modals). Capture friction points, inconsistencies, broken
+      flows, and discoverability gaps. Likely spawns child tasks for each significant
+      finding. This is the meta-review that informs prioritization of the other v3-polish
+      items — recommend doing it before deep-diving into individual touchpoints.
+    estimate: L
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/screens/**
+    - plugins/taskmaster/viewer/js/components/**
+- id: v3-release
+  name: V3 Release (2.0)
+  status: planned
+  description: Package and ship taskmaster 2.0.0 — major version bump reflecting the
+    v3 schema (handovers/lessons/issues/recap/auto-mode) and redesigned viewer. Schema
+    break justifies major bump from 1.x. Covers MCP tool exposure, version bump, release
+    notes, marketplace sync, and merge to master.
+  created: 2026-05-02T05:46
+  tasks:
+  - id: v3-release-001
+    title: Verify backlog_migrate_v3 MCP tool ships in 1.12 build
+    status: todo
+    priority: critical
+    created: 2026-05-02T05:46
+    last_referenced: 2026-05-02T05:46
+    notes: backlog_migrate_v3 exists in worktree backlog_server.py:1303 with @mcp.tool()
+      decorator but is NOT exposed by running MCP server (1.11.1). Without this, users
+      cannot upgrade their existing v2 backlogs to v3 — blocker for release. Verify
+      the build/packaging picks it up and that ToolSearch surfaces it after a fresh
+      install.
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/backlog_server.py
+  - id: v3-release-002
+    title: Bump plugin version to 2.0.0
+    status: todo
+    priority: high
+    created: 2026-05-02T05:46
+    last_referenced: 2026-05-02T05:47
+    notes: Major version bump 1.11.1 → 2.0.0 — v3 schema is a breaking change for
+      v2 backlogs (heavy task fields move from backlog.yaml to tasks/<id>.md). Also
+      a full UI rewrite. Update plugin.json and verify hooks/version-bump.sh trigger
+      and any other version references stay in sync.
+    depends_on:
+    - v3-release-001
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/.claude-plugin/plugin.json
+  - id: v3-release-003
+    title: Write 2.0.0 release notes
+    status: todo
+    priority: high
+    created: 2026-05-02T05:47
+    last_referenced: 2026-05-02T05:47
+    notes: 'Cover: v3 schema (handovers, lessons, issues, recap, auto-mode), redesigned
+      viewer, migration path via backlog_migrate_v3, breaking-change call-out (heavy
+      fields move to per-task files). Use backlog_release_notes MCP tool as a starting
+      point if helpful.'
+    estimate: S
+    phase: ship-v3
+  - id: v3-release-004
+    title: Sync marketplace metadata to 2.0
+    status: todo
+    priority: high
+    created: 2026-05-02T05:47
+    last_referenced: 2026-05-02T05:47
+    notes: Update the marketplace listing per chore(marketplace) pattern from 1.11.0
+      (commit a812b07). Description should reflect v3 capabilities.
+    depends_on:
+    - v3-release-002
+    estimate: S
+    phase: ship-v3
+  - id: v3-release-005
+    title: Smoke-test 2.0.0 against fresh install
+    status: todo
+    priority: high
+    created: 2026-05-02T05:47
+    last_referenced: 2026-05-02T05:47
+    notes: Install the 1.12 plugin into a fresh project. Run init → migrate_v3 → create
+      epic/task/handover/lesson → open viewer. Verify no regressions vs 1.11. Captures
+      the dogfood outcome of this very initialization session.
+    depends_on:
+    - v3-release-002
+    - v3-release-003
+    - v3-release-004
+    estimate: M
+    phase: ship-v3
+  - id: v3-release-006
+    title: Merge feature/taskmaster-v3 to master
+    status: todo
+    priority: critical
+    created: 2026-05-02T05:47
+    last_referenced: 2026-05-02T05:47
+    notes: 'Final gate. Merge feature/taskmaster-v3 (44+ commits) to master. User
+      policy: merge locally first, do NOT push without explicit permission. Tag v2.0.0
+      after merge.'
+    depends_on:
+    - v3-release-005
+    estimate: S
+    phase: ship-v3
+phases:
+- id: ship-v3
+  name: Ship V3
+  status: active
+  description: Wrap up polish work and release 2.0.0. Single sprint covering both
+    v3-polish and v3-release epics.
+  order: 1
+  created: 2026-05-02T05:46
+  start_date: '2026-05-02'
