@@ -361,6 +361,407 @@ epics:
     - v3-release-005
     estimate: S
     phase: ship-v3
+- id: v3-skills
+  name: V3 Skills
+  status: active
+  description: Author the user-facing skill layer for v3 — the connective tissue between
+    conversation and the new v3 entities (handovers, lessons, issues, recap, auto-loop).
+    Backend Python is built; viewer screens are built; the skills that let a user
+    actually create and consume these artifacts from a chat are missing. Covers the
+    three entity skills (handover/lesson/issue), retrofits to start-session/pick-task/end-session
+    so they surface v3 data, a quality pass on the auto-task/epic/phase loop skills,
+    the migration skill, and a dogfood walkthrough. Authored against real-world patterns
+    mined from CodeMaestro's 457-task v1 backlog (see v3-skills-001).
+  created: 2026-05-02T16:30
+  tasks:
+  - id: v3-skills-001
+    title: 'Mine CodeMaestro for real-world skill-enrichment patterns'
+    status: todo
+    priority: critical
+    created: 2026-05-02T16:30
+    last_referenced: 2026-05-02T16:30
+    notes: 'Read-only audit of Files/Work/CodeMaestro (457 tasks, 5783-line PROGRESS.md,
+      255 session entries) — the most-used real v1 backlog — to extract patterns
+      that should shape every v3 skill before they''re authored. Outputs:
+      docs/v3-skills-enrichment.md covering (1) handover language patterns hiding
+      inside PROGRESS.md "Done/Decisions/Issues" entries, (2) repeated-decision
+      patterns that would have been auto-promoted to core lessons, (3) bugs
+      currently buried in task descriptions that should have been ISS-* entries
+      with severity/repro, (4) end-session reality vs design (when do users
+      actually log? what gets skipped?), (5) auto-loop stress signals — what
+      fails at 457-task scale. This task runs first because its findings inform
+      every other v3-skills task. No file mutations on CodeMaestro.'
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - C:/Users/gruku/Files/Work/CodeMaestro/backlog.yaml
+    - C:/Users/gruku/Files/Work/CodeMaestro/PROGRESS.md
+    - plugins/taskmaster/docs/v3-skills-enrichment.md
+  - id: v3-skills-002
+    title: 'taskmaster:handover skill — write/read flow'
+    status: todo
+    priority: critical
+    created: 2026-05-02T16:30
+    last_referenced: 2026-05-02T16:30
+    notes: 'Author the dedicated handover skill. Triggers: "wrap up", "ending
+      the day", "write a handover", "I am at 300k tokens". Generates the
+      four-section body (Decisions / Blockers / Where I''d start / Open
+      threads), prompts for tldr + next_action + session_kind, writes
+      .taskmaster/handovers/YYYY-MM-DD-<slug>.md, syncs the backlog.yaml
+      handovers index (cap 30, archive older). Pairs with read flow via
+      backlog_handover_get. Backend exists in taskmaster_v3.py
+      (write_handover/read_handover/sync_handover_index). User''s #1 stated
+      pain — every other v3 surface that mentions handovers depends on this.'
+    depends_on:
+    - v3-skills-001
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/skills/handover/SKILL.md
+    - plugins/taskmaster/taskmaster_v3.py
+  - id: v3-skills-003
+    title: 'taskmaster:lesson skill — write/reinforce/promote'
+    status: todo
+    priority: critical
+    created: 2026-05-02T16:30
+    last_referenced: 2026-05-02T16:30
+    notes: 'Author the lessons skill. Triggers: "remember this", "this keeps
+      happening", "we always do X here", auto-suggestion from accumulated
+      feedback memory. Captures kind (pattern/anti-pattern/gotcha), triggers
+      (file globs + task-title substrings), why, what-to-do. Implements the
+      reinforce loop (lesson_reinforce backend exists), auto-promotion to
+      core at reinforce_count >= 5, auto-decay (180d unreinforced + count<2
+      → retired). Three-tier loading discipline (digest 30 / core 5 /
+      trigger-matched 3) is enforced by start-session and pick-task; this
+      skill is the *write* side. Patterns to apply come from v3-skills-001.'
+    depends_on:
+    - v3-skills-001
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/skills/lesson/SKILL.md
+    - plugins/taskmaster/taskmaster_v3.py
+  - id: v3-skills-004
+    title: 'taskmaster:issue skill — log/track/close defects'
+    status: todo
+    priority: critical
+    created: 2026-05-02T16:30
+    last_referenced: 2026-05-02T16:30
+    notes: 'Author the issues skill. Triggers: "log a bug", "found an issue",
+      "this is broken", "track this defect". Captures severity (P0–P3),
+      components, impact, repro steps, location (file:line). Optional
+      related-task creation ("Want me to create a fix task too?").
+      Lifecycle: open → investigating → fixed (requires fixed_in_task) /
+      wontfix / duplicate. Backend exists (write_issue/update_issue/
+      sync_issue_index). v3-skills-001 will inform severity heuristics
+      and how repro/impact get filled vs left blank in real usage.'
+    depends_on:
+    - v3-skills-001
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/skills/issue/SKILL.md
+    - plugins/taskmaster/taskmaster_v3.py
+  - id: v3-skills-005
+    title: 'taskmaster:migrate-v3 skill — guided opt-in migration'
+    status: todo
+    priority: high
+    created: 2026-05-02T16:30
+    last_referenced: 2026-05-02T16:30
+    notes: 'Wrap the existing backlog_migrate_v3 MCP tool (verified to ship by
+      v3-release-001) with a guided skill. Show pre-flight summary (N tasks,
+      M with non-trivial bodies will be extracted), explain the schema break
+      (heavy fields move from backlog.yaml to tasks/<id>.md), offer dry-run
+      preview, run the migration, summarise outputs, suggest gitignore
+      additions for snapshots/auto. Without this skill, real users can''t
+      adopt v3 cleanly even after the MCP tool ships.'
+    depends_on:
+    - v3-skills-001
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/skills/migrate-v3/SKILL.md
+  - id: v3-skills-006
+    title: 'PreCompact hook + init-taskmaster v3 retrofit'
+    status: todo
+    priority: high
+    created: 2026-05-02T16:30
+    last_referenced: 2026-05-02T16:30
+    notes: 'Auto-install the PreCompact hook that runs `taskmaster snapshot
+      --quiet` before context compaction (so post-compact recap reflects
+      pre-compact state). Update init-taskmaster skill to: (1) add the hook
+      to settings.json non-destructively (merge with existing PreCompact
+      entries), (2) add .taskmaster/snapshots/ and .taskmaster/auto/ to
+      .gitignore, (3) verify the snapshot CLI command runs end-to-end.
+      Settings snippet in design-v3-narrative-continuity.md §5.'
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/skills/init-taskmaster/SKILL.md
+    - plugins/taskmaster/hooks/
+  - id: v3-skills-007
+    title: 'Retrofit start-session — surface v3 data plane'
+    status: todo
+    priority: high
+    created: 2026-05-02T16:30
+    last_referenced: 2026-05-02T16:30
+    notes: 'Update start-session skill to surface: (1) recap diff section
+      (what changed in the project since last session — separate from
+      "what I did last session"), (2) latest handover frontmatter only
+      (~200 tokens) with prompt to read body if session_kind is
+      context-handoff, (3) lessons digest (≤30 active × ~10 tokens) +
+      core lessons in full (≤5 × ~100), (4) top 10 open issues by severity.
+      Watch token budget against ~3k soft target (warn at 5k). Tests
+      verify the budget as a signal, not a gate.'
+    depends_on:
+    - v3-skills-002
+    - v3-skills-003
+    - v3-skills-004
+    - v3-skills-006
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/skills/start-session/SKILL.md
+  - id: v3-skills-008
+    title: 'Retrofit pick-task — "continue this task" trigger + v3 surfaces'
+    status: todo
+    priority: high
+    created: 2026-05-02T16:30
+    last_referenced: 2026-05-02T16:30
+    notes: 'Update pick-task skill to: (1) accept "continue where we left
+      off" / "continue this task" triggers (auto-resolve to the
+      most-recently-touched in-progress task with a handover), (2) load
+      related_handovers tldrs (not full bodies, ~50 tokens × cap 3),
+      (3) load trigger-matched lessons in full (cap 3 hits, ~300 tokens
+      worst case), (4) surface related_issues with severity. Watch
+      additive ~1.5k token target (warn 3k). This is the user-facing
+      behaviour they explicitly asked about in the v3-skills kickoff.'
+    depends_on:
+    - v3-skills-002
+    - v3-skills-003
+    - v3-skills-004
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/skills/pick-task/SKILL.md
+  - id: v3-skills-009
+    title: 'Retrofit end-session — auto-offer handover + snapshot'
+    status: todo
+    priority: high
+    created: 2026-05-02T16:30
+    last_referenced: 2026-05-02T16:30
+    notes: 'Update end-session skill to: (1) auto-offer handover when any
+      heavy-session signal fires (turns > 60, conversation tokens > 200k,
+      task in flight at session end, or user said "for tomorrow" / "next
+      time" / "remind future me"), (2) take a snapshot via
+      taskmaster_v3.take_snapshot before logging, (3) run handover archive
+      sweep (drop oldest from index past cap 30), (4) prompt for
+      lesson-candidate extraction when a non-obvious decision was made
+      this session. Existing structured Done/Decisions/Issues mode stays;
+      handover is additive.'
+    depends_on:
+    - v3-skills-002
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/skills/end-session/SKILL.md
+  - id: v3-skills-010
+    title: 'Quality pass — auto-task skill (wire to real handover/lesson tools)'
+    status: todo
+    priority: high
+    created: 2026-05-02T16:30
+    last_referenced: 2026-05-02T16:30
+    notes: 'The auto-task SKILL.md was drafted to call backlog_handover_get
+      and backlog_lesson_match before those skills had write counterparts.
+      Now that v3-skills-002/003/004 land, walk the full state machine end-to-end
+      (PICK → SPEC_REVIEW → IMPLEMENT → TEST → REVIEW_GATE → HANDOVER_STUB
+      → END_SESSION) against the v3 worktree''s own backlog as a smoke
+      run. Verify cursor persistence across compaction (PreCompact hook
+      flushes state.json), failure taxonomy (tests-failed / spec-rejected
+      / blocked / crashed) handling, and that the handover stub is
+      brief enough not to bloat the index.'
+    depends_on:
+    - v3-skills-002
+    - v3-skills-003
+    - v3-skills-004
+    - v3-skills-006
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/skills/auto-task/SKILL.md
+  - id: v3-skills-011
+    title: 'Quality pass — auto-epic + auto-phase orchestrator skills'
+    status: todo
+    priority: medium
+    created: 2026-05-02T16:30
+    last_referenced: 2026-05-02T16:30
+    notes: 'Validate the subagent-isolation contract (orchestrator only
+      sees ~50 tokens per task; per-task contexts are discarded), per-task
+      summary aggregation (status / 1-paragraph summary / commit shas),
+      auto-stage handover stub auto-archival on epic/phase completion,
+      and the failure-aggregation policy (halt at first epic failure
+      unless --continue-on-fail). Run a 5-task auto-epic dry-run on
+      v3-skills epic itself (recursive dogfood).'
+    depends_on:
+    - v3-skills-010
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/skills/auto-epic/SKILL.md
+    - plugins/taskmaster/skills/auto-phase/SKILL.md
+  - id: v3-skills-012
+    title: 'Update taskmaster:taskmaster router skill for new entity skills'
+    status: todo
+    priority: medium
+    created: 2026-05-02T16:30
+    last_referenced: 2026-05-02T16:30
+    notes: 'Add routing entries to the taskmaster:taskmaster router skill
+      for the three new entity skills. Map intent triggers ("write a
+      handover" / "log a bug" / "remember this") to the correct sub-skill.
+      Update the skill description so /help and skill-discovery surface
+      the new entries. Smaller surface — small task.'
+    depends_on:
+    - v3-skills-002
+    - v3-skills-003
+    - v3-skills-004
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/skills/taskmaster/SKILL.md
+  - id: v3-skills-013
+    title: 'Token budget signal tests per surface'
+    status: todo
+    priority: medium
+    created: 2026-05-02T16:30
+    last_referenced: 2026-05-02T16:30
+    notes: 'Write tests that estimate the per-surface token cost of
+      start-session, pick-task, end-session, and review-gate against a
+      seeded fixture, and warn (not fail) when above the soft target
+      from design-v3-narrative-continuity.md §Token Budget Guidance.
+      Hard caps stay enforced in code (≤30 active lessons, ≤5 core,
+      ≤30 handover index entries, top 10 issues). Targets:
+      start-session ~3k / warn 5k; pick-task additive ~1.5k / warn 3k;
+      end-session additive ~800 / warn 1.5k; review-gate additive ~800.'
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/tests/
+  - id: v3-skills-014
+    title: 'End-to-end skill walkthrough — fresh-project dogfood'
+    status: todo
+    priority: high
+    created: 2026-05-02T16:30
+    last_referenced: 2026-05-02T16:30
+    notes: 'Final integration: from a fresh empty directory run init-v3 →
+      add epic + tasks → pick-task → spec-review → handover → end-session
+      → start a new session → "continue this task" → log a lesson →
+      log an issue → close issue via task completion → run an auto-epic.
+      Capture any wiring gaps the unit tests missed. Pairs with
+      v3-release-005 (smoke-test against fresh install) but exercises
+      the skill flow from a user perspective rather than the package
+      install path.'
+    depends_on:
+    - v3-skills-007
+    - v3-skills-008
+    - v3-skills-009
+    - v3-skills-010
+    - v3-skills-012
+    estimate: M
+    phase: ship-v3
+- id: v3-teams
+  name: V3 Agent Teams (Optional)
+  status: planned
+  description: Sibling capability layer to v3-skills — opt-in agent-teams skills
+    proposed in design-v3-agent-teams.md. Not a sixth pillar; adopt independently
+    or skip entirely from 2.0. Each skill enforces a cost-justification gate ("what
+    would a solo Opus miss?") to prevent reflex team formation. Cross-cutting refactor
+    teams deferred to v3.5+.
+  created: 2026-05-02T16:30
+  tasks:
+  - id: v3-teams-001
+    title: 'taskmaster:design-team skill + position-paper-rebuttal-synthesis protocol'
+    status: todo
+    priority: medium
+    created: 2026-05-02T16:30
+    last_referenced: 2026-05-02T16:30
+    notes: 'Highest-value team skill. Pre-spec multi-lens design pass for
+      tasks with high uncertainty (no spec yet + estimate=L + no obvious
+      prior pattern). Cost-justification gate first; lead writes brief;
+      4 teammates produce position papers; cross-rebuttals; lead synthesizes
+      to tasks/<id>.md spec. Enforces the 500-word position-paper / 150-word
+      rebuttal ceilings. Token footprint ~15-25k for full pass — gated by
+      explicit user intent or task heuristics.'
+    estimate: L
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/skills/design-team/SKILL.md
+  - id: v3-teams-002
+    title: '.taskmaster/team-roles/ config + role-loading helper'
+    status: todo
+    priority: medium
+    created: 2026-05-02T16:30
+    last_referenced: 2026-05-02T16:30
+    notes: 'Project-scope role library. Each role file is both a subagent
+      definition (for solo dispatch) and a team-spawn role (used as
+      subagent_type when teams form). One source of truth. Default
+      starter roles: designer, engineer, qa, skeptic, security. Required
+      for v3-teams-001 to scale beyond bespoke spawn-prompt-writing.'
+    depends_on:
+    - v3-teams-001
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/team-roles/
+  - id: v3-teams-003
+    title: 'spec-review --team flag + parallel-review protocol'
+    status: todo
+    priority: medium
+    created: 2026-05-02T16:30
+    last_referenced: 2026-05-02T16:30
+    notes: 'Smaller surface — extends existing spec-review skill with a
+      --team flag that forms a 3-4 teammate review (engineer / QA /
+      skeptic by default). Single pass (no rebuttals); lead synthesizes
+      review.md. Reuses v3-teams-001 infrastructure. Default remains
+      single-agent.'
+    depends_on:
+    - v3-teams-001
+    - v3-teams-002
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/skills/spec-review/SKILL.md
+  - id: v3-teams-004
+    title: 'taskmaster:debug-team + hypothesis-tournament protocol'
+    status: todo
+    priority: low
+    created: 2026-05-02T16:30
+    last_referenced: 2026-05-02T16:30
+    notes: 'For ambiguous bugs (issues with severity P0/P1 and no clear
+      repro). 3-5 teammates each pursuing a different hypothesis;
+      cross-debate; lead synthesizes root cause and updates ISS-*.
+      Trigger: explicit "debug team" or taskmaster:issue offering it
+      on a P0 issue. Default to single-agent investigation.'
+    depends_on:
+    - v3-teams-001
+    - v3-teams-002
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/skills/debug-team/SKILL.md
+  - id: v3-teams-005
+    title: 'Stretch — pair-then-merge and open-debate protocols'
+    status: todo
+    priority: low
+    created: 2026-05-02T16:30
+    last_referenced: 2026-05-02T16:30
+    notes: 'Optional protocols. pair-then-merge for refactor planning
+      where two independent designs make useful baselines. open-debate
+      for ad-hoc brainstorms — highest token risk, gate behind explicit
+      intent. Ship only if real demand emerges from teams-001/003/004.'
+    depends_on:
+    - v3-teams-001
+    estimate: S
+    phase: ship-v3
 phases:
 - id: ship-v3
   name: Ship V3
