@@ -1,20 +1,20 @@
 meta:
   project: claude-tools
-  updated: '2026-05-02T07:30'
+  updated: '2026-05-02T08:10'
 context:
   active_epic: v3-polish
   in_progress: []
   blocked: []
   recent_completed:
+  - id: v3-polish-014
+    title: Sanitize ${id} in not-found innerHTML across detail screens (security)
+    completed: 2026-05-02T08:10
+    epic: v3-polish
   - id: v3-polish-013
     title: End-to-end UI/UX review of the whole viewer experience
     completed: 2026-05-02T07:30
     epic: v3-polish
   next_up:
-  - id: v3-polish-014
-    title: Sanitize ${id} in not-found innerHTML across detail screens (security)
-    priority: critical
-    epic: v3-polish
   - id: v3-polish-022
     title: Migrate dev server to ThreadingHTTPServer (test-infra blocker)
     priority: high
@@ -37,10 +37,10 @@ context:
     epic: v3-polish
   stats:
     total: 51
-    done: 1
+    done: 2
     in_progress: 0
     in_review: 0
-    todo: 50
+    todo: 49
     blocked: 0
     archived: 0
   active_phase:
@@ -48,10 +48,10 @@ context:
     name: Ship V3
     stats:
       total: 51
-      todo: 50
+      todo: 49
       in-progress: 0
       in-review: 0
-      done: 1
+      done: 2
       blocked: 0
       archived: 0
     target_date: null
@@ -307,10 +307,11 @@ epics:
     - plugins/taskmaster/docs/v3-polish-013/synthesis.md
   - id: v3-polish-014
     title: Sanitize ${id} in not-found innerHTML across detail screens (security)
-    status: todo
+    status: done
     priority: critical
     created: 2026-05-02T07:30
-    last_referenced: 2026-05-02T07:30
+    last_referenced: 2026-05-02T08:00
+    completed: 2026-05-02T08:10
     notes: 'Self-XSS confirmed live on lesson-detail and issue-detail (polish-013):
       crafted URL like /v3/#/issue/<img src=x onerror=...> injects real HTML elements
       via root.innerHTML template. Same class likely exists on task-detail, recap-by-id,
