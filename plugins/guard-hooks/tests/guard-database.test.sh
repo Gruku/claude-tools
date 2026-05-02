@@ -70,4 +70,12 @@ assert_allowed "DELETE WITH WHERE"           'psql -c "DELETE FROM users WHERE i
 assert_allowed "UPDATE WITH WHERE"           'psql -c "UPDATE users SET active=0 WHERE id=1;"'
 assert_allowed "SELECT not affected"         'psql -c "SELECT * FROM users;"'
 
+echo "-- mongo --"
+assert_blocked "mongosh dropDatabase" 'mongosh --eval "db.dropDatabase()"'
+assert_blocked "mongo legacy dropDatabase" 'mongo mydb --eval "db.dropDatabase()"'
+assert_blocked "mongosh collection.drop" 'mongosh --eval "db.users.drop()"'
+assert_blocked "mongosh deleteMany empty" 'mongosh --eval "db.users.deleteMany({})"'
+assert_allowed "mongosh find"            'mongosh --eval "db.users.find({})"'
+assert_allowed "mongosh deleteMany scoped" 'mongosh --eval "db.users.deleteMany({status: \"x\"})"'
+
 exit "$FAILS"

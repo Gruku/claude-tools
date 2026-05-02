@@ -106,4 +106,18 @@ if echo "$COMMAND" | grep -qiE 'UPDATE[[:space:]]+[a-zA-Z_][a-zA-Z0-9_."]*[[:spa
   fi
 fi
 
+# --- Mongo destructive ops ---
+if echo "$COMMAND" | grep -qE '\bdropDatabase[[:space:]]*\('; then
+  block_hard "Mongo dropDatabase() — entire database removed." \
+             "Restore from a mongodump (mongorestore --drop)."
+fi
+if echo "$COMMAND" | grep -qE '\.drop[[:space:]]*\([[:space:]]*\)'; then
+  block_soft "Mongo collection .drop() — collection and all its documents removed." \
+             "Restore the collection from mongodump if needed."
+fi
+if echo "$COMMAND" | grep -qE 'deleteMany[[:space:]]*\([[:space:]]*\{[[:space:]]*\}[[:space:]]*\)'; then
+  block_soft "Mongo deleteMany({}) — every document in the collection removed." \
+             "Use a non-empty filter, or take a mongodump first."
+fi
+
 exit 0
