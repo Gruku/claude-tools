@@ -120,4 +120,14 @@ if echo "$COMMAND" | grep -qE 'deleteMany[[:space:]]*\([[:space:]]*\{[[:space:]]
              "Use a non-empty filter, or take a mongodump first."
 fi
 
+# --- Redis nukes ---
+if echo "$COMMAND" | grep -qiE '\bredis-cli\b[^|;&]*\bflushall\b'; then
+  block_hard "Redis FLUSHALL — every key in every database wiped, cluster-wide." \
+             "If a snapshot exists, restore via SAVE/BGSAVE artifacts and a restart."
+fi
+if echo "$COMMAND" | grep -qiE '\bredis-cli\b[^|;&]*\bflushdb\b'; then
+  block_soft "Redis FLUSHDB — every key in the selected database wiped." \
+             "If a snapshot exists, restore via SAVE/BGSAVE artifacts."
+fi
+
 exit 0

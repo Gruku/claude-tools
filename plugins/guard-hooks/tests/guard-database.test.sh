@@ -78,4 +78,12 @@ assert_blocked "mongosh deleteMany empty" 'mongosh --eval "db.users.deleteMany({
 assert_allowed "mongosh find"            'mongosh --eval "db.users.find({})"'
 assert_allowed "mongosh deleteMany scoped" 'mongosh --eval "db.users.deleteMany({status: \"x\"})"'
 
+echo "-- redis --"
+assert_blocked "redis-cli FLUSHALL"      'redis-cli FLUSHALL'
+assert_blocked "redis-cli flushall lower" 'redis-cli flushall'
+assert_blocked "redis-cli FLUSHDB"       'redis-cli FLUSHDB'
+assert_blocked "redis-cli with host flushall" 'redis-cli -h prod.example.com FLUSHALL'
+assert_allowed "redis-cli get"           'redis-cli GET mykey'
+assert_allowed "redis-cli info"          'redis-cli INFO'
+
 exit "$FAILS"
