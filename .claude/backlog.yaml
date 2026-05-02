@@ -497,10 +497,11 @@ epics:
     - plugins/taskmaster/viewer/css/tokens.css
   - id: v3-polish-024
     title: Cleanup td-page / td-page-A classes on task-detail unmount
-    status: todo
+    status: done
     priority: medium
     created: 2026-05-02T07:30
-    last_referenced: 2026-05-02T07:30
+    last_referenced: 2026-05-02T08:40
+    completed: 2026-05-02T08:40
     notes: 'polish-013 audit confirmed task-detail-document.js and task-detail-graph.js
       add td-page / td-page-A / td-page-B classes to shared #screen-mount but never
       remove them on cleanup. Router does replaceChildren but does not reset classList,
