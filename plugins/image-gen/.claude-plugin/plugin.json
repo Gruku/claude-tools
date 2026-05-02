@@ -1,7 +1,7 @@
 {
   "name": "image-gen",
-  "description": "Generate, edit, and refine images using Google Gemini and OpenAI GPT Image 1.5. Supports text-to-image, image editing, iterative refinement, and transparent backgrounds.",
-  "version": "1.0.0",
+  "description": "Generate, edit, and refine images using Google Gemini and OpenAI GPT Image 2 (with GPT Image 1.5 retained for transparent backgrounds). Supports text-to-image, image editing, iterative refinement, and transparent backgrounds.",
+  "version": "1.1.0",
   "author": {
     "name": "gruku"
   }

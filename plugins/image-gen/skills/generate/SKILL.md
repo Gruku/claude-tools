@@ -12,10 +12,10 @@ Create a new image from a text description.
 1. **Craft the prompt** — Transform the user's request into a detailed image generation prompt. Be specific about style, composition, colors, lighting, and subject matter. The more detail, the better the result.
 
 2. **Choose backend and parameters** — Based on the use case:
-   - **Transparent background needed?** Use `--backend openai --transparent` (native alpha) or `--backend gemini --transparent` (two-pass extraction, slower)
+   - **Transparent background needed?** Use `--backend openai --transparent` (native alpha — script auto-uses `gpt-image-1.5` because `gpt-image-2` does not support transparency) or `--backend gemini --transparent` (two-pass extraction, slower)
    - **Aspect ratio:** Match the intended use (1:1 for icons/avatars, 16:9 for backgrounds, 9:16 for mobile, 3:2 for game cards, etc.)
    - **Size:** 1K for drafts/iteration, 2K for production assets, 4K for hero images
-   - **Model:** Default (flash) for iteration, `--model gemini-3-pro-image-preview` for final quality, `--backend openai --quality high` for best OpenAI quality
+   - **Model:** Default (flash) for iteration, `--model gemini-3-pro-image-preview` for final quality, `--backend openai --quality high` for best OpenAI quality (defaults to `gpt-image-2`)
 
 3. **Choose output path** — Name the file descriptively based on what it depicts. Place in `./assets/generated/` by default, or in a project-appropriate location (e.g., `./public/images/`, `./src/assets/`).
 
@@ -29,6 +29,7 @@ node "${SKILL_DIR}/../../src/generate.mjs" \
   --size "<size>"
 
 # Transparent background (OpenAI — recommended)
+# Script auto-uses gpt-image-1.5 because gpt-image-2 does not support transparency.
 node "${SKILL_DIR}/../../src/generate.mjs" \
   --backend openai \
   --transparent \
@@ -50,11 +51,15 @@ node "${SKILL_DIR}/../../src/generate.mjs" \
 
 | Scenario | Recommendation |
 |----------|---------------|
-| Game sprites, icons, UI elements | `--backend openai --transparent` |
+| Game sprites, icons, UI elements | `--backend openai --transparent` (auto-uses `gpt-image-1.5`) |
 | Transparent + specific Gemini style | `--backend gemini --transparent` (two-pass) |
-| Backgrounds, photos, art | No `--transparent` needed |
+| Backgrounds, photos, art | No `--transparent` needed (uses `gpt-image-2`) |
 
-**Important:** Gemini cannot produce true alpha channels. When `--transparent` is used with Gemini, the script generates the image twice (on white and black backgrounds) and computes alpha mathematically. This uses 2 API calls and may have artifacts on complex edges.
+**Important — model split for OpenAI:**
+- `gpt-image-2` (default for non-transparent) is the newer, state-of-the-art model with flexible sizes and faster generation. **It does NOT support transparent backgrounds** — this is a regression vs. `gpt-image-1.5`.
+- `gpt-image-1.5` is retained specifically for transparency. The script automatically falls back to it when `--transparent` is set, so you usually don't need to pass `--model` yourself. If you do pass `--model gpt-image-2 --transparent` together, the script errors out instead of silently failing at the API.
+
+**Gemini transparency:** Gemini cannot produce true alpha channels. When `--transparent` is used with Gemini, the script generates the image twice (on white and black backgrounds) and computes alpha mathematically. This uses 2 API calls and may have artifacts on complex edges.
 
 ## Prompt Crafting Tips
 

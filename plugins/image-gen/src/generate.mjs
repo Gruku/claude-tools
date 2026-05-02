@@ -36,9 +36,21 @@ if (!["gemini", "openai"].includes(backend)) {
 // --- Resolve default model per backend ---
 const defaultModels = {
   gemini: "gemini-3.1-flash-image-preview",
-  openai: "gpt-image-1.5",
+  openai: "gpt-image-2",
 };
-const model = values.model || defaultModels[backend];
+const userSpecifiedModel = !!values.model;
+let model = values.model || defaultModels[backend];
+
+// gpt-image-2 doesn't support transparent backgrounds — fall back to gpt-image-1.5
+// when the user asked for transparency without pinning a specific model.
+if (backend === "openai" && values.transparent && model === "gpt-image-2") {
+  if (userSpecifiedModel) {
+    console.error("Error: gpt-image-2 does not support --transparent. Use --model gpt-image-1.5 (or omit --model to auto-fall-back).");
+    process.exit(1);
+  }
+  console.error("[image-gen] --transparent requested: falling back from gpt-image-2 to gpt-image-1.5 (gpt-image-2 does not support transparent backgrounds)");
+  model = "gpt-image-1.5";
+}
 
 // --- Validate API key ---
 if (backend === "gemini" && !process.env.GEMINI_API_KEY) {
