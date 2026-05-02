@@ -1,11 +1,15 @@
 meta:
   project: claude-tools
-  updated: '2026-05-02T08:10'
+  updated: '2026-05-02T08:20'
 context:
   active_epic: v3-polish
   in_progress: []
   blocked: []
   recent_completed:
+  - id: v3-polish-022
+    title: Migrate dev server to ThreadingHTTPServer (test-infra blocker)
+    completed: 2026-05-02T08:20
+    epic: v3-polish
   - id: v3-polish-014
     title: Sanitize ${id} in not-found innerHTML across detail screens (security)
     completed: 2026-05-02T08:10
@@ -15,14 +19,6 @@ context:
     completed: 2026-05-02T07:30
     epic: v3-polish
   next_up:
-  - id: v3-polish-022
-    title: Migrate dev server to ThreadingHTTPServer (test-infra blocker)
-    priority: high
-    epic: v3-polish
-  - id: v3-polish-015
-    title: Fix recap routing contract (path-segment vs query-string mismatch)
-    priority: high
-    epic: v3-polish
   - id: v3-polish-023
     title: Hoist --sev-* CSS vars to :root
     priority: medium
@@ -35,12 +31,20 @@ context:
     title: Fix spine-active-pulse transform scale violation
     priority: medium
     epic: v3-polish
+  - id: v3-polish-015
+    title: Fix recap routing contract (path-segment vs query-string mismatch)
+    priority: high
+    epic: v3-polish
+  - id: v3-polish-026
+    title: Fix recap snapshot/diff plumbing (always renders 0 changes)
+    priority: high
+    epic: v3-polish
   stats:
     total: 51
-    done: 2
+    done: 3
     in_progress: 0
     in_review: 0
-    todo: 49
+    todo: 48
     blocked: 0
     archived: 0
   active_phase:
@@ -48,10 +52,10 @@ context:
     name: Ship V3
     stats:
       total: 51
-      todo: 49
+      todo: 48
       in-progress: 0
       in-review: 0
-      done: 2
+      done: 3
       blocked: 0
       archived: 0
     target_date: null
@@ -454,26 +458,32 @@ epics:
     - plugins/taskmaster/backlog_server.py
   - id: v3-polish-022
     title: Migrate dev server to ThreadingHTTPServer (test-infra blocker)
-    status: todo
+    status: done
     priority: high
     created: 2026-05-02T07:30
-    last_referenced: 2026-05-02T07:30
-    notes: 'polish-013 process note — Python stdlib HTTPServer is single-threaded;
-      10× parallel agent traffic (read_page + javascript_tool) crashed it during the
-      first audit pass. The local-test phase the user wants before release relies on
-      this server. Switch _make_server to ThreadingHTTPServer (drop-in replacement)
-      so parallel test traffic does not take it down. Infrastructure, not viewer —
-      but blocks trustworthy local testing.'
+    last_referenced: 2026-05-02T08:20
+    completed: 2026-05-02T08:20
+    notes: 'No code change needed — premise was wrong. _make_server already uses
+      ThreadingHTTPServer (since commit 107e6f3, "Fix viewer port collision on Windows
+      with exclusive socket binding") and _ExclusiveServer subclasses it for the
+      production path. The 6 false-positive "Failed to fetch" findings during the
+      polish-013 audit were therefore not caused by single-threaded serving. The most
+      likely real cause was Chrome MCP / browser-side resource pressure (10 agents
+      each holding a deep accessibility tree + javascript_tool calls in flight) or
+      transient socket exhaustion under burst load. If parallel-agent audits keep
+      flaking, the next investigation should be a thread-pool / connection-pool
+      cap, not the underlying server class. Closed as already-done.'
     estimate: S
     phase: ship-v3
     anchors:
     - plugins/taskmaster/backlog_server.py
   - id: v3-polish-023
     title: Hoist --sev-* CSS vars to :root (issue-detail labels flatten to gray)
-    status: todo
+    status: done
     priority: medium
     created: 2026-05-02T07:30
-    last_referenced: 2026-05-02T07:30
+    last_referenced: 2026-05-02T08:30
+    completed: 2026-05-02T08:30
     notes: 'polish-013 audit found --sev-critical / --sev-high / --sev-medium / --sev-low
       defined inside .issues { ... } scope. Verified live: getComputedStyle("#issue-detail
       .id-sev").color is the same gray on Critical / High / Medium issues — the glyph
