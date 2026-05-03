@@ -1,6 +1,6 @@
 meta:
   project: claude-tools
-  updated: '2026-05-03T00:50'
+  updated: '2026-05-03T01:00'
 context:
   active_epic: v3-polish
   in_progress: []
@@ -688,10 +688,10 @@ epics:
     - plugins/taskmaster/docs/v3-skills-enrichment.md
   - id: v3-skills-002
     title: 'taskmaster:handover skill — write/read flow'
-    status: todo
+    status: in-review
     priority: critical
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-02T16:30
+    last_referenced: 2026-05-03T01:00
     notes: 'Author the dedicated handover skill. Triggers: "wrap up", "ending
       the day", "write a handover", "I am at 300k tokens". Generates the
       four-section body (Decisions / Blockers / Where I''d start / Open
