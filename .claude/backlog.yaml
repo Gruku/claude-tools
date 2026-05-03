@@ -1,61 +1,68 @@
 meta:
   project: claude-tools
-  updated: '2026-05-03T01:00'
+  updated: '2026-05-03'
 context:
   active_epic: v3-polish
-  in_progress: []
+  in_progress:
+  - id: v3-polish-027
+    title: Kanban columns scroll-reset to top + scrollbar flicker every 3s
+    epic: v3-polish
+    branch: feature/taskmaster-v3
+  - id: v3-polish-028
+    title: Auto-mode strip shows "Auto-mode · N running" for stopped/abandoned sessions
+    epic: v3-polish
+    branch: feature/taskmaster-v3
+  - id: v3-skills-002
+    title: taskmaster:handover skill — write/read flow
+    epic: v3-skills
+    branch: ''
   blocked: []
   recent_completed:
+  - id: v3-skills-001
+    title: Mine CodeMaestro for real-world skill-enrichment patterns
+    completed: 2026-05-03T18:02
   - id: v3-polish-008
     title: Auto-mode page — fix data-state empty render (spine works)
     completed: 2026-05-03T00:50
-    epic: v3-polish
   - id: v3-polish-019
     title: Empty-state copy convention + shared component
     completed: 2026-05-03T00:35
-    epic: v3-polish
   - id: v3-polish-018
     title: Shared time-format helper + unify formats across viewer
     completed: 2026-05-03T00:30
-    epic: v3-polish
   - id: v3-polish-017
     title: Pluralization helper + sweep
     completed: 2026-05-02T10:30
-    epic: v3-polish
-  - id: v3-polish-005
-    title: Fix pre-existing dashboard test failures
-    completed: 2026-05-02T10:15
-    epic: v3-polish
   next_up:
-  - id: v3-polish-009
-    title: Issues screen — align with design concept
-    priority: high
-    epic: v3-polish
-  - id: v3-polish-010
-    title: Lessons screen — usability refresh
-    priority: high
-    epic: v3-polish
-  - id: v3-polish-020
-    title: Viewer-wide accessibility sweep
+  - id: v3-skills-003
+    title: taskmaster:lesson skill — write/reinforce/promote
+    priority: critical
+    epic: v3-skills
+  - id: v3-skills-004
+    title: taskmaster:issue skill — log/track/close defects
+    priority: critical
+    epic: v3-skills
+  - id: v3-polish-001
+    title: 'Build recap picker (was: D·5 rebuild — there is no picker)'
     priority: high
     epic: v3-polish
   stats:
-    total: 51
-    done: 15
+    total: 54
+    done: 16
     in_progress: 0
-    in_review: 0
-    todo: 36
+    in_review: 3
+    todo: 35
     blocked: 0
     archived: 0
   active_phase:
     id: ship-v3
     name: Ship V3
     stats:
-      total: 51
-      todo: 36
+      total: 54
+      todo: 35
       in-progress: 0
-      in-review: 0
-      done: 15
+      in-review: 3
+      done: 16
       blocked: 0
       archived: 0
     target_date: null
@@ -78,14 +85,13 @@ epics:
     last_referenced: 2026-05-02T06:30
     notes: 'Reframed by v3-polish-013 audit: there is no picker today, only a single
       ‹ button in the recap topbar. polish-013 surfaced 5 concrete deficiencies for
-      the brainstorm: (1) no identity anchor (loaded recap''s date is invisible
-      everywhere; topbar h1 is the literal string "Recap"), (2) linear-only navigation
-      (can''t jump from today to last Tuesday), (3) ambiguous directionality without
-      a date anchor, (4) density/gap legibility unclear, (5) three picker shapes to
-      evaluate — calendar grid · timeline spine · flat searchable list. Invoke
-      superpowers:brainstorming first to lock the shape. Pairs with v3-polish-015
-      (recap routing contract) which must land first as a prerequisite. Estimate
-      bumped M → L.'
+      the brainstorm: (1) no identity anchor (loaded recap''s date is invisible everywhere;
+      topbar h1 is the literal string "Recap"), (2) linear-only navigation (can''t
+      jump from today to last Tuesday), (3) ambiguous directionality without a date
+      anchor, (4) density/gap legibility unclear, (5) three picker shapes to evaluate
+      — calendar grid · timeline spine · flat searchable list. Invoke superpowers:brainstorming
+      first to lock the shape. Pairs with v3-polish-015 (recap routing contract) which
+      must land first as a prerequisite. Estimate bumped M → L.'
     estimate: L
     phase: ship-v3
   - id: v3-polish-002
@@ -113,9 +119,9 @@ epics:
       no close button) and .rr-h (sessions: overlay, dismiss-on-click + close + Escape)
       are two architecturally different rail systems sharing one source file. Naming
       makes them look like a typo or near-variant; they are not. Either rename to
-      surface the distinction (e.g., .tm-rail-pinned-h vs .tm-rail-overlay-h) or
-      unify on one rail pattern and pick which screens get pinned vs overlay. Worth
-      one short brainstorm pass.'
+      surface the distinction (e.g., .tm-rail-pinned-h vs .tm-rail-overlay-h) or unify
+      on one rail pattern and pick which screens get pinned vs overlay. Worth one
+      short brainstorm pass.'
     estimate: S
     phase: ship-v3
     anchors:
@@ -203,8 +209,8 @@ epics:
       render. The perceived "missing spine" is a data-absence: when store.getAutoState()
       returns null (no active auto session), the empty-state node should render but
       a render/clear race during async polling startup leaves the center column blank.
-      Fix the race so the "No auto-mode session is running." node renders cleanly when
-      idle. Pair with v3-polish-025 (scale-motion rule violation in spine-active-pulse).'
+      Fix the race so the "No auto-mode session is running." node renders cleanly
+      when idle. Pair with v3-polish-025 (scale-motion rule violation in spine-active-pulse).'
     estimate: XS
     phase: ship-v3
     anchors:
@@ -217,16 +223,16 @@ epics:
     priority: high
     created: 2026-05-02T05:59
     last_referenced: 2026-05-02T06:30
-    notes: 'polish-013 audit confirmed the concept-delta scope and surfaced 3 hard bugs:
-      (1) blocks chip is dead — store.getTasksIndex doesn''t exist, guard silently
-      returns 0 on every card; (2) "Kanban" view toggle is a no-op (button flips
-      pressed state but layout is unchanged from Hybrid); (3) aging bar always shows
-      "Fresh" — issues use a `created` field but computeAgingTier reads `discovered`,
-      so percent is always 0%. Concept deltas: severity chips missing colored dots +
-      count badges + "All" reset; column headers use uppercase 12px instead of concept''s
-      serif italic 14px + tagline + count; resolved shelf is single-column not 2-column
-      grid. Estimate bumped M → L given total scope. Concept refs: see
-      .superpowers/brainstorm/.../issues-hybrid.html and issues-v2-bugreport.html.'
+    notes: 'polish-013 audit confirmed the concept-delta scope and surfaced 3 hard
+      bugs: (1) blocks chip is dead — store.getTasksIndex doesn''t exist, guard silently
+      returns 0 on every card; (2) "Kanban" view toggle is a no-op (button flips pressed
+      state but layout is unchanged from Hybrid); (3) aging bar always shows "Fresh"
+      — issues use a `created` field but computeAgingTier reads `discovered`, so percent
+      is always 0%. Concept deltas: severity chips missing colored dots + count badges
+      + "All" reset; column headers use uppercase 12px instead of concept''s serif
+      italic 14px + tagline + count; resolved shelf is single-column not 2-column
+      grid. Estimate bumped M → L given total scope. Concept refs: see .superpowers/brainstorm/.../issues-hybrid.html
+      and issues-v2-bugreport.html.'
     estimate: L
     phase: ship-v3
     anchors:
@@ -299,13 +305,12 @@ epics:
     completed: 2026-05-02T07:30
     notes: 'DONE 2026-05-02. Walkthrough of all 11 screens at runtime produced 169
       findings, captured per-screen at plugins/taskmaster/docs/v3-polish-013/<screen>.md
-      with synthesis at synthesis.md. Surfaced 13 new polish tasks (014-026) and
-      re-prioritized the existing 12. Top headline findings: self-XSS via unsanitized
-      ${id} on detail screens (014, critical), recap routing contract broken (015),
-      dead/stub buttons across 5+ screens (016), single-threaded HTTPServer dies
-      under parallel agent load (022, blocks reliable local testing). Process note:
-      first parallel-agent pass crashed the server; 6 screens were re-audited
-      sequentially on a fresh server.'
+      with synthesis at synthesis.md. Surfaced 13 new polish tasks (014-026) and re-prioritized
+      the existing 12. Top headline findings: self-XSS via unsanitized ${id} on detail
+      screens (014, critical), recap routing contract broken (015), dead/stub buttons
+      across 5+ screens (016), single-threaded HTTPServer dies under parallel agent
+      load (022, blocks reliable local testing). Process note: first parallel-agent
+      pass crashed the server; 6 screens were re-audited sequentially on a fresh server.'
     estimate: L
     phase: ship-v3
     anchors:
@@ -342,8 +347,8 @@ epics:
       Topbar ‹ button updates URL to #/recap/SES-0002 (path-segment) but recap.js
       reads only ?id= (query-string), so params.id is undefined and the screen falls
       back to most-recent recap. Pick one form (recommend path-segment per /v3/#/task/<id>
-      convention), update both the link target and the screen reader. Prerequisite for
-      v3-polish-001 (build picker) — picker rebuild needs a working routing contract
+      convention), update both the link target and the screen reader. Prerequisite
+      for v3-polish-001 (build picker) — picker rebuild needs a working routing contract
       first.'
     estimate: S
     phase: ship-v3
@@ -356,13 +361,13 @@ epics:
     created: 2026-05-02T07:30
     last_referenced: 2026-05-02T10:00
     completed: 2026-05-02T10:00
-    notes: 'Fixed: Lessons "+ Lesson", Issues "+ Issue", Sessions "New note",
-      Task-detail Edit + Archive, Sessions handover-rail Edit / Open file. All now
-      use real disabled (opacity 0.5 + not-allowed cursor) + "— coming soon" title
-      via tmAction({disabled: true}) (or [disabled] attr for inline ic-btn buttons).
-      Deferred: Issues "Kanban" view toggle (no-op layout) — folded into polish-009
-      Issues alignment scope. Auto-mode side panels silently-empty — folded into
-      polish-008 (auto-mode data-state empty-render race).'
+    notes: 'Fixed: Lessons "+ Lesson", Issues "+ Issue", Sessions "New note", Task-detail
+      Edit + Archive, Sessions handover-rail Edit / Open file. All now use real disabled
+      (opacity 0.5 + not-allowed cursor) + "— coming soon" title via tmAction({disabled:
+      true}) (or [disabled] attr for inline ic-btn buttons). Deferred: Issues "Kanban"
+      view toggle (no-op layout) — folded into polish-009 Issues alignment scope.
+      Auto-mode side panels silently-empty — folded into polish-008 (auto-mode data-state
+      empty-render race).'
     estimate: M
     phase: ship-v3
     anchors:
@@ -378,10 +383,10 @@ epics:
     created: 2026-05-02T07:30
     last_referenced: 2026-05-02T10:30
     completed: 2026-05-02T10:30
-    notes: 'polish-013 found "1 issues" (issues resolved header) and "1 filters · clear
+    notes: polish-013 found "1 issues" (issues resolved header) and "1 filters · clear
       all" (kanban filter badge) live. Almost certainly more elsewhere. Add a shared
       pluralize(n, singular, plural) helper to viewer/js/utils, then sweep all places
-      that build "N <noun>" strings.'
+      that build "N <noun>" strings.
     estimate: S
     phase: ship-v3
     anchors:
@@ -396,9 +401,10 @@ epics:
     completed: 2026-05-03T00:30
     notes: 'polish-013 surfaced time-format chaos. On kanban v3-031 alone, four formats
       visible at once: 48h31m / 2d / 48:31:15 / 48:30:45. Dashboard auto-strip uses
-      raw toLocaleString ("4/30/2026, 5:30:00 PM"). Sessions timeline shows HH:MM with
-      no date context. Build one canonical relative-time helper (e.g. "2d ago" /
-      "48h31m running") and one canonical absolute-time helper, then sweep call sites.'
+      raw toLocaleString ("4/30/2026, 5:30:00 PM"). Sessions timeline shows HH:MM
+      with no date context. Build one canonical relative-time helper (e.g. "2d ago"
+      / "48h31m running") and one canonical absolute-time helper, then sweep call
+      sites.'
     estimate: M
     phase: ship-v3
     anchors:
@@ -413,12 +419,12 @@ epics:
     last_referenced: 2026-05-03T00:35
     completed: 2026-05-03T00:35
     notes: 'polish-013 documented 8+ different empty-state phrasings on the dashboard
-      alone ("Nothing newly unblocked." / "No prior session yet." / "Tests: 0/0
-      passed" — last reads as data, not empty). Plus kanban "— filtered out —" lying
-      about a non-existent filter, and several screens with no empty-state at all
-      (lessons/issues filtered to zero, sessions search to zero, auto side-panels).
-      Define a copy convention (tone, structure), build a shared <EmptyState> component,
-      sweep all surfaces.'
+      alone ("Nothing newly unblocked." / "No prior session yet." / "Tests: 0/0 passed"
+      — last reads as data, not empty). Plus kanban "— filtered out —" lying about
+      a non-existent filter, and several screens with no empty-state at all (lessons/issues
+      filtered to zero, sessions search to zero, auto side-panels). Define a copy
+      convention (tone, structure), build a shared <EmptyState> component, sweep all
+      surfaces.'
     estimate: M
     phase: ship-v3
     anchors:
@@ -433,12 +439,12 @@ epics:
     notes: 'polish-013 surfaced systematic a11y gaps, not local ones. Filter chips
       (lessons, issues, kanban) lack role="button" + aria-pressed — not keyboard-reachable.
       Card link semantics (lessons, issues) use <article role="link"> with manual
-      keydown instead of <a href> — fragile in AT, breaks right-click → open in new tab.
-      Heading hierarchy broken throughout — widget banners / shelf headers / column
-      headers as <span> inside <header>. Two <h1>s on lesson-detail. Table semantics
-      destroyed by display: contents (strips columnheader/row roles). Hover-only
-      affordances invisible to keyboard. Plan: pick one screen as audit-and-fix
-      reference, then propagate corrections to siblings.'
+      keydown instead of <a href> — fragile in AT, breaks right-click → open in new
+      tab. Heading hierarchy broken throughout — widget banners / shelf headers /
+      column headers as <span> inside <header>. Two <h1>s on lesson-detail. Table
+      semantics destroyed by display: contents (strips columnheader/row roles). Hover-only
+      affordances invisible to keyboard. Plan: pick one screen as audit-and-fix reference,
+      then propagate corrections to siblings.'
     estimate: L
     phase: ship-v3
     anchors:
@@ -451,13 +457,13 @@ epics:
     created: 2026-05-02T07:30
     last_referenced: 2026-05-02T09:50
     completed: 2026-05-02T09:50
-    notes: 'polish-013 audit found "â€"" instead of "—" on codex review notes and
-      handover quotes on task-detail (verified on v3-050 spec-review and v3-031
-      handover quote). UTF-8 file decoded as Latin-1 somewhere in the data path.
-      Confirmed NOT viewer-wide — lesson-detail and issue-detail render em-dashes
-      correctly. Likely the response Content-Type or the file-read encoding for the
-      specific subtree feeding quoted human text on task-detail. Probably one
-      backlog_server.py line (charset on response, or encoding on the read).'
+    notes: polish-013 audit found "â€"" instead of "—" on codex review notes and handover
+      quotes on task-detail (verified on v3-050 spec-review and v3-031 handover quote).
+      UTF-8 file decoded as Latin-1 somewhere in the data path. Confirmed NOT viewer-wide
+      — lesson-detail and issue-detail render em-dashes correctly. Likely the response
+      Content-Type or the file-read encoding for the specific subtree feeding quoted
+      human text on task-detail. Probably one backlog_server.py line (charset on response,
+      or encoding on the read).
     estimate: S
     phase: ship-v3
     anchors:
@@ -470,16 +476,16 @@ epics:
     created: 2026-05-02T07:30
     last_referenced: 2026-05-02T08:20
     completed: 2026-05-02T08:20
-    notes: 'No code change needed — premise was wrong. _make_server already uses
-      ThreadingHTTPServer (since commit 107e6f3, "Fix viewer port collision on Windows
-      with exclusive socket binding") and _ExclusiveServer subclasses it for the
-      production path. The 6 false-positive "Failed to fetch" findings during the
-      polish-013 audit were therefore not caused by single-threaded serving. The most
-      likely real cause was Chrome MCP / browser-side resource pressure (10 agents
-      each holding a deep accessibility tree + javascript_tool calls in flight) or
-      transient socket exhaustion under burst load. If parallel-agent audits keep
-      flaking, the next investigation should be a thread-pool / connection-pool
-      cap, not the underlying server class. Closed as already-done.'
+    notes: No code change needed — premise was wrong. _make_server already uses ThreadingHTTPServer
+      (since commit 107e6f3, "Fix viewer port collision on Windows with exclusive
+      socket binding") and _ExclusiveServer subclasses it for the production path.
+      The 6 false-positive "Failed to fetch" findings during the polish-013 audit
+      were therefore not caused by single-threaded serving. The most likely real cause
+      was Chrome MCP / browser-side resource pressure (10 agents each holding a deep
+      accessibility tree + javascript_tool calls in flight) or transient socket exhaustion
+      under burst load. If parallel-agent audits keep flaking, the next investigation
+      should be a thread-pool / connection-pool cap, not the underlying server class.
+      Closed as already-done.
     estimate: S
     phase: ship-v3
     anchors:
@@ -495,8 +501,8 @@ epics:
       defined inside .issues { ... } scope. Verified live: getComputedStyle("#issue-detail
       .id-sev").color is the same gray on Critical / High / Medium issues — the glyph
       (hardcoded inline) is colored, but the text label is flat gray on every severity,
-      killing the prominence the design intended. Fix: hoist the four --sev-* vars to
-      :root in tokens.css.'
+      killing the prominence the design intended. Fix: hoist the four --sev-* vars
+      to :root in tokens.css.'
     estimate: XS
     phase: ship-v3
     anchors:
@@ -513,9 +519,9 @@ epics:
       add td-page / td-page-A / td-page-B classes to shared #screen-mount but never
       remove them on cleanup. Router does replaceChildren but does not reset classList,
       so classes leak — navigating from task-detail to /auto stacks task-detail padding
-      on top of .auto-page padding and pollutes specificity for subsequent screens. Two
-      fix paths: (a) add classList.remove in each cleanup closure, or (b) better, have
-      router reset className to "screen-mount" before each mount.'
+      on top of .auto-page padding and pollutes specificity for subsequent screens.
+      Two fix paths: (a) add classList.remove in each cleanup closure, or (b) better,
+      have router reset className to "screen-mount" before each mount.'
     estimate: XS
     phase: ship-v3
     anchors:
@@ -529,11 +535,11 @@ epics:
     created: 2026-05-02T07:30
     last_referenced: 2026-05-02T08:50
     completed: 2026-05-02T08:50
-    notes: 'polish-013 audit found .spine-node--active .spine-node-circle uses
-      animation: spine-active-pulse 1.6s ease-in-out infinite with transform: scale(1.11)
-      — continuous geometric scale on a live element, an explicit project rule violation
-      (CLAUDE.md "no motion on hover" extended to "no transform-based motion on solid
-      surfaces"). Replace with opacity or stroke-color pulse. Pairs with v3-polish-008.'
+    notes: 'polish-013 audit found .spine-node--active .spine-node-circle uses animation:
+      spine-active-pulse 1.6s ease-in-out infinite with transform: scale(1.11) — continuous
+      geometric scale on a live element, an explicit project rule violation (CLAUDE.md
+      "no motion on hover" extended to "no transform-based motion on solid surfaces").
+      Replace with opacity or stroke-color pulse. Pairs with v3-polish-008.'
     estimate: XS
     phase: ship-v3
     anchors:
@@ -546,18 +552,126 @@ epics:
     created: 2026-05-02T07:30
     last_referenced: 2026-05-02T09:30
     completed: 2026-05-02T09:30
-    notes: 'polish-013 audit confirmed live — recap receipts cards always render
-      "0 · No changes" while the narrative reads e.g. "Plan 3 landed in 6 milestones..."
-      Either getSnapshotDiff is buggy or the fixture snapshot IDs do not resolve, with
-      no error or tell. Investigate the snapshot-diff data path (server side: snapshot
-      ingest, diff computation; client side: how recap.js calls/reads the diff).
-      Recap is unreliable until this is fixed. Pairs with v3-polish-001 (build picker)
-      — a working picker showing broken receipts is still a broken recap.'
+    notes: 'polish-013 audit confirmed live — recap receipts cards always render "0
+      · No changes" while the narrative reads e.g. "Plan 3 landed in 6 milestones..."
+      Either getSnapshotDiff is buggy or the fixture snapshot IDs do not resolve,
+      with no error or tell. Investigate the snapshot-diff data path (server side:
+      snapshot ingest, diff computation; client side: how recap.js calls/reads the
+      diff). Recap is unreliable until this is fixed. Pairs with v3-polish-001 (build
+      picker) — a working picker showing broken receipts is still a broken recap.'
     estimate: M
     phase: ship-v3
     anchors:
     - plugins/taskmaster/viewer/js/screens/recap.js
     - plugins/taskmaster/backlog_server.py
+  - id: v3-polish-027
+    title: Kanban columns scroll-reset to top + scrollbar flicker every 3s
+    status: in-review
+    priority: high
+    created: 2026-05-03T17:29
+    last_referenced: 2026-05-03T18:51
+    notes: 'Repro: open the kanban screen, scroll a column down, wait ~3 seconds.
+      The column scroll position resets to the top. Scrollbar visibly flickers on/off
+      at the same cadence.
+
+
+      Root cause chain:
+
+      1. main.js:128 `pollAutoStateForever` polls /api/auto/state every 3000ms unconditionally.
+
+      2. store.js:47 `setAutoState` always calls `emit(''autoState'')` — no equality
+      check against the previous value.
+
+      3. kanban.js:363 subscribes to ''autoState'' and calls `paint()` on every emit.
+
+      4. paint() does `boardGrid.replaceChildren()` (kanban.js:249) — wipes ALL column
+      DOM (including .kanban-col-body scroll containers) and rebuilds them.
+
+
+      Result: scroll position is destroyed every 3s; the rebuild also causes the scrollbar
+      flicker the user sees.
+
+
+      Fix candidates (need design call):
+
+      - Skip emit when the autoState payload deep-equals the previous one (cheapest).
+
+      - Decouple the autoState subscription from a full kanban paint — only the strip
+      needs to repaint when autoState changes; cards don''t need a full re-render
+      unless cursor.task_id changes.
+
+      - If a full repaint is necessary, preserve scrollTop per column across paint()
+      (capture before replaceChildren, restore after).
+
+
+      Same root cause likely affects other screens that subscribe to ''autoState''
+      or ''backlog'' and replaceChildren().</notes>
+
+      </invoke>'
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/screens/kanban.js
+    - plugins/taskmaster/viewer/js/store.js
+    - plugins/taskmaster/viewer/js/main.js
+    started: 2026-05-03T18:00
+    review_instructions: 'Open #/kanban. Scroll a column down. Wait 10+ seconds. Verify
+      scroll position holds and there''s no scrollbar flicker every 3s. Browser-verified:
+      scrollTop stayed at 200 for 83s (many poll cycles).'
+    branch: feature/taskmaster-v3
+  - id: v3-polish-028
+    title: Auto-mode strip shows "Auto-mode · N running" for stopped/abandoned sessions
+    status: in-review
+    priority: high
+    created: 2026-05-03T17:29
+    last_referenced: 2026-05-03T18:51
+    notes: 'Repro: with no auto-mode session active, the kanban top still shows "Auto-mode
+      · 1 running" with a session timer ("running 3d") and a task pill. Visible whenever
+      an auto-state document persists from a prior run.
+
+
+      Root cause: auto-mode-strip.js:64 hide condition is `!autoState || !autoState.mode
+      || !runs.length`. It never inspects autoState.stopped, autoState.completed_at,
+      or any "is actively running" predicate. Any persisted auto-state document with
+      a populated cursor passes the gate forever — even after the session is stopped
+      or crashed.
+
+
+      Observed shape on /api/auto/state for the .fixture-kanban seed: includes `stopped:
+      false`, `pending: [...]`, no `completed_at`, mode: "walk", started_at much earlier.
+      The shape lets us define what "running" means; the strip just doesn''t check
+      it.
+
+
+      Fix: define a single `isRunning(autoState)` predicate (e.g. `mode && !stopped
+      && !completed_at && pending.length > 0`, optionally with a heartbeat-freshness
+      check so a crashed session doesn''t appear live forever). Use it everywhere
+      the strip / live-dot / sidebar pill decides whether to show "running" UI.
+
+
+      Note: side dev server runs against .fixture-kanban which deliberately seeds
+      a "walk" auto-state for visual fixture coverage. That''s correct for fixtures
+      — the bug is the strip''s logic, not the fixture.
+
+
+      Possible overlap with v3-polish-006 (slim down auto-mode header) — but 006 targets
+      the auto-mode page header, this is the kanban-top strip. Worth a quick check
+      whether both share the same isRunning predicate after fix.</notes>
+
+      </invoke>'
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/components/auto-mode-strip.js
+    started: 2026-05-03T18:00
+    review_instructions: With the bundled .fixture-kanban (which seeds a "walk" session)
+      the strip should still appear — that's intentional fixture behavior, called
+      out in the bug notes. To verify the fix, run a real auto-mode session, stop
+      it, and confirm the kanban-top strip + topbar auto-status pill + sidebar live-dot
+      all hide. Per-card live highlight on the cursor task should also disappear.
+      Predicate `isAutoRunning(autoState)` (mode && !stopped && !completed_at && pending.length
+      > 0) is now applied uniformly across all four sites.
+    branch: feature/taskmaster-v3
 - id: v3-release
   name: V3 Release (2.0)
   status: planned
@@ -664,43 +778,45 @@ epics:
   created: 2026-05-02T16:30
   tasks:
   - id: v3-skills-001
-    title: 'Mine CodeMaestro for real-world skill-enrichment patterns'
-    status: todo
+    title: Mine CodeMaestro for real-world skill-enrichment patterns
+    status: done
     priority: critical
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-02T16:30
+    last_referenced: 2026-05-03T18:02
     notes: 'Read-only audit of Files/Work/CodeMaestro (457 tasks, 5783-line PROGRESS.md,
-      255 session entries) — the most-used real v1 backlog — to extract patterns
-      that should shape every v3 skill before they''re authored. Outputs:
-      docs/v3-skills-enrichment.md covering (1) handover language patterns hiding
-      inside PROGRESS.md "Done/Decisions/Issues" entries, (2) repeated-decision
-      patterns that would have been auto-promoted to core lessons, (3) bugs
-      currently buried in task descriptions that should have been ISS-* entries
-      with severity/repro, (4) end-session reality vs design (when do users
-      actually log? what gets skipped?), (5) auto-loop stress signals — what
-      fails at 457-task scale. This task runs first because its findings inform
-      every other v3-skills task. No file mutations on CodeMaestro.'
+      255 session entries) — the most-used real v1 backlog — to extract patterns that
+      should shape every v3 skill before they''re authored. Outputs: docs/v3-skills-enrichment.md
+      covering (1) handover language patterns hiding inside PROGRESS.md "Done/Decisions/Issues"
+      entries, (2) repeated-decision patterns that would have been auto-promoted to
+      core lessons, (3) bugs currently buried in task descriptions that should have
+      been ISS-* entries with severity/repro, (4) end-session reality vs design (when
+      do users actually log? what gets skipped?), (5) auto-loop stress signals — what
+      fails at 457-task scale. This task runs first because its findings inform every
+      other v3-skills task. No file mutations on CodeMaestro.'
     estimate: M
     phase: ship-v3
     anchors:
     - C:/Users/gruku/Files/Work/CodeMaestro/backlog.yaml
     - C:/Users/gruku/Files/Work/CodeMaestro/PROGRESS.md
     - plugins/taskmaster/docs/v3-skills-enrichment.md
+    started: 2026-05-03T18:01
+    branch: feature/taskmaster-v3
+    worktree: .worktrees/taskmaster-v3
+    completed: 2026-05-03T18:02
   - id: v3-skills-002
-    title: 'taskmaster:handover skill — write/read flow'
+    title: taskmaster:handover skill — write/read flow
     status: in-review
     priority: critical
     created: 2026-05-02T16:30
     last_referenced: 2026-05-03T01:00
-    notes: 'Author the dedicated handover skill. Triggers: "wrap up", "ending
-      the day", "write a handover", "I am at 300k tokens". Generates the
-      four-section body (Decisions / Blockers / Where I''d start / Open
-      threads), prompts for tldr + next_action + session_kind, writes
-      .taskmaster/handovers/YYYY-MM-DD-<slug>.md, syncs the backlog.yaml
-      handovers index (cap 30, archive older). Pairs with read flow via
-      backlog_handover_get. Backend exists in taskmaster_v3.py
-      (write_handover/read_handover/sync_handover_index). User''s #1 stated
-      pain — every other v3 surface that mentions handovers depends on this.'
+    notes: 'Author the dedicated handover skill. Triggers: "wrap up", "ending the
+      day", "write a handover", "I am at 300k tokens". Generates the four-section
+      body (Decisions / Blockers / Where I''d start / Open threads), prompts for tldr
+      + next_action + session_kind, writes .taskmaster/handovers/YYYY-MM-DD-<slug>.md,
+      syncs the backlog.yaml handovers index (cap 30, archive older). Pairs with read
+      flow via backlog_handover_get. Backend exists in taskmaster_v3.py (write_handover/read_handover/sync_handover_index).
+      User''s #1 stated pain — every other v3 surface that mentions handovers depends
+      on this.'
     depends_on:
     - v3-skills-001
     estimate: M
@@ -709,20 +825,19 @@ epics:
     - plugins/taskmaster/skills/handover/SKILL.md
     - plugins/taskmaster/taskmaster_v3.py
   - id: v3-skills-003
-    title: 'taskmaster:lesson skill — write/reinforce/promote'
+    title: taskmaster:lesson skill — write/reinforce/promote
     status: todo
     priority: critical
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-02T16:30
-    notes: 'Author the lessons skill. Triggers: "remember this", "this keeps
-      happening", "we always do X here", auto-suggestion from accumulated
-      feedback memory. Captures kind (pattern/anti-pattern/gotcha), triggers
-      (file globs + task-title substrings), why, what-to-do. Implements the
-      reinforce loop (lesson_reinforce backend exists), auto-promotion to
-      core at reinforce_count >= 5, auto-decay (180d unreinforced + count<2
-      → retired). Three-tier loading discipline (digest 30 / core 5 /
-      trigger-matched 3) is enforced by start-session and pick-task; this
-      skill is the *write* side. Patterns to apply come from v3-skills-001.'
+    last_referenced: 2026-05-03T18:06
+    notes: 'Author the lessons skill. Triggers: "remember this", "this keeps happening",
+      "we always do X here", auto-suggestion from accumulated feedback memory. Captures
+      kind (pattern/anti-pattern/gotcha), triggers (file globs + task-title substrings),
+      why, what-to-do. Implements the reinforce loop (lesson_reinforce backend exists),
+      auto-promotion to core at reinforce_count >= 5, auto-decay (180d unreinforced
+      + count<2 → retired). Three-tier loading discipline (digest 30 / core 5 / trigger-matched
+      3) is enforced by start-session and pick-task; this skill is the *write* side.
+      Patterns to apply come from v3-skills-001.'
     depends_on:
     - v3-skills-001
     estimate: M
@@ -731,19 +846,18 @@ epics:
     - plugins/taskmaster/skills/lesson/SKILL.md
     - plugins/taskmaster/taskmaster_v3.py
   - id: v3-skills-004
-    title: 'taskmaster:issue skill — log/track/close defects'
+    title: taskmaster:issue skill — log/track/close defects
     status: todo
     priority: critical
     created: 2026-05-02T16:30
     last_referenced: 2026-05-02T16:30
-    notes: 'Author the issues skill. Triggers: "log a bug", "found an issue",
-      "this is broken", "track this defect". Captures severity (P0–P3),
-      components, impact, repro steps, location (file:line). Optional
-      related-task creation ("Want me to create a fix task too?").
-      Lifecycle: open → investigating → fixed (requires fixed_in_task) /
-      wontfix / duplicate. Backend exists (write_issue/update_issue/
-      sync_issue_index). v3-skills-001 will inform severity heuristics
-      and how repro/impact get filled vs left blank in real usage.'
+    notes: 'Author the issues skill. Triggers: "log a bug", "found an issue", "this
+      is broken", "track this defect". Captures severity (P0–P3), components, impact,
+      repro steps, location (file:line). Optional related-task creation ("Want me
+      to create a fix task too?"). Lifecycle: open → investigating → fixed (requires
+      fixed_in_task) / wontfix / duplicate. Backend exists (write_issue/update_issue/
+      sync_issue_index). v3-skills-001 will inform severity heuristics and how repro/impact
+      get filled vs left blank in real usage.'
     depends_on:
     - v3-skills-001
     estimate: M
@@ -752,18 +866,17 @@ epics:
     - plugins/taskmaster/skills/issue/SKILL.md
     - plugins/taskmaster/taskmaster_v3.py
   - id: v3-skills-005
-    title: 'taskmaster:migrate-v3 skill — guided opt-in migration'
+    title: taskmaster:migrate-v3 skill — guided opt-in migration
     status: todo
     priority: high
     created: 2026-05-02T16:30
     last_referenced: 2026-05-02T16:30
-    notes: 'Wrap the existing backlog_migrate_v3 MCP tool (verified to ship by
-      v3-release-001) with a guided skill. Show pre-flight summary (N tasks,
-      M with non-trivial bodies will be extracted), explain the schema break
-      (heavy fields move from backlog.yaml to tasks/<id>.md), offer dry-run
-      preview, run the migration, summarise outputs, suggest gitignore
-      additions for snapshots/auto. Without this skill, real users can''t
-      adopt v3 cleanly even after the MCP tool ships.'
+    notes: Wrap the existing backlog_migrate_v3 MCP tool (verified to ship by v3-release-001)
+      with a guided skill. Show pre-flight summary (N tasks, M with non-trivial bodies
+      will be extracted), explain the schema break (heavy fields move from backlog.yaml
+      to tasks/<id>.md), offer dry-run preview, run the migration, summarise outputs,
+      suggest gitignore additions for snapshots/auto. Without this skill, real users
+      can't adopt v3 cleanly even after the MCP tool ships.
     depends_on:
     - v3-skills-001
     estimate: S
@@ -771,17 +884,16 @@ epics:
     anchors:
     - plugins/taskmaster/skills/migrate-v3/SKILL.md
   - id: v3-skills-006
-    title: 'PreCompact hook + init-taskmaster v3 retrofit'
+    title: PreCompact hook + init-taskmaster v3 retrofit
     status: todo
     priority: high
     created: 2026-05-02T16:30
     last_referenced: 2026-05-02T16:30
-    notes: 'Auto-install the PreCompact hook that runs `taskmaster snapshot
-      --quiet` before context compaction (so post-compact recap reflects
-      pre-compact state). Update init-taskmaster skill to: (1) add the hook
-      to settings.json non-destructively (merge with existing PreCompact
-      entries), (2) add .taskmaster/snapshots/ and .taskmaster/auto/ to
-      .gitignore, (3) verify the snapshot CLI command runs end-to-end.
+    notes: 'Auto-install the PreCompact hook that runs `taskmaster snapshot --quiet`
+      before context compaction (so post-compact recap reflects pre-compact state).
+      Update init-taskmaster skill to: (1) add the hook to settings.json non-destructively
+      (merge with existing PreCompact entries), (2) add .taskmaster/snapshots/ and
+      .taskmaster/auto/ to .gitignore, (3) verify the snapshot CLI command runs end-to-end.
       Settings snippet in design-v3-narrative-continuity.md §5.'
     estimate: S
     phase: ship-v3
@@ -789,19 +901,18 @@ epics:
     - plugins/taskmaster/skills/init-taskmaster/SKILL.md
     - plugins/taskmaster/hooks/
   - id: v3-skills-007
-    title: 'Retrofit start-session — surface v3 data plane'
+    title: Retrofit start-session — surface v3 data plane
     status: todo
     priority: high
     created: 2026-05-02T16:30
     last_referenced: 2026-05-02T16:30
-    notes: 'Update start-session skill to surface: (1) recap diff section
-      (what changed in the project since last session — separate from
-      "what I did last session"), (2) latest handover frontmatter only
-      (~200 tokens) with prompt to read body if session_kind is
-      context-handoff, (3) lessons digest (≤30 active × ~10 tokens) +
-      core lessons in full (≤5 × ~100), (4) top 10 open issues by severity.
-      Watch token budget against ~3k soft target (warn at 5k). Tests
-      verify the budget as a signal, not a gate.'
+    notes: 'Update start-session skill to surface: (1) recap diff section (what changed
+      in the project since last session — separate from "what I did last session"),
+      (2) latest handover frontmatter only (~200 tokens) with prompt to read body
+      if session_kind is context-handoff, (3) lessons digest (≤30 active × ~10 tokens)
+      + core lessons in full (≤5 × ~100), (4) top 10 open issues by severity. Watch
+      token budget against ~3k soft target (warn at 5k). Tests verify the budget as
+      a signal, not a gate.'
     depends_on:
     - v3-skills-002
     - v3-skills-003
@@ -813,19 +924,18 @@ epics:
     anchors:
     - plugins/taskmaster/skills/start-session/SKILL.md
   - id: v3-skills-008
-    title: 'Retrofit pick-task — "continue this task" trigger + v3 surfaces'
+    title: Retrofit pick-task — "continue this task" trigger + v3 surfaces
     status: todo
     priority: high
     created: 2026-05-02T16:30
     last_referenced: 2026-05-02T16:30
-    notes: 'Update pick-task skill to: (1) accept "continue where we left
-      off" / "continue this task" triggers (auto-resolve to the
-      most-recently-touched in-progress task with a handover), (2) load
-      related_handovers tldrs (not full bodies, ~50 tokens × cap 3),
-      (3) load trigger-matched lessons in full (cap 3 hits, ~300 tokens
-      worst case), (4) surface related_issues with severity. Watch
-      additive ~1.5k token target (warn 3k). This is the user-facing
-      behaviour they explicitly asked about in the v3-skills kickoff.'
+    notes: 'Update pick-task skill to: (1) accept "continue where we left off" / "continue
+      this task" triggers (auto-resolve to the most-recently-touched in-progress task
+      with a handover), (2) load related_handovers tldrs (not full bodies, ~50 tokens
+      × cap 3), (3) load trigger-matched lessons in full (cap 3 hits, ~300 tokens
+      worst case), (4) surface related_issues with severity. Watch additive ~1.5k
+      token target (warn 3k). This is the user-facing behaviour they explicitly asked
+      about in the v3-skills kickoff.'
     depends_on:
     - v3-skills-002
     - v3-skills-003
@@ -836,20 +946,18 @@ epics:
     anchors:
     - plugins/taskmaster/skills/pick-task/SKILL.md
   - id: v3-skills-009
-    title: 'Retrofit end-session — auto-offer handover + snapshot'
+    title: Retrofit end-session — auto-offer handover + snapshot
     status: todo
     priority: high
     created: 2026-05-02T16:30
     last_referenced: 2026-05-02T16:30
-    notes: 'Update end-session skill to: (1) auto-offer handover when any
-      heavy-session signal fires (turns > 60, conversation tokens > 200k,
-      task in flight at session end, or user said "for tomorrow" / "next
-      time" / "remind future me"), (2) take a snapshot via
-      taskmaster_v3.take_snapshot before logging, (3) run handover archive
-      sweep (drop oldest from index past cap 30), (4) prompt for
-      lesson-candidate extraction when a non-obvious decision was made
-      this session. Existing structured Done/Decisions/Issues mode stays;
-      handover is additive.'
+    notes: 'Update end-session skill to: (1) auto-offer handover when any heavy-session
+      signal fires (turns > 60, conversation tokens > 200k, task in flight at session
+      end, or user said "for tomorrow" / "next time" / "remind future me"), (2) take
+      a snapshot via taskmaster_v3.take_snapshot before logging, (3) run handover
+      archive sweep (drop oldest from index past cap 30), (4) prompt for lesson-candidate
+      extraction when a non-obvious decision was made this session. Existing structured
+      Done/Decisions/Issues mode stays; handover is additive.'
     depends_on:
     - v3-skills-002
     estimate: M
@@ -857,20 +965,19 @@ epics:
     anchors:
     - plugins/taskmaster/skills/end-session/SKILL.md
   - id: v3-skills-010
-    title: 'Quality pass — auto-task skill (wire to real handover/lesson tools)'
+    title: Quality pass — auto-task skill (wire to real handover/lesson tools)
     status: todo
     priority: high
     created: 2026-05-02T16:30
     last_referenced: 2026-05-02T16:30
-    notes: 'The auto-task SKILL.md was drafted to call backlog_handover_get
-      and backlog_lesson_match before those skills had write counterparts.
-      Now that v3-skills-002/003/004 land, walk the full state machine end-to-end
-      (PICK → SPEC_REVIEW → IMPLEMENT → TEST → REVIEW_GATE → HANDOVER_STUB
-      → END_SESSION) against the v3 worktree''s own backlog as a smoke
-      run. Verify cursor persistence across compaction (PreCompact hook
-      flushes state.json), failure taxonomy (tests-failed / spec-rejected
-      / blocked / crashed) handling, and that the handover stub is
-      brief enough not to bloat the index.'
+    notes: The auto-task SKILL.md was drafted to call backlog_handover_get and backlog_lesson_match
+      before those skills had write counterparts. Now that v3-skills-002/003/004 land,
+      walk the full state machine end-to-end (PICK → SPEC_REVIEW → IMPLEMENT → TEST
+      → REVIEW_GATE → HANDOVER_STUB → END_SESSION) against the v3 worktree's own backlog
+      as a smoke run. Verify cursor persistence across compaction (PreCompact hook
+      flushes state.json), failure taxonomy (tests-failed / spec-rejected / blocked
+      / crashed) handling, and that the handover stub is brief enough not to bloat
+      the index.
     depends_on:
     - v3-skills-002
     - v3-skills-003
@@ -881,18 +988,17 @@ epics:
     anchors:
     - plugins/taskmaster/skills/auto-task/SKILL.md
   - id: v3-skills-011
-    title: 'Quality pass — auto-epic + auto-phase orchestrator skills'
+    title: Quality pass — auto-epic + auto-phase orchestrator skills
     status: todo
     priority: medium
     created: 2026-05-02T16:30
     last_referenced: 2026-05-02T16:30
-    notes: 'Validate the subagent-isolation contract (orchestrator only
-      sees ~50 tokens per task; per-task contexts are discarded), per-task
-      summary aggregation (status / 1-paragraph summary / commit shas),
-      auto-stage handover stub auto-archival on epic/phase completion,
-      and the failure-aggregation policy (halt at first epic failure
-      unless --continue-on-fail). Run a 5-task auto-epic dry-run on
-      v3-skills epic itself (recursive dogfood).'
+    notes: Validate the subagent-isolation contract (orchestrator only sees ~50 tokens
+      per task; per-task contexts are discarded), per-task summary aggregation (status
+      / 1-paragraph summary / commit shas), auto-stage handover stub auto-archival
+      on epic/phase completion, and the failure-aggregation policy (halt at first
+      epic failure unless --continue-on-fail). Run a 5-task auto-epic dry-run on v3-skills
+      epic itself (recursive dogfood).
     depends_on:
     - v3-skills-010
     estimate: M
@@ -901,16 +1007,15 @@ epics:
     - plugins/taskmaster/skills/auto-epic/SKILL.md
     - plugins/taskmaster/skills/auto-phase/SKILL.md
   - id: v3-skills-012
-    title: 'Update taskmaster:taskmaster router skill for new entity skills'
+    title: Update taskmaster:taskmaster router skill for new entity skills
     status: todo
     priority: medium
     created: 2026-05-02T16:30
     last_referenced: 2026-05-02T16:30
-    notes: 'Add routing entries to the taskmaster:taskmaster router skill
-      for the three new entity skills. Map intent triggers ("write a
-      handover" / "log a bug" / "remember this") to the correct sub-skill.
-      Update the skill description so /help and skill-discovery surface
-      the new entries. Smaller surface — small task.'
+    notes: Add routing entries to the taskmaster:taskmaster router skill for the three
+      new entity skills. Map intent triggers ("write a handover" / "log a bug" / "remember
+      this") to the correct sub-skill. Update the skill description so /help and skill-discovery
+      surface the new entries. Smaller surface — small task.
     depends_on:
     - v3-skills-002
     - v3-skills-003
@@ -920,37 +1025,34 @@ epics:
     anchors:
     - plugins/taskmaster/skills/taskmaster/SKILL.md
   - id: v3-skills-013
-    title: 'Token budget signal tests per surface'
+    title: Token budget signal tests per surface
     status: todo
     priority: medium
     created: 2026-05-02T16:30
     last_referenced: 2026-05-02T16:30
-    notes: 'Write tests that estimate the per-surface token cost of
-      start-session, pick-task, end-session, and review-gate against a
-      seeded fixture, and warn (not fail) when above the soft target
-      from design-v3-narrative-continuity.md §Token Budget Guidance.
-      Hard caps stay enforced in code (≤30 active lessons, ≤5 core,
-      ≤30 handover index entries, top 10 issues). Targets:
-      start-session ~3k / warn 5k; pick-task additive ~1.5k / warn 3k;
-      end-session additive ~800 / warn 1.5k; review-gate additive ~800.'
+    notes: 'Write tests that estimate the per-surface token cost of start-session,
+      pick-task, end-session, and review-gate against a seeded fixture, and warn (not
+      fail) when above the soft target from design-v3-narrative-continuity.md §Token
+      Budget Guidance. Hard caps stay enforced in code (≤30 active lessons, ≤5 core,
+      ≤30 handover index entries, top 10 issues). Targets: start-session ~3k / warn
+      5k; pick-task additive ~1.5k / warn 3k; end-session additive ~800 / warn 1.5k;
+      review-gate additive ~800.'
     estimate: S
     phase: ship-v3
     anchors:
     - plugins/taskmaster/tests/
   - id: v3-skills-014
-    title: 'End-to-end skill walkthrough — fresh-project dogfood'
+    title: End-to-end skill walkthrough — fresh-project dogfood
     status: todo
     priority: high
     created: 2026-05-02T16:30
     last_referenced: 2026-05-02T16:30
-    notes: 'Final integration: from a fresh empty directory run init-v3 →
-      add epic + tasks → pick-task → spec-review → handover → end-session
-      → start a new session → "continue this task" → log a lesson →
-      log an issue → close issue via task completion → run an auto-epic.
-      Capture any wiring gaps the unit tests missed. Pairs with
-      v3-release-005 (smoke-test against fresh install) but exercises
-      the skill flow from a user perspective rather than the package
-      install path.'
+    notes: 'Final integration: from a fresh empty directory run init-v3 → add epic
+      + tasks → pick-task → spec-review → handover → end-session → start a new session
+      → "continue this task" → log a lesson → log an issue → close issue via task
+      completion → run an auto-epic. Capture any wiring gaps the unit tests missed.
+      Pairs with v3-release-005 (smoke-test against fresh install) but exercises the
+      skill flow from a user perspective rather than the package install path.'
     depends_on:
     - v3-skills-007
     - v3-skills-008
@@ -960,25 +1062,22 @@ epics:
     estimate: M
     phase: ship-v3
   - id: v3-skills-015
-    title: 'Handover read MCP tool surface (get/list/latest)'
+    title: Handover read MCP tool surface (get/list/latest)
     status: todo
     priority: high
     created: 2026-05-02T18:00
     last_referenced: 2026-05-02T18:00
-    notes: 'Verify and complete the MCP tool surface for handover reads.
-      Python helpers exist in taskmaster_v3.py (read_handover, list_handover_ids,
-      latest_handover_id) but per v3-release-001 there is a known gap between
-      Python helpers existing and MCP tools being exposed by the running
-      server. Scope: (1) verify backlog_handover_get(id) is exposed and
-      returns frontmatter + body, (2) add backlog_handover_list(task_id?,
-      session_kind?, since?, limit?) thin wrapper if missing — needed by
-      pick-task retrofit (filter by task_id) and start-session retrofit
-      (filter by session_kind for context-handoff hint), (3) add
-      backlog_handover_latest() convenience tool — needed by start-session
-      retrofit. Smoke-test all three from a Claude session against the v3
-      fixture backlog. Pairs thematically with v3-release-001 (both are
-      MCP exposure verifications). Blocks v3-skills-007 and v3-skills-008
-      retrofits.'
+    notes: 'Verify and complete the MCP tool surface for handover reads. Python helpers
+      exist in taskmaster_v3.py (read_handover, list_handover_ids, latest_handover_id)
+      but per v3-release-001 there is a known gap between Python helpers existing
+      and MCP tools being exposed by the running server. Scope: (1) verify backlog_handover_get(id)
+      is exposed and returns frontmatter + body, (2) add backlog_handover_list(task_id?,
+      session_kind?, since?, limit?) thin wrapper if missing — needed by pick-task
+      retrofit (filter by task_id) and start-session retrofit (filter by session_kind
+      for context-handoff hint), (3) add backlog_handover_latest() convenience tool
+      — needed by start-session retrofit. Smoke-test all three from a Claude session
+      against the v3 fixture backlog. Pairs thematically with v3-release-001 (both
+      are MCP exposure verifications). Blocks v3-skills-007 and v3-skills-008 retrofits.'
     estimate: S
     phase: ship-v3
     anchors:
@@ -987,41 +1086,39 @@ epics:
 - id: v3-teams
   name: V3 Agent Teams (Optional)
   status: planned
-  description: Sibling capability layer to v3-skills — opt-in agent-teams skills
-    proposed in design-v3-agent-teams.md. Not a sixth pillar; adopt independently
-    or skip entirely from 2.0. Each skill enforces a cost-justification gate ("what
-    would a solo Opus miss?") to prevent reflex team formation. Cross-cutting refactor
-    teams deferred to v3.5+.
+  description: Sibling capability layer to v3-skills — opt-in agent-teams skills proposed
+    in design-v3-agent-teams.md. Not a sixth pillar; adopt independently or skip entirely
+    from 2.0. Each skill enforces a cost-justification gate ("what would a solo Opus
+    miss?") to prevent reflex team formation. Cross-cutting refactor teams deferred
+    to v3.5+.
   created: 2026-05-02T16:30
   tasks:
   - id: v3-teams-001
-    title: 'taskmaster:design-team skill + position-paper-rebuttal-synthesis protocol'
+    title: taskmaster:design-team skill + position-paper-rebuttal-synthesis protocol
     status: todo
     priority: medium
     created: 2026-05-02T16:30
     last_referenced: 2026-05-02T16:30
-    notes: 'Highest-value team skill. Pre-spec multi-lens design pass for
-      tasks with high uncertainty (no spec yet + estimate=L + no obvious
-      prior pattern). Cost-justification gate first; lead writes brief;
-      4 teammates produce position papers; cross-rebuttals; lead synthesizes
-      to tasks/<id>.md spec. Enforces the 500-word position-paper / 150-word
-      rebuttal ceilings. Token footprint ~15-25k for full pass — gated by
-      explicit user intent or task heuristics.'
+    notes: Highest-value team skill. Pre-spec multi-lens design pass for tasks with
+      high uncertainty (no spec yet + estimate=L + no obvious prior pattern). Cost-justification
+      gate first; lead writes brief; 4 teammates produce position papers; cross-rebuttals;
+      lead synthesizes to tasks/<id>.md spec. Enforces the 500-word position-paper
+      / 150-word rebuttal ceilings. Token footprint ~15-25k for full pass — gated
+      by explicit user intent or task heuristics.
     estimate: L
     phase: ship-v3
     anchors:
     - plugins/taskmaster/skills/design-team/SKILL.md
   - id: v3-teams-002
-    title: '.taskmaster/team-roles/ config + role-loading helper'
+    title: .taskmaster/team-roles/ config + role-loading helper
     status: todo
     priority: medium
     created: 2026-05-02T16:30
     last_referenced: 2026-05-02T16:30
-    notes: 'Project-scope role library. Each role file is both a subagent
-      definition (for solo dispatch) and a team-spawn role (used as
-      subagent_type when teams form). One source of truth. Default
-      starter roles: designer, engineer, qa, skeptic, security. Required
-      for v3-teams-001 to scale beyond bespoke spawn-prompt-writing.'
+    notes: 'Project-scope role library. Each role file is both a subagent definition
+      (for solo dispatch) and a team-spawn role (used as subagent_type when teams
+      form). One source of truth. Default starter roles: designer, engineer, qa, skeptic,
+      security. Required for v3-teams-001 to scale beyond bespoke spawn-prompt-writing.'
     depends_on:
     - v3-teams-001
     estimate: S
@@ -1029,16 +1126,15 @@ epics:
     anchors:
     - plugins/taskmaster/team-roles/
   - id: v3-teams-003
-    title: 'spec-review --team flag + parallel-review protocol'
+    title: spec-review --team flag + parallel-review protocol
     status: todo
     priority: medium
     created: 2026-05-02T16:30
     last_referenced: 2026-05-02T16:30
-    notes: 'Smaller surface — extends existing spec-review skill with a
-      --team flag that forms a 3-4 teammate review (engineer / QA /
-      skeptic by default). Single pass (no rebuttals); lead synthesizes
-      review.md. Reuses v3-teams-001 infrastructure. Default remains
-      single-agent.'
+    notes: Smaller surface — extends existing spec-review skill with a --team flag
+      that forms a 3-4 teammate review (engineer / QA / skeptic by default). Single
+      pass (no rebuttals); lead synthesizes review.md. Reuses v3-teams-001 infrastructure.
+      Default remains single-agent.
     depends_on:
     - v3-teams-001
     - v3-teams-002
@@ -1047,16 +1143,15 @@ epics:
     anchors:
     - plugins/taskmaster/skills/spec-review/SKILL.md
   - id: v3-teams-004
-    title: 'taskmaster:debug-team + hypothesis-tournament protocol'
+    title: taskmaster:debug-team + hypothesis-tournament protocol
     status: todo
     priority: low
     created: 2026-05-02T16:30
     last_referenced: 2026-05-02T16:30
-    notes: 'For ambiguous bugs (issues with severity P0/P1 and no clear
-      repro). 3-5 teammates each pursuing a different hypothesis;
-      cross-debate; lead synthesizes root cause and updates ISS-*.
-      Trigger: explicit "debug team" or taskmaster:issue offering it
-      on a P0 issue. Default to single-agent investigation.'
+    notes: 'For ambiguous bugs (issues with severity P0/P1 and no clear repro). 3-5
+      teammates each pursuing a different hypothesis; cross-debate; lead synthesizes
+      root cause and updates ISS-*. Trigger: explicit "debug team" or taskmaster:issue
+      offering it on a P0 issue. Default to single-agent investigation.'
     depends_on:
     - v3-teams-001
     - v3-teams-002
@@ -1065,15 +1160,15 @@ epics:
     anchors:
     - plugins/taskmaster/skills/debug-team/SKILL.md
   - id: v3-teams-005
-    title: 'Stretch — pair-then-merge and open-debate protocols'
+    title: Stretch — pair-then-merge and open-debate protocols
     status: todo
     priority: low
     created: 2026-05-02T16:30
     last_referenced: 2026-05-02T16:30
-    notes: 'Optional protocols. pair-then-merge for refactor planning
-      where two independent designs make useful baselines. open-debate
-      for ad-hoc brainstorms — highest token risk, gate behind explicit
-      intent. Ship only if real demand emerges from teams-001/003/004.'
+    notes: Optional protocols. pair-then-merge for refactor planning where two independent
+      designs make useful baselines. open-debate for ad-hoc brainstorms — highest
+      token risk, gate behind explicit intent. Ship only if real demand emerges from
+      teams-001/003/004.
     depends_on:
     - v3-teams-001
     estimate: S
@@ -1090,8 +1185,8 @@ phases:
 handovers:
 - id: 2026-05-03-taskmaster-handover-skill-shipped-backen
   date: '2026-05-03'
-  tldr: 'taskmaster:handover skill shipped — backend, MCP, skill, retrofits, lint
-    tests all in place.'
+  tldr: taskmaster:handover skill shipped — backend, MCP, skill, retrofits, lint tests
+    all in place.
   next_action: Move to v3-skills-007 (start-session retrofit) so handovers surface
     on session start.
   task_ids:
