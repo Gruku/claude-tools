@@ -1087,3 +1087,13 @@ phases:
   order: 1
   created: 2026-05-02T05:46
   start_date: '2026-05-02'
+handovers:
+- id: 2026-05-03-taskmaster-handover-skill-shipped-backen
+  date: '2026-05-03'
+  tldr: 'taskmaster:handover skill shipped — backend, MCP, skill, retrofits, lint
+    tests all in place.'
+  next_action: Move to v3-skills-007 (start-session retrofit) so handovers surface
+    on session start.
+  task_ids:
+  - v3-skills-002
+  session_kind: milestone-complete
