@@ -93,4 +93,16 @@ if echo "$FILE_PATH" | grep -qE '\.git/'; then
   block_hard "Cannot write to git internals."
 fi
 
+# --- OS system paths (Windows + Unix-like) ---
+# Writing into these paths via Edit/Write is never legitimate (use a package
+# manager or a shell command if you really need to touch a system file). The
+# guard-system-paths.sh hook covers Bash; this covers Edit/Write tool calls.
+# block_hard, like the .git/ rule above — no approval bypass.
+if echo "$FILE_PATH" | grep -qiE '([cC]:[\\/]+[wW]indows([\\/]|$)|[cC]:[\\/]+[pP]rogram[[:space:]]+[fF]iles([[:space:]]+\(x86\))?([\\/]|$)|^/c/[wW]indows/)'; then
+  block_hard "Cannot write to a Windows system path (C:\\Windows, C:\\Program Files)."
+fi
+if echo "$FILE_PATH" | grep -qE '^/(bin|sbin|etc|boot|lib|lib64)/|^/usr/(bin|sbin|lib|lib64|local/bin|local/sbin)/|^/System/Library/'; then
+  block_hard "Cannot write to a Unix system path (/bin, /sbin, /usr/bin, /etc, /boot, /lib, /System/Library)."
+fi
+
 exit 0
