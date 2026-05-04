@@ -6,12 +6,12 @@
 
 | Workstream | Status | Progress | Current Focus |
 |-----------|--------|----------|---------------|
-| V3 Polish | Active | 15/28 | Kanban columns scroll-reset to top + scrollbar flicker every 3s |
+| V3 Polish | Active | 15/33 | Kanban columns scroll-reset to top + scrollbar flicker every 3s |
 | V3 Release (2.0) | Planned | 0/6 | — |
 | V3 Skills | Active | 1/16 | taskmaster:handover skill — write/read flow |
 | V3 Agent Teams (Optional) | Planned | 0/5 | — |
 
-**Active Phase:** Ship V3 (16/55 done)
+**Active Phase:** Ship V3 (16/60 done)
 **Phases:** >> Ship V3
 
 **In Progress:** v3-polish-027 Kanban columns scroll-reset to top + scrollbar flicker every 3s, v3-polish-028 Auto-mode strip shows "Auto-mode · N running" for stopped/abandoned sessions, v3-skills-002 taskmaster:handover skill — write/read flow, v3-skills-003 taskmaster:lesson skill — write/reinforce/promote

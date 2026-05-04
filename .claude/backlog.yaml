@@ -51,19 +51,19 @@ context:
     priority: high
     epic: v3-polish
   stats:
-    total: 55
+    total: 60
     done: 16
     in_progress: 0
     in_review: 4
-    todo: 35
+    todo: 40
     blocked: 0
     archived: 0
   active_phase:
     id: ship-v3
     name: Ship V3
     stats:
-      total: 55
-      todo: 35
+      total: 60
+      todo: 40
       in-progress: 0
       in-review: 4
       done: 16
@@ -676,6 +676,225 @@ epics:
       Predicate `isAutoRunning(autoState)` (mode && !stopped && !completed_at && pending.length
       > 0) is now applied uniformly across all four sites.
     branch: feature/taskmaster-v3
+  - id: v3-polish-029
+    title: v3 viewer reads empty task list — `/api/backlog` doesn't expose flat top-level
+      `tasks`
+    status: todo
+    priority: high
+    created: 2026-05-04T14:31
+    last_referenced: 2026-05-04T14:31
+    notes: 'Server <-> v3 viewer contract mismatch.
+
+
+      `backlog_server._serve_json` (line 4651) returns the raw YAML, which keeps tasks
+      nested under `epics[].tasks[]`. The v3 viewer''s kanban (`kanban.js:187`), table
+      (`table.js:260`), and board-surface (`board-surface.js:63`) only read `backlog.tasks`
+      (flat top-level array). Result: every list/board screen renders 0 tasks even
+      though `/api/backlog` carries all of them.
+
+
+      `load_v3` does NOT flatten either — it preserves the v2 nested shape under epics.
+      So migrating to v3 schema does not fix this.
+
+
+      Repro: open the v3 viewer (use_v3=true) on any backlog with epics[].tasks. Kanban
+      shows "0 tasks · 0 visible" with all status columns empty.
+
+
+      Fix landed in this worktree (hot-patch on feature/taskmaster-v3): in `_serve_json`,
+      if `data["tasks"]` isn''t a list, derive it by flattening `epics[].tasks` and
+      stamping each task with its parent epic id (so `t.epic` is always present for
+      filtering). ~6 lines, no client-side changes.
+
+
+      Validate: curl `/api/backlog | jq ''.tasks | length''` should match the sum
+      of `epics[].tasks`. Then reload the v3 kanban — task counts should populate,
+      all status columns render cards, epic chip counts non-zero.
+
+
+      Discovered while dogfooding the v3 viewer for this feature branch on 2026-05-04.'
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/backlog_server.py
+    - plugins/taskmaster/viewer/js/screens/kanban.js
+    - plugins/taskmaster/viewer/js/screens/table.js
+    - plugins/taskmaster/viewer/js/components/board-surface.js
+  - id: v3-polish-030
+    title: Task-detail loaders ignore configured backlog_path + assume v3 flat-tasks
+      + .taskmaster sidecar dirs
+    status: todo
+    priority: high
+    created: 2026-05-04T14:43
+    last_referenced: 2026-05-04T14:43
+    notes: '`/api/task/<id>` and `/api/task/<id>/related` always 404 in projects whose
+      backlog isn''t at `./backlog.yaml` with v3-flat tasks under `.taskmaster/`.
+
+
+      Three bugs in `_load_task_full` and `_load_related_for_task` (`backlog_server.py`
+      ~4152 / ~4212):
+
+
+      1. Hardcoded `Path("backlog.yaml")` — ignores `_resolve_paths()` / `.claude/taskmaster.json`.
+      claude-tools'' own backlog at `.claude/backlog.yaml` is invisible.
+
+      2. Reads `backlog.get("tasks")` flat — same v3-slim-index assumption as `_serve_json`
+      (covered by v3-polish-029). v2 nested `epics[].tasks[]` reads as empty.
+
+      3. Sidecar dirs hardcoded to `Path(".taskmaster") / {tasks,lessons,handovers,issues}`.
+      claude-tools keeps these under `.claude/`, so per-task markdown bodies and related-entity
+      payloads always come back empty.
+
+
+      Repro: open the v3 viewer, click any task card → "Could not load <id>: task
+      <id> not found".
+
+
+      Hot-patch landed on feature/taskmaster-v3:
+
+      - Use `_backlog_path()` (already resolves via `.claude/taskmaster.json`).
+
+      - Same epics-flatten fallback as in v3-polish-029.
+
+      - Derive `sidecar_root = backlog_path.parent` and resolve `lessons/`, `handovers/`,
+      `issues/`, and `tasks/<id>.md` under it.
+
+
+      Validate: `curl /api/task/v3-skills-004` → 200 with title/body. Click any kanban
+      card in the v3 viewer → task detail screen renders. Related panel populates
+      lessons/handovers/issues for tasks that have anchor matches.
+
+
+      Discovered 2026-05-04 while dogfooding v3 viewer right after fixing v3-polish-029.'
+    depends_on:
+    - v3-polish-029
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/backlog_server.py
+  - id: v3-polish-031
+    title: 'Task Detail: Notes (and other md sections) overflow horizontally for long
+      unbroken strings'
+    status: todo
+    priority: medium
+    created: 2026-05-04T14:54
+    last_referenced: 2026-05-04T14:54
+    notes: '`.td-section .md-body` had no `overflow-wrap`/`word-break`, so long unbroken
+      strings (file paths, anchor patterns, URLs, command lines) extended past the
+      body column and pushed the layout — visually overflowing the Notes/Specification/Plan
+      sections.
+
+
+      Compounding factor: `.td-body` (the left grid track in `.td-grid`) had no `min-width:
+      0`. CSS Grid''s default `min-width: auto` means a track can''t shrink below
+      its content''s intrinsic minimum size, so a long unbreakable token would grow
+      the body column and squeeze (or push off-screen) the right rail.
+
+
+      Hot-patch landed on feature/taskmaster-v3 in `task-detail.css`:
+
+      - `.td-section .md-body { ...; min-width: 0; overflow-wrap: anywhere; word-break:
+      break-word; }`
+
+      - `.td-grid > .td-body { min-width: 0; }`
+
+
+      Validate: open a task with long file paths in Notes (e.g. v3-polish-029 has
+      paths like `plugins/taskmaster/viewer/js/screens/kanban.js` in its anchors)
+      — Notes text wraps to body width, no horizontal scroll, right rail stays at
+      its 280px column.
+
+
+      Discovered 2026-05-04 while dogfooding the v3 viewer.'
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/css/screens/task-detail.css
+  - id: v3-polish-032
+    title: Task Detail right rail visually disappears when all 6 panels are empty
+    status: todo
+    priority: medium
+    created: 2026-05-04T14:54
+    last_referenced: 2026-05-04T14:54
+    notes: 'User-reported: tasks with no docs / no related lessons / no handovers
+      / no issues / no deps / no unblocks / no blockers render with no visible right
+      rail at all. Tasks with at least one populated relation render the rail correctly.
+
+
+      Code review of `right-rail.js` says every panel always returns a `<section>`
+      with an explicit empty-state placeholder ("no docs", "none", "no anchor matches",
+      "no dependencies", "this task gates nothing"). So the rail SHOULD always be
+      visually present. Either the empty-state CSS collapses panels to zero height/visibility,
+      the rail mount aside is being hidden, or there''s a code path that skips rendering
+      — needs investigation under the actual viewer.
+
+
+      Acceptance:
+
+      - Open a task with no docs/lessons/handovers/issues/deps/unblocks/blockers (pick
+      a brand-new task) → right rail still occupies its 280px column with all 6 panel
+      headers visible.
+
+      - Empty-state placeholders styled consistently (color: var(--ink-3), italic,
+      small).
+
+      - No layout shift when navigating from a populated task to an empty one.
+
+
+      Investigation hints: check `.td-empty` CSS for any `display:none`; check if
+      `.td-rail-mount` has any `:has(:empty)` rule; verify panels mounted via `queueMicrotask`
+      actually attach (test: assert `aside.children.length === 6` after mount).
+
+
+      Discovered 2026-05-04 while dogfooding the v3 viewer; partner of v3-polish-031
+      (notes overflow).'
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/components/right-rail.js
+    - plugins/taskmaster/viewer/css/screens/task-detail.css
+  - id: v3-polish-033
+    title: Task transitions don't capture `started`/`completed` timestamps — Task
+      Detail dates row shows "—"
+    status: todo
+    priority: high
+    created: 2026-05-04T14:54
+    last_referenced: 2026-05-04T14:54
+    notes: 'User-reported: Task Detail''s dates row shows `Started —` and `Completed
+      —` for tasks that were definitely started and finished (e.g. v3-skills-002 "in-review",
+      v3-polish-027 "in-review"). Only `Created` is reliably populated.
+
+
+      Likely cause: status transitions don''t stamp `started` / `completed`. Pick-task
+      moves a task to in-progress without writing `started`. Review-gate / end-session
+      move to in-review / done without writing `completed`. The Task Detail UI reads
+      `task.started` / `task.completed` as raw fields (`renderDates` in `task-detail-document.js:94-107`),
+      so missing timestamps render as "—".
+
+
+      Two fixes needed:
+
+      1. Server-side: `backlog_update_task` (and/or pick-task / end-session paths)
+      should auto-stamp `started` on the first transition into `in-progress`, and
+      `completed` on transition into `done`. Don''t overwrite if already set.
+
+      2. Backfill: existing v2 tasks have no `started`/`completed`; consider deriving
+      from session log entries during migrate_v2_to_v3, or accept blank for legacy.
+
+
+      Repro:
+
+      - Pick any existing task that''s currently in-progress or in-review or done.
+
+      - Open `/api/task/<id>` → check whether `started` / `completed` keys are present.
+
+      - Open `#/task/<id>` in viewer → dates row should show real timestamps, not
+      "—".
+
+
+      Discovered 2026-05-04 while dogfooding the v3 viewer.'
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/backlog_server.py
+    - plugins/taskmaster/skills/taskmaster/end-session
+    - plugins/taskmaster/skills/taskmaster/pick-task
+    - plugins/taskmaster/viewer/js/components/task-detail-document.js
 - id: v3-release
   name: V3 Release (2.0)
   status: planned
