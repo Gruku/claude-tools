@@ -1,6 +1,6 @@
 meta:
   project: claude-tools
-  updated: '2026-05-03'
+  updated: '2026-05-04'
 context:
   active_epic: v3-polish
   in_progress:
@@ -16,6 +16,10 @@ context:
     title: taskmaster:handover skill — write/read flow
     epic: v3-skills
     branch: ''
+  - id: v3-skills-003
+    title: taskmaster:lesson skill — write/reinforce/promote
+    epic: v3-skills
+    branch: feature/taskmaster-v3
   blocked: []
   recent_completed:
   - id: v3-skills-001
@@ -34,10 +38,6 @@ context:
     title: Pluralization helper + sweep
     completed: 2026-05-02T10:30
   next_up:
-  - id: v3-skills-003
-    title: taskmaster:lesson skill — write/reinforce/promote
-    priority: critical
-    epic: v3-skills
   - id: v3-skills-004
     title: taskmaster:issue skill — log/track/close defects
     priority: critical
@@ -46,11 +46,15 @@ context:
     title: 'Build recap picker (was: D·5 rebuild — there is no picker)'
     priority: high
     epic: v3-polish
+  - id: v3-polish-009
+    title: Issues screen — align with design concept (concept deltas + 3 real bugs)
+    priority: high
+    epic: v3-polish
   stats:
-    total: 54
+    total: 55
     done: 16
     in_progress: 0
-    in_review: 3
+    in_review: 4
     todo: 35
     blocked: 0
     archived: 0
@@ -58,10 +62,10 @@ context:
     id: ship-v3
     name: Ship V3
     stats:
-      total: 54
+      total: 55
       todo: 35
       in-progress: 0
-      in-review: 3
+      in-review: 4
       done: 16
       blocked: 0
       archived: 0
@@ -826,10 +830,10 @@ epics:
     - plugins/taskmaster/taskmaster_v3.py
   - id: v3-skills-003
     title: taskmaster:lesson skill — write/reinforce/promote
-    status: todo
+    status: in-review
     priority: critical
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-03T18:06
+    last_referenced: 2026-05-04T05:16
     notes: 'Author the lessons skill. Triggers: "remember this", "this keeps happening",
       "we always do X here", auto-suggestion from accumulated feedback memory. Captures
       kind (pattern/anti-pattern/gotcha), triggers (file globs + task-title substrings),
@@ -845,6 +849,13 @@ epics:
     anchors:
     - plugins/taskmaster/skills/lesson/SKILL.md
     - plugins/taskmaster/taskmaster_v3.py
+    started: 2026-05-03T19:33
+    branch: feature/taskmaster-v3
+    worktree: .worktrees/taskmaster-v3
+    patchnote: New taskmaster:lesson skill captures, reinforces, and promotes lessons
+      learned from sessions — with auto-extraction from transcripts, three-tier loading
+      discipline, and handover review-flag wiring.
+    release: 2.0.0
   - id: v3-skills-004
     title: taskmaster:issue skill — log/track/close defects
     status: todo
@@ -1083,6 +1094,25 @@ epics:
     anchors:
     - plugins/taskmaster/backlog_server.py
     - plugins/taskmaster/taskmaster_v3.py
+  - id: v3-skills-016
+    title: Dogfood lesson skill — sync plugin install + run end-to-end
+    status: todo
+    priority: high
+    created: 2026-05-04T05:15
+    last_referenced: 2026-05-04T05:15
+    notes: 'Split out from v3-skills-003 task 12. Implementation is complete in this
+      worktree but the running Claude Code session loads the installed v1.11.1 plugin
+      cache, so taskmaster:lesson isn''t loadable to dogfood from this session. Two
+      options: (a) sync plugins/taskmaster/skills/ into the install cache and restart,
+      or (b) wait until v3 plugin is published/installed. Once loadable, run an end-to-end
+      pass: defer a candidate, scan transcripts, write a lesson via the skill, reinforce,
+      verify promotion threshold path.'
+    depends_on:
+    - v3-skills-003
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/skills/lesson/**
 - id: v3-teams
   name: V3 Agent Teams (Optional)
   status: planned
