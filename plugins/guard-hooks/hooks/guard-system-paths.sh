@@ -131,20 +131,67 @@ IFS="$SENT"
 read -ra SEGMENTS_ARR <<< "$TMP"
 IFS="$OLD_IFS"
 
+# Destructive verbs reduced to a basename allowlist — used to detect when an
+# absolute-path invocation like `/usr/bin/rm /etc/passwd` is destructive even
+# though the verb regex below won't match (the leading `/` isn't a word boundary).
+UNIX_VERB_BASENAMES_RE='^(rm|rmdir|unlink|shred|mv|cp|chmod|chown|chgrp|ln|tee|dd|truncate)$'
+
+# Hosts that mean "this machine" — if an ssh/scp/rsync target points here the
+# segment is NOT exempted, because the operation actually runs locally.
+LOCALHOST_RE='(@(localhost|127\.0\.0\.1)([[:space:]:]|$)|@\[?::1\]?([[:space:]:]|$))'
+
 for SEG in "${SEGMENTS_ARR[@]}"; do
   [ -z "$SEG" ] && continue
 
-  # Does this segment reference an OS system path?
+  # --- Split first token (the executable) from the rest of the segment ---
+  # Two reasons:
+  #   1. A binary that lives in a system path (e.g. /c/Windows/System32/OpenSSH/ssh.exe,
+  #      /usr/bin/git) is the program being RUN — not a destructive target. Path checks
+  #      should consider arguments, not the executable itself.
+  #   2. We need the basename to detect ssh/scp/rsync wrappers and absolute-path
+  #      destructive verbs.
+  SEG_TRIM="${SEG#"${SEG%%[![:space:]]*}"}"
+  FIRST="${SEG_TRIM%%[[:space:]]*}"
+  REST="${SEG_TRIM#"$FIRST"}"
+
+  # Strip surrounding quotes from FIRST, then take the basename and drop a .exe suffix.
+  FIRST_UNQ="${FIRST#\"}"; FIRST_UNQ="${FIRST_UNQ%\"}"
+  FIRST_UNQ="${FIRST_UNQ#\'}"; FIRST_UNQ="${FIRST_UNQ%\'}"
+  FIRST_BASE="${FIRST_UNQ##*/}"
+  FIRST_BASE="${FIRST_BASE##*\\}"
+  # Lowercase for case-insensitive .exe stripping (Windows is case-insensitive).
+  FIRST_BASE_LOWER="$(echo "$FIRST_BASE" | tr '[:upper:]' '[:lower:]')"
+  FIRST_BASE_NOEXT="${FIRST_BASE_LOWER%.exe}"
+
+  # --- ssh/scp/rsync remote-wrapper exemption ---
+  # Paths inside the args refer to a REMOTE host, not the local OS — unless the
+  # target is localhost/127.0.0.1/::1, in which case the operation is local and
+  # falls through to the normal checks below.
+  case "$FIRST_BASE_NOEXT" in
+    ssh|scp|rsync)
+      if ! echo "$REST" | grep -qiE "$LOCALHOST_RE"; then
+        continue
+      fi
+      ;;
+  esac
+
+  # --- Does this segment reference an OS system path as a TARGET? ---
+  # Scan REST only; the executable's own path doesn't count.
   HIT_PATH=0
-  if echo "$SEG" | grep -qE "$WIN_SYS_RE"; then
+  if echo "$REST" | grep -qE "$WIN_SYS_RE"; then
     HIT_PATH=1
   fi
-  if echo "$SEG" | grep -qE "$UNIX_SYS_RE"; then
+  if echo "$REST" | grep -qE "$UNIX_SYS_RE"; then
     HIT_PATH=1
   fi
   [ "$HIT_PATH" = "0" ] && continue
 
-  # Path is present — block if the segment also contains a destructive verb / redirect.
+  # --- Verb / redirect checks ---
+  # Absolute-path invocations (e.g. /usr/bin/rm) — the leading `/` defeats the
+  # word-boundary in UNIX_VERB_RE, so detect them explicitly via basename.
+  if echo "$FIRST_BASE_NOEXT" | grep -qE "$UNIX_VERB_BASENAMES_RE"; then
+    block "Destructive Unix command (rm/mv/cp/chmod/chown/ln/tee/dd) targeting a system path."
+  fi
   if echo "$SEG" | grep -qiE "$UNIX_VERB_RE"; then
     block "Destructive Unix command (rm/mv/cp/chmod/chown/ln/tee/dd) targeting a system path."
   fi

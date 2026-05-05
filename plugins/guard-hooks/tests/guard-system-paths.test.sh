@@ -1,6 +1,13 @@
 #!/bin/bash
 # Tests for guard-system-paths.sh. Run from anywhere; resolves paths relative to itself.
 set -u
+# Git Bash on Windows auto-rewrites Unix-looking arguments (e.g. /usr/bin/rm)
+# to MSYS-translated Windows paths when invoking native .exe binaries like
+# jq.exe. That breaks tests that use `jq --arg c '/usr/bin/rm ...'` because the
+# command-under-test becomes 'C:/Program Files/Git/usr/bin/rm ...'. Disable the
+# rewrite so payloads reach the hook verbatim.
+export MSYS_NO_PATHCONV=1
+export MSYS2_ARG_CONV_EXCL='*'
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 HOOK="$SCRIPT_DIR/../hooks/guard-system-paths.sh"
 
@@ -132,6 +139,32 @@ assert_allowed "rm against /etcd-data"        "rm /etcd-data/foo"
 assert_allowed "rm under ~/etc"               "rm ~/etc/foo.conf"
 assert_allowed "mv into /usr/binary-name"     "mv foo /usr/binary-name"
 assert_allowed "sed unrelated"                "sed -i 's/foo/bar/' ~/file.txt"
+
+echo "-- ssh/scp/rsync remote wrapper exemption --"
+# Paths inside an ssh/scp/rsync command refer to a REMOTE host, not the local OS.
+assert_allowed "ssh remote rm /etc"           'ssh root@example.com "rm /etc/foo"'
+assert_allowed "ssh remote redirect to /root" 'ssh root@host "cat > /root/foo"'
+assert_allowed "ssh -i flag, remote redirect" 'ssh -i ~/.ssh/key root@1.2.3.4 "cat > /etc/nginx/foo"'
+assert_allowed "ssh.exe full path remote"     '/c/Windows/System32/OpenSSH/ssh.exe -i ~/.ssh/k root@host "ls /etc/nginx"'
+assert_allowed "scp into remote /etc"         'scp file root@host:/etc/foo'
+assert_allowed "rsync into remote /etc"       'rsync -av file root@host:/etc/'
+# But ssh to localhost CAN affect this machine, so destructive ops must still block.
+# (Unquoted form — current verb regex requires shell word boundaries, so the
+# quoted variant is a known gap left out of this fix's scope.)
+assert_blocked "ssh root@localhost rm /etc"   'ssh root@localhost rm /etc/passwd'
+assert_blocked "ssh 127.0.0.1 rm /usr/bin"    'ssh root@127.0.0.1 rm /usr/bin/python'
+assert_blocked "ssh ::1 rm /etc"              'ssh root@[::1] rm /etc/foo'
+
+echo "-- system-path executable as first token --"
+# Invoking a binary that lives in a system path is read-only — the path is the
+# program being run, not a destructive target. Only block when an *additional*
+# system path appears as a target (or a destructive verb still applies).
+assert_allowed "ssh.exe just invoked"         '/c/Windows/System32/OpenSSH/ssh.exe -V'
+assert_allowed "/usr/bin/git status"          '/usr/bin/git status'
+assert_allowed "ssh.exe via pipe"             'echo hi | /c/Windows/System32/OpenSSH/ssh.exe root@host cat'
+# Destructive verb against a system-path target still blocks even if the exe
+# itself happens to live in a system path.
+assert_blocked "/usr/bin/rm against /etc"     '/usr/bin/rm /etc/passwd'
 
 echo "-- approval bypass --"
 touch "$HOME/.claude/guard-approve"
