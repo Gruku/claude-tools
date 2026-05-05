@@ -24,13 +24,16 @@ context:
     title: taskmaster:issue skill — log/track/close defects
     epic: v3-skills
     branch: ''
-  - id: v3-skills-015
-    title: Handover read MCP tool surface (get/list/latest)
+  - id: v3-skills-005
+    title: taskmaster:migrate-v3 skill — guided opt-in migration
     epic: v3-skills
     branch: ''
     locked_by: Volodymyr-18428-c5ab0885
   blocked: []
   recent_completed:
+  - id: v3-skills-015
+    title: Handover read MCP tool surface (get/list/latest)
+    completed: 2026-05-05T16:15
   - id: v3-skills-006
     title: PreCompact hook + init-taskmaster v3 retrofit
     completed: 2026-05-05T16:02
@@ -43,9 +46,6 @@ context:
   - id: v3-edit-013
     title: Wire `+ Task` / `✎ Edit` buttons to entity modal
     completed: 2026-05-05T06:22
-  - id: v3-edit-012
-    title: Task entity schema
-    completed: 2026-05-05T06:13
   next_up:
   - id: v3-polish-001
     title: 'Build recap picker (was: D·5 rebuild — there is no picker)'
@@ -61,10 +61,10 @@ context:
     epic: v3-polish
   stats:
     total: 79
-    done: 36
+    done: 37
     in_progress: 1
     in_review: 5
-    todo: 37
+    todo: 36
     blocked: 0
     archived: 0
   active_phase:
@@ -72,10 +72,10 @@ context:
     name: Ship V3
     stats:
       total: 78
-      todo: 36
+      todo: 35
       in-progress: 1
       in-review: 5
-      done: 36
+      done: 37
       blocked: 0
       archived: 0
     target_date: null
@@ -1177,10 +1177,10 @@ epics:
     started: 2026-05-05T15:29
   - id: v3-skills-005
     title: taskmaster:migrate-v3 skill — guided opt-in migration
-    status: todo
+    status: in-progress
     priority: high
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-02T16:30
+    last_referenced: 2026-05-05T16:15
     notes: Wrap the existing backlog_migrate_v3 MCP tool (verified to ship by v3-release-001)
       with a guided skill. Show pre-flight summary (N tasks, M with non-trivial bodies
       will be extracted), explain the schema break (heavy fields move from backlog.yaml
@@ -1193,6 +1193,8 @@ epics:
     phase: ship-v3
     anchors:
     - plugins/taskmaster/skills/migrate-v3/SKILL.md
+    started: 2026-05-05T16:15
+    locked_by: Volodymyr-18428-c5ab0885
   - id: v3-skills-006
     title: PreCompact hook + init-taskmaster v3 retrofit
     status: done
@@ -1375,10 +1377,10 @@ epics:
     phase: ship-v3
   - id: v3-skills-015
     title: Handover read MCP tool surface (get/list/latest)
-    status: in-progress
+    status: done
     priority: high
     created: 2026-05-02T18:00
-    last_referenced: 2026-05-05T16:02
+    last_referenced: 2026-05-05T16:15
     notes: 'Verify and complete the MCP tool surface for handover reads. Python helpers
       exist in taskmaster_v3.py (read_handover, list_handover_ids, latest_handover_id)
       but per v3-release-001 there is a known gap between Python helpers existing
@@ -1396,7 +1398,7 @@ epics:
     - plugins/taskmaster/backlog_server.py
     - plugins/taskmaster/taskmaster_v3.py
     started: 2026-05-05T16:02
-    locked_by: Volodymyr-18428-c5ab0885
+    completed: 2026-05-05T16:15
   - id: v3-skills-016
     title: Dogfood lesson skill — sync plugin install + run end-to-end
     status: todo
