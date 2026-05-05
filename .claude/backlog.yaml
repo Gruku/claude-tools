@@ -28,13 +28,16 @@ context:
     title: taskmaster:migrate-v3 skill — guided opt-in migration
     epic: v3-skills
     branch: ''
-  - id: v3-skills-007
-    title: Retrofit start-session — surface v3 data plane
+  - id: v3-skills-010
+    title: Quality pass — auto-task skill (wire to real handover/lesson tools)
     epic: v3-skills
     branch: ''
     locked_by: Volodymyr-18428-c5ab0885
   blocked: []
   recent_completed:
+  - id: v3-skills-007
+    title: Retrofit start-session — surface v3 data plane
+    completed: 2026-05-05T16:36
   - id: v3-skills-008
     title: Retrofit pick-task — "continue this task" trigger + v3 surfaces
     completed: 2026-05-05T16:33
@@ -47,9 +50,6 @@ context:
   - id: v3-skills-006
     title: PreCompact hook + init-taskmaster v3 retrofit
     completed: 2026-05-05T16:02
-  - id: v3-edit-015
-    title: Server-side validation pipeline
-    completed: 2026-05-05T06:40
   next_up:
   - id: v3-polish-001
     title: 'Build recap picker (was: D·5 rebuild — there is no picker)'
@@ -65,10 +65,10 @@ context:
     epic: v3-polish
   stats:
     total: 79
-    done: 39
+    done: 40
     in_progress: 1
     in_review: 6
-    todo: 33
+    todo: 32
     blocked: 0
     archived: 0
   active_phase:
@@ -76,10 +76,10 @@ context:
     name: Ship V3
     stats:
       total: 78
-      todo: 32
+      todo: 31
       in-progress: 1
       in-review: 6
-      done: 39
+      done: 40
       blocked: 0
       archived: 0
     target_date: null
@@ -1219,10 +1219,10 @@ epics:
     completed: 2026-05-05T16:02
   - id: v3-skills-007
     title: Retrofit start-session — surface v3 data plane
-    status: in-progress
+    status: done
     priority: high
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-05T16:33
+    last_referenced: 2026-05-05T16:36
     notes: 'Update start-session skill to surface: (1) recap diff section (what changed
       in the project since last session — separate from "what I did last session"),
       (2) latest handover frontmatter only (~200 tokens) with prompt to read body
@@ -1241,7 +1241,7 @@ epics:
     anchors:
     - plugins/taskmaster/skills/start-session/SKILL.md
     started: 2026-05-05T16:33
-    locked_by: Volodymyr-18428-c5ab0885
+    completed: 2026-05-05T16:36
   - id: v3-skills-008
     title: Retrofit pick-task — "continue this task" trigger + v3 surfaces
     status: done
@@ -1289,10 +1289,10 @@ epics:
     completed: 2026-05-05T16:30
   - id: v3-skills-010
     title: Quality pass — auto-task skill (wire to real handover/lesson tools)
-    status: todo
+    status: in-progress
     priority: high
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-05T15:01
+    last_referenced: 2026-05-05T16:36
     notes: The auto-task SKILL.md was drafted to call backlog_handover_get and backlog_lesson_match
       before those skills had write counterparts. Now that v3-skills-002/003/004 land,
       walk the full state machine end-to-end (PICK → SPEC_REVIEW → IMPLEMENT → TEST
@@ -1310,6 +1310,8 @@ epics:
     phase: ship-v3
     anchors:
     - plugins/taskmaster/skills/auto-task/SKILL.md
+    started: 2026-05-05T16:36
+    locked_by: Volodymyr-18428-c5ab0885
   - id: v3-skills-011
     title: Quality pass — auto-epic + auto-phase orchestrator skills
     status: todo
