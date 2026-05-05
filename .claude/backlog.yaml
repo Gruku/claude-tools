@@ -24,13 +24,16 @@ context:
     title: taskmaster:issue skill — log/track/close defects
     epic: v3-skills
     branch: ''
-  - id: v3-skills-006
-    title: PreCompact hook + init-taskmaster v3 retrofit
+  - id: v3-skills-015
+    title: Handover read MCP tool surface (get/list/latest)
     epic: v3-skills
     branch: ''
     locked_by: Volodymyr-18428-c5ab0885
   blocked: []
   recent_completed:
+  - id: v3-skills-006
+    title: PreCompact hook + init-taskmaster v3 retrofit
+    completed: 2026-05-05T16:02
   - id: v3-edit-015
     title: Server-side validation pipeline
     completed: 2026-05-05T06:40
@@ -43,9 +46,6 @@ context:
   - id: v3-edit-012
     title: Task entity schema
     completed: 2026-05-05T06:13
-  - id: v3-edit-011
-    title: Conflict banner + inline-field 409 handling
-    completed: 2026-05-05T06:07
   next_up:
   - id: v3-polish-001
     title: 'Build recap picker (was: D·5 rebuild — there is no picker)'
@@ -61,10 +61,10 @@ context:
     epic: v3-polish
   stats:
     total: 79
-    done: 35
+    done: 36
     in_progress: 1
     in_review: 5
-    todo: 38
+    todo: 37
     blocked: 0
     archived: 0
   active_phase:
@@ -72,10 +72,10 @@ context:
     name: Ship V3
     stats:
       total: 78
-      todo: 37
+      todo: 36
       in-progress: 1
       in-review: 5
-      done: 35
+      done: 36
       blocked: 0
       archived: 0
     target_date: null
@@ -1195,10 +1195,10 @@ epics:
     - plugins/taskmaster/skills/migrate-v3/SKILL.md
   - id: v3-skills-006
     title: PreCompact hook + init-taskmaster v3 retrofit
-    status: in-progress
+    status: done
     priority: high
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-05T15:47
+    last_referenced: 2026-05-05T16:02
     notes: 'Auto-install the PreCompact hook that runs `taskmaster snapshot --quiet`
       before context compaction (so post-compact recap reflects pre-compact state).
       Update init-taskmaster skill to: (1) add the hook to settings.json non-destructively
@@ -1211,7 +1211,7 @@ epics:
     - plugins/taskmaster/skills/init-taskmaster/SKILL.md
     - plugins/taskmaster/hooks/
     started: 2026-05-05T15:47
-    locked_by: Volodymyr-18428-c5ab0885
+    completed: 2026-05-05T16:02
   - id: v3-skills-007
     title: Retrofit start-session — surface v3 data plane
     status: todo
@@ -1375,10 +1375,10 @@ epics:
     phase: ship-v3
   - id: v3-skills-015
     title: Handover read MCP tool surface (get/list/latest)
-    status: todo
+    status: in-progress
     priority: high
     created: 2026-05-02T18:00
-    last_referenced: 2026-05-02T18:00
+    last_referenced: 2026-05-05T16:02
     notes: 'Verify and complete the MCP tool surface for handover reads. Python helpers
       exist in taskmaster_v3.py (read_handover, list_handover_ids, latest_handover_id)
       but per v3-release-001 there is a known gap between Python helpers existing
@@ -1395,6 +1395,8 @@ epics:
     anchors:
     - plugins/taskmaster/backlog_server.py
     - plugins/taskmaster/taskmaster_v3.py
+    started: 2026-05-05T16:02
+    locked_by: Volodymyr-18428-c5ab0885
   - id: v3-skills-016
     title: Dogfood lesson skill — sync plugin install + run end-to-end
     status: todo
