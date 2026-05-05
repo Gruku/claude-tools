@@ -28,13 +28,16 @@ context:
     title: taskmaster:migrate-v3 skill — guided opt-in migration
     epic: v3-skills
     branch: ''
-  - id: v3-skills-008
-    title: Retrofit pick-task — "continue this task" trigger + v3 surfaces
+  - id: v3-skills-007
+    title: Retrofit start-session — surface v3 data plane
     epic: v3-skills
     branch: ''
     locked_by: Volodymyr-18428-c5ab0885
   blocked: []
   recent_completed:
+  - id: v3-skills-008
+    title: Retrofit pick-task — "continue this task" trigger + v3 surfaces
+    completed: 2026-05-05T16:33
   - id: v3-skills-009
     title: Retrofit end-session — auto-offer handover + snapshot
     completed: 2026-05-05T16:30
@@ -47,9 +50,6 @@ context:
   - id: v3-edit-015
     title: Server-side validation pipeline
     completed: 2026-05-05T06:40
-  - id: v3-edit-014
-    title: Inline-edit retrofit on Task Detail
-    completed: 2026-05-05T06:30
   next_up:
   - id: v3-polish-001
     title: 'Build recap picker (was: D·5 rebuild — there is no picker)'
@@ -65,10 +65,10 @@ context:
     epic: v3-polish
   stats:
     total: 79
-    done: 38
+    done: 39
     in_progress: 1
     in_review: 6
-    todo: 34
+    todo: 33
     blocked: 0
     archived: 0
   active_phase:
@@ -76,10 +76,10 @@ context:
     name: Ship V3
     stats:
       total: 78
-      todo: 33
+      todo: 32
       in-progress: 1
       in-review: 6
-      done: 38
+      done: 39
       blocked: 0
       archived: 0
     target_date: null
@@ -1219,10 +1219,10 @@ epics:
     completed: 2026-05-05T16:02
   - id: v3-skills-007
     title: Retrofit start-session — surface v3 data plane
-    status: todo
+    status: in-progress
     priority: high
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-05T15:01
+    last_referenced: 2026-05-05T16:33
     notes: 'Update start-session skill to surface: (1) recap diff section (what changed
       in the project since last session — separate from "what I did last session"),
       (2) latest handover frontmatter only (~200 tokens) with prompt to read body
@@ -1240,12 +1240,14 @@ epics:
     phase: ship-v3
     anchors:
     - plugins/taskmaster/skills/start-session/SKILL.md
+    started: 2026-05-05T16:33
+    locked_by: Volodymyr-18428-c5ab0885
   - id: v3-skills-008
     title: Retrofit pick-task — "continue this task" trigger + v3 surfaces
-    status: in-progress
+    status: done
     priority: high
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-05T16:30
+    last_referenced: 2026-05-05T16:33
     notes: 'Update pick-task skill to: (1) accept "continue where we left off" / "continue
       this task" triggers (auto-resolve to the most-recently-touched in-progress task
       with a handover), (2) load related_handovers tldrs (not full bodies, ~50 tokens
@@ -1263,7 +1265,7 @@ epics:
     anchors:
     - plugins/taskmaster/skills/pick-task/SKILL.md
     started: 2026-05-05T16:30
-    locked_by: Volodymyr-18428-c5ab0885
+    completed: 2026-05-05T16:33
   - id: v3-skills-009
     title: Retrofit end-session — auto-offer handover + snapshot
     status: done
