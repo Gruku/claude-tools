@@ -6,17 +6,18 @@
 
 | Workstream | Status | Progress | Current Focus |
 |-----------|--------|----------|---------------|
-| V3 Polish | Active | 15/33 | Kanban columns scroll-reset to top + scrollbar flicker every 3s |
-| V3 Release (2.0) | Planned | 0/6 | — |
+| V3 Polish | Active | 19/35 | Kanban columns scroll-reset to top + scrollbar flicker every 3s |
+| V3 Release (2.0) | Planned | 0/7 | — |
 | V3 Skills | Active | 1/16 | taskmaster:handover skill — write/read flow |
 | V3 Agent Teams (Optional) | Planned | 0/5 | — |
+| V3 Edit-in-UI | Active | 15/16 | — |
 
-**Active Phase:** Ship V3 (16/60 done)
+**Active Phase:** Ship V3 (35/78 done)
 **Phases:** >> Ship V3
 
-**In Progress:** v3-polish-027 Kanban columns scroll-reset to top + scrollbar flicker every 3s, v3-polish-028 Auto-mode strip shows "Auto-mode · N running" for stopped/abandoned sessions, v3-skills-002 taskmaster:handover skill — write/read flow, v3-skills-003 taskmaster:lesson skill — write/reinforce/promote
+**In Progress:** v3-polish-027 Kanban columns scroll-reset to top + scrollbar flicker every 3s, v3-polish-028 Auto-mode strip shows "Auto-mode · N running" for stopped/abandoned sessions, v3-skills-002 taskmaster:handover skill — write/read flow, v3-skills-003 taskmaster:lesson skill — write/reinforce/promote, v3-skills-004 taskmaster:issue skill — log/track/close defects
 **Blocked:** —
-**Next Up:** v3-skills-004 taskmaster:issue skill — log/track/close defects (critical), v3-polish-001 Build recap picker (was: D·5 rebuild — there is no picker) (high), v3-polish-009 Issues screen — align with design concept (concept deltas + 3 real bugs) (high)
+**Next Up:** v3-polish-001 Build recap picker (was: D·5 rebuild — there is no picker) (high), v3-polish-009 Issues screen — align with design concept (concept deltas + 3 real bugs) (high), v3-polish-010 Lessons screen — usability refresh (concept deltas validated) (high)
 
 ---
 

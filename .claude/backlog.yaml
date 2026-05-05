@@ -1,8 +1,8 @@
 meta:
   project: claude-tools
-  updated: '2026-05-04'
+  updated: '2026-05-05'
 context:
-  active_epic: v3-polish
+  active_epic: v3-skills
   in_progress:
   - id: v3-polish-027
     title: Kanban columns scroll-reset to top + scrollbar flicker every 3s
@@ -20,28 +20,29 @@ context:
     title: taskmaster:lesson skill — write/reinforce/promote
     epic: v3-skills
     branch: feature/taskmaster-v3
-  blocked: []
-  recent_completed:
-  - id: v3-skills-001
-    title: Mine CodeMaestro for real-world skill-enrichment patterns
-    completed: 2026-05-03T18:02
-  - id: v3-polish-008
-    title: Auto-mode page — fix data-state empty render (spine works)
-    completed: 2026-05-03T00:50
-  - id: v3-polish-019
-    title: Empty-state copy convention + shared component
-    completed: 2026-05-03T00:35
-  - id: v3-polish-018
-    title: Shared time-format helper + unify formats across viewer
-    completed: 2026-05-03T00:30
-  - id: v3-polish-017
-    title: Pluralization helper + sweep
-    completed: 2026-05-02T10:30
-  next_up:
   - id: v3-skills-004
     title: taskmaster:issue skill — log/track/close defects
-    priority: critical
     epic: v3-skills
+    branch: ''
+    locked_by: Volodymyr-18428-c5ab0885
+  blocked: []
+  recent_completed:
+  - id: v3-edit-015
+    title: Server-side validation pipeline
+    completed: 2026-05-05T06:40
+  - id: v3-edit-014
+    title: Inline-edit retrofit on Task Detail
+    completed: 2026-05-05T06:30
+  - id: v3-edit-013
+    title: Wire `+ Task` / `✎ Edit` buttons to entity modal
+    completed: 2026-05-05T06:22
+  - id: v3-edit-012
+    title: Task entity schema
+    completed: 2026-05-05T06:13
+  - id: v3-edit-011
+    title: Conflict banner + inline-field 409 handling
+    completed: 2026-05-05T06:07
+  next_up:
   - id: v3-polish-001
     title: 'Build recap picker (was: D·5 rebuild — there is no picker)'
     priority: high
@@ -50,23 +51,27 @@ context:
     title: Issues screen — align with design concept (concept deltas + 3 real bugs)
     priority: high
     epic: v3-polish
+  - id: v3-polish-010
+    title: Lessons screen — usability refresh (concept deltas validated)
+    priority: high
+    epic: v3-polish
   stats:
-    total: 60
-    done: 16
-    in_progress: 0
+    total: 79
+    done: 35
+    in_progress: 1
     in_review: 4
-    todo: 40
+    todo: 39
     blocked: 0
     archived: 0
   active_phase:
     id: ship-v3
     name: Ship V3
     stats:
-      total: 60
-      todo: 40
-      in-progress: 0
+      total: 78
+      todo: 38
+      in-progress: 1
       in-review: 4
-      done: 16
+      done: 35
       blocked: 0
       archived: 0
     target_date: null
@@ -679,10 +684,10 @@ epics:
   - id: v3-polish-029
     title: v3 viewer reads empty task list — `/api/backlog` doesn't expose flat top-level
       `tasks`
-    status: todo
+    status: done
     priority: high
     created: 2026-05-04T14:31
-    last_referenced: 2026-05-04T14:31
+    last_referenced: 2026-05-05T04:25
     notes: 'Server <-> v3 viewer contract mismatch.
 
 
@@ -719,13 +724,14 @@ epics:
     - plugins/taskmaster/viewer/js/screens/kanban.js
     - plugins/taskmaster/viewer/js/screens/table.js
     - plugins/taskmaster/viewer/js/components/board-surface.js
+    completed: 2026-05-05T04:25
   - id: v3-polish-030
     title: Task-detail loaders ignore configured backlog_path + assume v3 flat-tasks
       + .taskmaster sidecar dirs
-    status: todo
+    status: done
     priority: high
     created: 2026-05-04T14:43
-    last_referenced: 2026-05-04T14:43
+    last_referenced: 2026-05-05T04:25
     notes: '`/api/task/<id>` and `/api/task/<id>/related` always 404 in projects whose
       backlog isn''t at `./backlog.yaml` with v3-flat tasks under `.taskmaster/`.
 
@@ -770,13 +776,14 @@ epics:
     phase: ship-v3
     anchors:
     - plugins/taskmaster/backlog_server.py
+    completed: 2026-05-05T04:25
   - id: v3-polish-031
     title: 'Task Detail: Notes (and other md sections) overflow horizontally for long
       unbroken strings'
-    status: todo
+    status: done
     priority: medium
     created: 2026-05-04T14:54
-    last_referenced: 2026-05-04T14:54
+    last_referenced: 2026-05-05T04:25
     notes: '`.td-section .md-body` had no `overflow-wrap`/`word-break`, so long unbroken
       strings (file paths, anchor patterns, URLs, command lines) extended past the
       body column and pushed the layout — visually overflowing the Notes/Specification/Plan
@@ -807,6 +814,7 @@ epics:
     phase: ship-v3
     anchors:
     - plugins/taskmaster/viewer/css/screens/task-detail.css
+    completed: 2026-05-05T04:25
   - id: v3-polish-032
     title: Task Detail right rail visually disappears when all 6 panels are empty
     status: todo
@@ -852,49 +860,97 @@ epics:
   - id: v3-polish-033
     title: Task transitions don't capture `started`/`completed` timestamps — Task
       Detail dates row shows "—"
-    status: todo
+    status: done
     priority: high
     created: 2026-05-04T14:54
-    last_referenced: 2026-05-04T14:54
-    notes: 'User-reported: Task Detail''s dates row shows `Started —` and `Completed
-      —` for tasks that were definitely started and finished (e.g. v3-skills-002 "in-review",
-      v3-polish-027 "in-review"). Only `Created` is reliably populated.
+    last_referenced: 2026-05-05T05:55
+    notes: 'Superseded by v3-edit-009 — auto-stamping logic is folded into Phase A''s
+      `update_task` primitive. Will close when v3-edit-009 lands.
 
 
-      Likely cause: status transitions don''t stamp `started` / `completed`. Pick-task
-      moves a task to in-progress without writing `started`. Review-gate / end-session
-      move to in-review / done without writing `completed`. The Task Detail UI reads
-      `task.started` / `task.completed` as raw fields (`renderDates` in `task-detail-document.js:94-107`),
-      so missing timestamps render as "—".
+      Original notes:
 
-
-      Two fixes needed:
-
-      1. Server-side: `backlog_update_task` (and/or pick-task / end-session paths)
-      should auto-stamp `started` on the first transition into `in-progress`, and
-      `completed` on transition into `done`. Don''t overwrite if already set.
-
-      2. Backfill: existing v2 tasks have no `started`/`completed`; consider deriving
-      from session log entries during migrate_v2_to_v3, or accept blank for legacy.
-
-
-      Repro:
-
-      - Pick any existing task that''s currently in-progress or in-review or done.
-
-      - Open `/api/task/<id>` → check whether `started` / `completed` keys are present.
-
-      - Open `#/task/<id>` in viewer → dates row should show real timestamps, not
-      "—".
-
-
-      Discovered 2026-05-04 while dogfooding the v3 viewer.'
+      User-reported: Task Detail''s dates row shows `Started —` and `Completed —`
+      for tasks that were definitely started and finished (e.g. v3-skills-002 "in-review",
+      v3-polish-027 "in-review"). Only `Created` is reliably populated. Server-side:
+      `backlog_update_task` (and/or pick-task / end-session paths) should auto-stamp
+      `started` on the first transition into `in-progress`, and `completed` on transition
+      into `done`. Don''t overwrite if already set. Discovered 2026-05-04 while dogfooding
+      the v3 viewer.'
     phase: ship-v3
     anchors:
     - plugins/taskmaster/backlog_server.py
     - plugins/taskmaster/skills/taskmaster/end-session
     - plugins/taskmaster/skills/taskmaster/pick-task
     - plugins/taskmaster/viewer/js/components/task-detail-document.js
+    depends_on:
+    - v3-edit-009
+    completed: 2026-05-05T05:55
+  - id: v3-polish-034
+    title: Edit-components demo page renders only header — demo sections never mount
+    status: todo
+    priority: low
+    created: 2026-05-05T05:28
+    last_referenced: 2026-05-05T05:28
+    notes: 'The demo page at http://127.0.0.1:8765/v3/dev/edit-demo only renders the
+      `<h1>Edit components</h1>` heading — none of the per-renderer demo sections
+      (TextField, MdField, EnumSelect, NumberField, DateField, ChipInput) appear despite
+      their `*-demo.js` files being imported into `edit-demo.js`.
+
+
+      Likely cause: timing or path issue in the registerDemo() pattern. `edit-demo.js`
+      imports demo files, each demo file calls `registerDemo(name, fn)` to push into
+      a `sections` array, then `edit-demo.js` iterates the array at module bottom.
+      Worth checking:
+
+      - Are demo file imports placed BEFORE the for-loop in `edit-demo.js`? (Plan
+      comment says they should be.)
+
+      - Do the demo files actually `import { registerDemo } from ''../../../dev/edit-demo.js''`
+      and call it at module top level?
+
+      - Browser console errors? (open devtools at /v3/dev/edit-demo)
+
+
+      This is dev-only tooling — doesn''t block any feature delivery and isn''t in
+      the user-facing v3 viewer. Discovered 2026-05-05 while smoke-testing v3-edit-004
+      (ChipInput). Renderer unit tests all pass for tasks 1-4 (4/4, 10/10, 19/19,
+      8/8) so the implementations themselves are sound; bug is in the demo wiring.'
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/dev/edit-demo.js
+    - plugins/taskmaster/viewer/js/components/edit/fields/*-demo.js
+  - id: v3-polish-035
+    title: 3 pre-existing failures in test_server_task_detail.py
+    status: todo
+    priority: low
+    created: 2026-05-05T05:56
+    last_referenced: 2026-05-05T05:56
+    notes: 'Discovered 2026-05-05 while running the full pytest suite as part of v3-edit-009
+      (task write API). 3 tests fail in `test_server_task_detail.py`. The Task 9 subagent
+      confirmed these are pre-existing (`git stash` on Task 9''s edits → same 3 failures).
+      They are NOT caused by the v3-edit work and don''t block Phase A.
+
+
+      Action: Run `pytest plugins/taskmaster/tests/test_server_task_detail.py -v`
+      and triage the 3 failing test names. Likely related to v2 vs v3 fixture data
+      shape mismatch or to the v3-polish-029/030 patches (configurable backlog_path)
+      changing what the test fixtures see.
+
+
+      Surface area: server''s `/api/task/<id>` and `/api/task/<id>/related` endpoints.
+      The fixes for those landed in commit `df366a4` and may have broken assumptions
+      in the older test file. Worth checking if the test fixtures still set up the
+      paths the loaders now expect.
+
+
+      Not blocking — 359/362 tests pass and all NEW v3-edit tests pass cleanly. Park
+      here, fix during pre-release polish.'
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/tests/test_server_task_detail.py
 - id: v3-release
   name: V3 Release (2.0)
   status: planned
@@ -909,7 +965,7 @@ epics:
     status: todo
     priority: critical
     created: 2026-05-02T05:46
-    last_referenced: 2026-05-02T05:46
+    last_referenced: 2026-05-05T14:47
     notes: backlog_migrate_v3 exists in worktree backlog_server.py:1303 with @mcp.tool()
       decorator but is NOT exposed by running MCP server (1.11.1). Without this, users
       cannot upgrade their existing v2 backlogs to v3 — blocker for release. Verify
@@ -924,7 +980,7 @@ epics:
     status: todo
     priority: high
     created: 2026-05-02T05:46
-    last_referenced: 2026-05-02T05:47
+    last_referenced: 2026-05-05T14:47
     notes: Major version bump 1.11.1 → 2.0.0 — v3 schema is a breaking change for
       v2 backlogs (heavy task fields move from backlog.yaml to tasks/<id>.md). Also
       a full UI rewrite. Update plugin.json and verify hooks/version-bump.sh trigger
@@ -940,7 +996,7 @@ epics:
     status: todo
     priority: high
     created: 2026-05-02T05:47
-    last_referenced: 2026-05-02T05:47
+    last_referenced: 2026-05-05T14:47
     notes: 'Cover: v3 schema (handovers, lessons, issues, recap, auto-mode), redesigned
       viewer, migration path via backlog_migrate_v3, breaking-change call-out (heavy
       fields move to per-task files). Use backlog_release_notes MCP tool as a starting
@@ -952,7 +1008,7 @@ epics:
     status: todo
     priority: high
     created: 2026-05-02T05:47
-    last_referenced: 2026-05-02T05:47
+    last_referenced: 2026-05-05T14:47
     notes: Update the marketplace listing per chore(marketplace) pattern from 1.11.0
       (commit a812b07). Description should reflect v3 capabilities.
     depends_on:
@@ -964,7 +1020,7 @@ epics:
     status: todo
     priority: high
     created: 2026-05-02T05:47
-    last_referenced: 2026-05-02T05:47
+    last_referenced: 2026-05-05T14:47
     notes: Install the 1.12 plugin into a fresh project. Run init → migrate_v3 → create
       epic/task/handover/lesson → open viewer. Verify no regressions vs 1.11. Captures
       the dogfood outcome of this very initialization session.
@@ -979,7 +1035,7 @@ epics:
     status: todo
     priority: critical
     created: 2026-05-02T05:47
-    last_referenced: 2026-05-02T05:47
+    last_referenced: 2026-05-05T14:47
     notes: 'Final gate. Merge feature/taskmaster-v3 (44+ commits) to master. User
       policy: merge locally first, do NOT push without explicit permission. Tag v2.0.0
       after merge.'
@@ -987,6 +1043,25 @@ epics:
     - v3-release-005
     estimate: S
     phase: ship-v3
+  - id: v3-release-007
+    title: Single-app + project switcher (replace per-project port spawning)
+    status: todo
+    priority: medium
+    created: 2026-05-05
+    notes: "Concept: one running taskmaster daemon on one port serves all projects,\
+      \ with\na project selector in the UI to switch backlog views. Replaces today's\
+      \ model\nwhere each project spawns its own instance/port.\n\nWhy: avoid port\
+      \ collisions and proliferation as project count grows; single\nbookmark / single\
+      \ daemon UX; cross-project visibility becomes possible.\n\nDesign notes:\n-\
+      \ Every API/data path needs project_id scoping from day one — retrofitting\n\
+      \  later is painful.\n- Need a project registry the daemon reads (locations\
+      \ of each project's\n  backlog.yaml).\n- File watchers, websockets, and any\
+      \ caching must be keyed by project.\n- Per-project isolation guarantees of the\
+      \ current model are traded for a\n  shared backend — design to avoid global\
+      \ mutable state that leaks across\n  projects.\n\nForward-looking architecture\
+      \ — likely post-2.0. Filed under v3-release for\nvisibility; move to a new architecture\
+      \ epic if/when this gets real planning.\n"
+    estimate: L
 - id: v3-skills
   name: V3 Skills
   status: active
@@ -1077,10 +1152,10 @@ epics:
     release: 2.0.0
   - id: v3-skills-004
     title: taskmaster:issue skill — log/track/close defects
-    status: todo
+    status: in-progress
     priority: critical
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-02T16:30
+    last_referenced: 2026-05-05T15:29
     notes: 'Author the issues skill. Triggers: "log a bug", "found an issue", "this
       is broken", "track this defect". Captures severity (P0–P3), components, impact,
       repro steps, location (file:line). Optional related-task creation ("Want me
@@ -1095,6 +1170,8 @@ epics:
     anchors:
     - plugins/taskmaster/skills/issue/SKILL.md
     - plugins/taskmaster/taskmaster_v3.py
+    started: 2026-05-05T15:29
+    locked_by: Volodymyr-18428-c5ab0885
   - id: v3-skills-005
     title: taskmaster:migrate-v3 skill — guided opt-in migration
     status: todo
@@ -1118,7 +1195,7 @@ epics:
     status: todo
     priority: high
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-02T16:30
+    last_referenced: 2026-05-05T15:01
     notes: 'Auto-install the PreCompact hook that runs `taskmaster snapshot --quiet`
       before context compaction (so post-compact recap reflects pre-compact state).
       Update init-taskmaster skill to: (1) add the hook to settings.json non-destructively
@@ -1135,7 +1212,7 @@ epics:
     status: todo
     priority: high
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-02T16:30
+    last_referenced: 2026-05-05T15:01
     notes: 'Update start-session skill to surface: (1) recap diff section (what changed
       in the project since last session — separate from "what I did last session"),
       (2) latest handover frontmatter only (~200 tokens) with prompt to read body
@@ -1158,7 +1235,7 @@ epics:
     status: todo
     priority: high
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-02T16:30
+    last_referenced: 2026-05-05T15:01
     notes: 'Update pick-task skill to: (1) accept "continue where we left off" / "continue
       this task" triggers (auto-resolve to the most-recently-touched in-progress task
       with a handover), (2) load related_handovers tldrs (not full bodies, ~50 tokens
@@ -1180,7 +1257,7 @@ epics:
     status: todo
     priority: high
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-02T16:30
+    last_referenced: 2026-05-05T15:01
     notes: 'Update end-session skill to: (1) auto-offer handover when any heavy-session
       signal fires (turns > 60, conversation tokens > 200k, task in flight at session
       end, or user said "for tomorrow" / "next time" / "remind future me"), (2) take
@@ -1199,7 +1276,7 @@ epics:
     status: todo
     priority: high
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-02T16:30
+    last_referenced: 2026-05-05T15:01
     notes: The auto-task SKILL.md was drafted to call backlog_handover_get and backlog_lesson_match
       before those skills had write counterparts. Now that v3-skills-002/003/004 land,
       walk the full state machine end-to-end (PICK → SPEC_REVIEW → IMPLEMENT → TEST
@@ -1276,7 +1353,7 @@ epics:
     status: todo
     priority: high
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-02T16:30
+    last_referenced: 2026-05-05T15:01
     notes: 'Final integration: from a fresh empty directory run init-v3 → add epic
       + tasks → pick-task → spec-review → handover → end-session → start a new session
       → "continue this task" → log a lesson → log an issue → close issue via task
@@ -1318,7 +1395,7 @@ epics:
     status: todo
     priority: high
     created: 2026-05-04T05:15
-    last_referenced: 2026-05-04T05:15
+    last_referenced: 2026-05-05T14:47
     notes: 'Split out from v3-skills-003 task 12. Implementation is complete in this
       worktree but the running Claude Code session loads the installed v1.11.1 plugin
       cache, so taskmaster:lesson isn''t loadable to dogfood from this session. Two
@@ -1422,6 +1499,378 @@ epics:
     - v3-teams-001
     estimate: S
     phase: ship-v3
+- id: v3-edit
+  name: V3 Edit-in-UI
+  status: active
+  description: Full edit/create surface inside the v3 viewer for tasks, issues, lessons,
+    handovers, epics, phases. See spec at docs/superpowers/specs/2026-05-04-v3-edit-in-ui-design.md
+    and Phase A plan at docs/superpowers/plans/2026-05-04-v3-edit-phase-a.md.
+  created: 2026-05-05T04:22
+  tasks:
+  - id: v3-edit-001
+    title: Shared `h()` factory + edit-components demo page
+    status: done
+    priority: high
+    created: 2026-05-05T04:23
+    last_referenced: 2026-05-05T04:35
+    notes: 'Plan Task 1 (spec v3-edit-001 — primitives). Foundation: shared `h(tag,
+      attrs, children)` DOM factory under `viewer/js/components/edit/h.js`, plus a
+      static demo page at `viewer/edit-demo.html` that lets us hand-test each renderer
+      in isolation. No business logic; pure plumbing.'
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/components/edit/**
+    docs:
+      plan: docs/superpowers/plans/2026-05-04-v3-edit-phase-a.md
+      spec: docs/superpowers/specs/2026-05-04-v3-edit-in-ui-design.md
+    started: 2026-05-05T04:28
+    completed: 2026-05-05T04:35
+  - id: v3-edit-002
+    title: TextField field renderer
+    status: done
+    priority: high
+    created: 2026-05-05T04:23
+    last_referenced: 2026-05-05T04:42
+    notes: 'Plan Task 2 (spec v3-edit-001 — primitives). First field renderer; establishes
+      the contract `{render, getValue, setValue, validate, reset, dirty}` that every
+      other renderer must implement. Single-line + multi-line variants. Validation
+      hooks: required, maxLength, regex.'
+    depends_on:
+    - v3-edit-001
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/components/edit/fields/text-field.js
+    docs:
+      plan: docs/superpowers/plans/2026-05-04-v3-edit-phase-a.md
+      spec: docs/superpowers/specs/2026-05-04-v3-edit-in-ui-design.md
+    started: 2026-05-05T04:37
+    completed: 2026-05-05T04:42
+  - id: v3-edit-003
+    title: MdField, EnumSelect, NumberField, DateField renderers
+    status: done
+    priority: high
+    created: 2026-05-05T04:23
+    last_referenced: 2026-05-05T04:48
+    notes: Plan Task 3 (spec v3-edit-001 — primitives). Four renderers in one task
+      because they share patterns. MdField = textarea + live preview toggle. EnumSelect
+      = native `<select>` over `spec.options`. NumberField = type=number with min/max/step
+      + integer coercion. DateField = ISO yyyy-mm-dd. All conform to the renderer
+      contract from Task 2.
+    depends_on:
+    - v3-edit-002
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/components/edit/fields/**
+    docs:
+      plan: docs/superpowers/plans/2026-05-04-v3-edit-phase-a.md
+      spec: docs/superpowers/specs/2026-05-04-v3-edit-in-ui-design.md
+    started: 2026-05-05T04:42
+    completed: 2026-05-05T04:48
+  - id: v3-edit-004
+    title: ChipInput field renderer
+    status: done
+    priority: high
+    created: 2026-05-05T04:23
+    last_referenced: 2026-05-05T04:53
+    notes: Plan Task 4 (spec v3-edit-001 — primitives). The workhorse for every relation
+      field (deps, docs, anchors, task_ids). Pluggable suggestion source via `spec.source(query)`
+      returning `[{id,label}]`. Keyboard nav (↑↓ Tab Enter Backspace), chip remove
+      on backspace at empty input, free-text fallback when source is null. Most complex
+      primitive — budget extra review.
+    depends_on:
+    - v3-edit-003
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/components/edit/fields/chip-input.js
+    docs:
+      plan: docs/superpowers/plans/2026-05-04-v3-edit-phase-a.md
+      spec: docs/superpowers/specs/2026-05-04-v3-edit-in-ui-design.md
+    started: 2026-05-05T04:50
+    completed: 2026-05-05T04:53
+  - id: v3-edit-005
+    title: RelationPicker over ChipInput + backlog sources
+    status: done
+    priority: high
+    created: 2026-05-05T04:23
+    last_referenced: 2026-05-05T05:30
+    notes: 'Plan Task 5 (spec v3-edit-001 — primitives). Composes ChipInput with `makeRelationSource(kind,
+      getBacklog)` — closes over a snapshot of the live backlog and filters by entity
+      kind (''task''|''doc''|''lesson''|''handover''|''issue''). Shape: `{id, label,
+      hint?}`. The actual AnchorEditor (lesson glob globs) is Phase B, not here.'
+    depends_on:
+    - v3-edit-004
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/components/edit/fields/relation-picker.js
+    docs:
+      plan: docs/superpowers/plans/2026-05-04-v3-edit-phase-a.md
+      spec: docs/superpowers/specs/2026-05-04-v3-edit-in-ui-design.md
+    started: 2026-05-05T05:28
+    completed: 2026-05-05T05:30
+  - id: v3-edit-006
+    title: Schema validation runner
+    status: done
+    priority: medium
+    created: 2026-05-05T04:23
+    last_referenced: 2026-05-05T05:32
+    notes: 'Plan Task 6 (spec v3-edit-001 — primitives). Pure function `runSchema(values,
+      schema)` returning `{ok, errors: {field: msg}}`. Handles per-field `validate()`
+      calls + `crossField` rules at the schema level (e.g. "completed must be ≥ started").
+      Layer 2 of the three-layer validation stack.'
+    depends_on:
+    - v3-edit-005
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/components/edit/validate.js
+    docs:
+      plan: docs/superpowers/plans/2026-05-04-v3-edit-phase-a.md
+      spec: docs/superpowers/specs/2026-05-04-v3-edit-in-ui-design.md
+    started: 2026-05-05T05:30
+    completed: 2026-05-05T05:32
+  - id: v3-edit-007
+    title: entity-modal shell
+    status: done
+    priority: high
+    created: 2026-05-05T04:24
+    last_referenced: 2026-05-05T05:38
+    notes: 'Plan Task 7 (spec v3-edit-002 — modal). Generic centered-overlay modal:
+      header (title + ✕), body (slot for per-entity form), footer (Cancel + Save +
+      dirty indicator + error line). Dirty tracking, Esc/backdrop close-with-confirm-if-dirty,
+      focus trap, Save-on-success closes. Reusable across all 6 entities.'
+    depends_on:
+    - v3-edit-006
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/components/edit/entity-modal.js
+    docs:
+      plan: docs/superpowers/plans/2026-05-04-v3-edit-phase-a.md
+      spec: docs/superpowers/specs/2026-05-04-v3-edit-in-ui-design.md
+    started: 2026-05-05T05:33
+    completed: 2026-05-05T05:38
+  - id: v3-edit-008
+    title: inline-field wrapper with autosave
+    status: done
+    priority: high
+    created: 2026-05-05T04:24
+    last_referenced: 2026-05-05T05:41
+    notes: Plan Task 8 (spec v3-edit-003 — inline edit). Wraps a field renderer with
+      read↔edit swap + 600ms autosave debounce + status indicator (●→✓/✕). Enter/blur
+      commits, Esc reverts. Calls `save(value)` async — the save callback returns
+      the patch to PATCH; on 409 dynamically imports conflict-banner.js and surfaces
+      the field-level conflict UI.
+    depends_on:
+    - v3-edit-007
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/components/edit/inline-field.js
+    docs:
+      plan: docs/superpowers/plans/2026-05-04-v3-edit-phase-a.md
+      spec: docs/superpowers/specs/2026-05-04-v3-edit-in-ui-design.md
+    started: 2026-05-05T05:38
+    completed: 2026-05-05T05:41
+  - id: v3-edit-009
+    title: Task write API + v3 primitives
+    status: done
+    priority: critical
+    created: 2026-05-05T04:24
+    last_referenced: 2026-05-05T05:55
+    notes: 'Plan Task 9 (spec v3-edit-004 — write API). The keystone. `update_task(task_id,
+      patch, backlog_path=None)`, `create_task(payload)`, `archive_task(id)` in `taskmaster_v3.py`
+      — shared between MCP write tools and HTTP API. Auto-stamps `started` on first
+      transition into in-progress and `completed` on first transition into done; never
+      overwrites. Folds in v3-polish-033 (timestamp capture). HTTP wrappers in `backlog_server.py`:
+      POST/PATCH/PUT/POST-archive. Per-file `with_file_lock`. Most complex task —
+      budget extra review.'
+    depends_on:
+    - v3-edit-008
+    estimate: L
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/taskmaster_v3.py
+    - plugins/taskmaster/backlog_server.py
+    docs:
+      plan: docs/superpowers/plans/2026-05-04-v3-edit-phase-a.md
+      spec: docs/superpowers/specs/2026-05-04-v3-edit-in-ui-design.md
+    started: 2026-05-05T05:41
+    completed: 2026-05-05T05:55
+  - id: v3-edit-010
+    title: ETag/If-Match concurrency for task writes
+    status: done
+    priority: high
+    created: 2026-05-05T04:24
+    last_referenced: 2026-05-05T06:02
+    notes: Plan Task 10 (spec v3-edit-005 — concurrency). `compute_etag(path) = sha1(mtime
+      + content)[:16]`. GET response carries ETag header; PATCH/PUT require If-Match.
+      Mismatch → 409 with `{current, current_etag}`. No If-Match in dev mode allowed
+      (passive — log a warning).
+    depends_on:
+    - v3-edit-009
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/taskmaster_v3.py
+    - plugins/taskmaster/backlog_server.py
+    docs:
+      plan: docs/superpowers/plans/2026-05-04-v3-edit-phase-a.md
+      spec: docs/superpowers/specs/2026-05-04-v3-edit-in-ui-design.md
+    started: 2026-05-05T05:56
+    completed: 2026-05-05T06:02
+  - id: v3-edit-011
+    title: Conflict banner + inline-field 409 handling
+    status: done
+    priority: high
+    created: 2026-05-05T04:24
+    last_referenced: 2026-05-05T06:07
+    notes: 'Plan Task 11 (spec v3-edit-006 — conflict UX). Two surfaces: (1) field-level
+      banner — single-field "Keep mine / Use server" inline with the field; (2) modal-level
+      multi-field diff — per-field choices in the modal footer. Server''s 409 payload
+      carries `last_modified_by` for the "modified by claude (session abc)" line.
+      Imported lazily by inline-field.js so cold-path code stays out of the hot bundle.'
+    depends_on:
+    - v3-edit-010
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/components/edit/conflict-banner.js
+    docs:
+      plan: docs/superpowers/plans/2026-05-04-v3-edit-phase-a.md
+      spec: docs/superpowers/specs/2026-05-04-v3-edit-in-ui-design.md
+    started: 2026-05-05T06:02
+    completed: 2026-05-05T06:07
+  - id: v3-edit-012
+    title: Task entity schema
+    status: done
+    priority: medium
+    created: 2026-05-05T04:24
+    last_referenced: 2026-05-05T06:13
+    notes: 'Plan Task 12 (spec v3-edit-007 — task form). Declarative schema for the
+      Task entity: editable fields (title/status/priority/epic/phase/stage/estimate/sub_repo/branch/worktree/release/anchors/depends_on/docs/description/notes/specification/plan/review_instructions/patchnote)
+      with renderer + validation + label + group. systemManaged fields (id/created/started/completed/last_referenced/activity/spec_review/auto_mode/locked_by)
+      declared but read-only.'
+    depends_on:
+    - v3-edit-011
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/components/edit/schemas/task.js
+    docs:
+      plan: docs/superpowers/plans/2026-05-04-v3-edit-phase-a.md
+      spec: docs/superpowers/specs/2026-05-04-v3-edit-in-ui-design.md
+    started: 2026-05-05T06:07
+    completed: 2026-05-05T06:13
+  - id: v3-edit-013
+    title: Wire `+ Task` / `✎ Edit` buttons to entity modal
+    status: done
+    priority: high
+    created: 2026-05-05T04:24
+    last_referenced: 2026-05-05T06:22
+    notes: Plan Task 13 (spec v3-edit-007 — task form, action wiring). `task-actions.js`
+      exports `openCreateTaskModal()` and `openEditTaskModal(task)`. Kanban toolbar
+      adds `+ Task` button; Task Detail header adds `✎ Edit` button. On Save, optimistically
+      refresh the affected screens (kanban moves card to new column, Task Detail re-renders).
+    depends_on:
+    - v3-edit-012
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/components/edit/task-actions.js
+    - plugins/taskmaster/viewer/js/screens/kanban.js
+    - plugins/taskmaster/viewer/js/components/task-detail-document.js
+    docs:
+      plan: docs/superpowers/plans/2026-05-04-v3-edit-phase-a.md
+      spec: docs/superpowers/specs/2026-05-04-v3-edit-in-ui-design.md
+    started: 2026-05-05T06:13
+    completed: 2026-05-05T06:22
+  - id: v3-edit-014
+    title: Inline-edit retrofit on Task Detail
+    status: done
+    priority: high
+    created: 2026-05-05T04:24
+    last_referenced: 2026-05-05T06:30
+    notes: Plan Task 14 (spec v3-edit-008 — inline retrofit). Wrap each Task Detail
+      field in `inline-field` per the schema. Title, status, priority, epic, phase,
+      stage, estimate become click-to-edit. Md sections (Notes, Spec, Plan, Review
+      Instr) become click-to-edit MdField. Add the dotted-underline + hover-pencil
+      affordance CSS. Includes the auto-stamp E2E verification (status todo→in-progress
+      writes `started`, todo→done writes `completed`).
+    depends_on:
+    - v3-edit-013
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/components/task-detail-document.js
+    - plugins/taskmaster/viewer/css/screens/task-detail.css
+    docs:
+      plan: docs/superpowers/plans/2026-05-04-v3-edit-phase-a.md
+      spec: docs/superpowers/specs/2026-05-04-v3-edit-in-ui-design.md
+    started: 2026-05-05T06:22
+    completed: 2026-05-05T06:30
+  - id: v3-edit-015
+    title: Server-side validation pipeline
+    status: done
+    priority: high
+    created: 2026-05-05T04:25
+    last_referenced: 2026-05-05T06:40
+    notes: 'Plan Task 15 (spec v3-edit-009 — validation). `validate_task_write(task_id,
+      patch, backlog)` — checks epic/phase existence, dep cycle detection via `_has_cycle_to(adj,
+      target)`, status enum, priority enum, and any cross-field rules. Returns 422
+      with `{errors: {field: msg}}` on failure. Layer 3 of the validation stack, the
+      safety net behind field-level + schema-level checks.'
+    depends_on:
+    - v3-edit-014
+    estimate: M
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/taskmaster_v3.py
+    - plugins/taskmaster/backlog_server.py
+    docs:
+      plan: docs/superpowers/plans/2026-05-04-v3-edit-phase-a.md
+      spec: docs/superpowers/specs/2026-05-04-v3-edit-in-ui-design.md
+    started: 2026-05-05T06:30
+    completed: 2026-05-05T06:40
+  - id: v3-edit-016
+    title: Add Playwright E2E coverage for + Task / ✎ Edit modal flow
+    status: todo
+    priority: low
+    created: 2026-05-05T06:22
+    last_referenced: 2026-05-05T06:22
+    notes: 'The Phase A plan called for an `edit-task.spec.js` Playwright E2E covering
+      create/inline/conflict flows under Task 13 and Task 14. Unit tests fully cover
+      the wiring contract for both, but a real-browser E2E would catch regressions
+      the units miss (focus trap, modal positioning, autosave debounce timing in a
+      real event loop, conflict banner CSS layout).
+
+
+      Deferred during Phase A execution because the unit tests give us the TDD gate
+      and the E2E adds runtime + browser dependency. Worth adding once Phase A is
+      fully landed and we want to lock in the contract.
+
+
+      Suggested coverage:
+
+      - Open kanban, click `+ Task`, fill required fields, Save — confirm task appears
+      in column
+
+      - Open Task Detail, click `✎ Edit`, change field, Save — confirm Task Detail
+      re-renders
+
+      - Click a field on Task Detail (after Task 14), edit inline, Enter — confirm
+      autosave + status indicator
+
+      - Two simultaneous edits (set ETag stale) — confirm conflict banner with Keep
+      mine / Use server'
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/tests/edit-task.spec.js
 phases:
 - id: ship-v3
   name: Ship V3
