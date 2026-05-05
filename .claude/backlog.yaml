@@ -12,6 +12,11 @@ context:
     title: Auto-mode strip shows "Auto-mode · N running" for stopped/abandoned sessions
     epic: v3-polish
     branch: feature/taskmaster-v3
+  - id: v3-release-001
+    title: Verify backlog_migrate_v3 MCP tool ships in 1.12 build
+    epic: v3-release
+    branch: ''
+    locked_by: Volodymyr-18428-c5ab0885
   - id: v3-skills-002
     title: taskmaster:handover skill — write/read flow
     epic: v3-skills
@@ -28,13 +33,11 @@ context:
     title: taskmaster:migrate-v3 skill — guided opt-in migration
     epic: v3-skills
     branch: ''
-  - id: v3-skills-012
-    title: Update taskmaster:taskmaster router skill for new entity skills
-    epic: v3-skills
-    branch: ''
-    locked_by: Volodymyr-18428-c5ab0885
   blocked: []
   recent_completed:
+  - id: v3-skills-012
+    title: Update taskmaster:taskmaster router skill for new entity skills
+    completed: 2026-05-05T16:45
   - id: v3-skills-011
     title: Quality pass — auto-epic + auto-phase orchestrator skills
     completed: 2026-05-05T16:43
@@ -47,9 +50,6 @@ context:
   - id: v3-skills-008
     title: Retrofit pick-task — "continue this task" trigger + v3 surfaces
     completed: 2026-05-05T16:33
-  - id: v3-skills-009
-    title: Retrofit end-session — auto-offer handover + snapshot
-    completed: 2026-05-05T16:30
   next_up:
   - id: v3-polish-001
     title: 'Build recap picker (was: D·5 rebuild — there is no picker)'
@@ -65,10 +65,10 @@ context:
     epic: v3-polish
   stats:
     total: 79
-    done: 42
+    done: 43
     in_progress: 1
     in_review: 6
-    todo: 30
+    todo: 29
     blocked: 0
     archived: 0
   active_phase:
@@ -76,10 +76,10 @@ context:
     name: Ship V3
     stats:
       total: 78
-      todo: 29
+      todo: 28
       in-progress: 1
       in-review: 6
-      done: 42
+      done: 43
       blocked: 0
       archived: 0
     target_date: null
@@ -970,10 +970,10 @@ epics:
   tasks:
   - id: v3-release-001
     title: Verify backlog_migrate_v3 MCP tool ships in 1.12 build
-    status: todo
+    status: in-progress
     priority: critical
     created: 2026-05-02T05:46
-    last_referenced: 2026-05-05T14:47
+    last_referenced: 2026-05-05T16:46
     notes: backlog_migrate_v3 exists in worktree backlog_server.py:1303 with @mcp.tool()
       decorator but is NOT exposed by running MCP server (1.11.1). Without this, users
       cannot upgrade their existing v2 backlogs to v3 — blocker for release. Verify
@@ -983,6 +983,8 @@ epics:
     phase: ship-v3
     anchors:
     - plugins/taskmaster/backlog_server.py
+    started: 2026-05-05T16:46
+    locked_by: Volodymyr-18428-c5ab0885
   - id: v3-release-002
     title: Bump plugin version to 2.0.0
     status: todo
@@ -1335,10 +1337,10 @@ epics:
     completed: 2026-05-05T16:43
   - id: v3-skills-012
     title: Update taskmaster:taskmaster router skill for new entity skills
-    status: in-progress
+    status: done
     priority: medium
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-05T16:43
+    last_referenced: 2026-05-05T16:45
     notes: Add routing entries to the taskmaster:taskmaster router skill for the three
       new entity skills. Map intent triggers ("write a handover" / "log a bug" / "remember
       this") to the correct sub-skill. Update the skill description so /help and skill-discovery
@@ -1352,13 +1354,13 @@ epics:
     anchors:
     - plugins/taskmaster/skills/taskmaster/SKILL.md
     started: 2026-05-05T16:43
-    locked_by: Volodymyr-18428-c5ab0885
+    completed: 2026-05-05T16:45
   - id: v3-skills-013
     title: Token budget signal tests per surface
     status: todo
     priority: medium
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-02T16:30
+    last_referenced: 2026-05-05T16:45
     notes: 'Write tests that estimate the per-surface token cost of start-session,
       pick-task, end-session, and review-gate against a seeded fixture, and warn (not
       fail) when above the soft target from design-v3-narrative-continuity.md §Token
