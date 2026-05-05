@@ -28,6 +28,10 @@ context:
     title: taskmaster:migrate-v3 skill — guided opt-in migration
     epic: v3-skills
     branch: ''
+  - id: v3-skills-009
+    title: Retrofit end-session — auto-offer handover + snapshot
+    epic: v3-skills
+    branch: ''
     locked_by: Volodymyr-18428-c5ab0885
   blocked: []
   recent_completed:
@@ -63,8 +67,8 @@ context:
     total: 79
     done: 37
     in_progress: 1
-    in_review: 5
-    todo: 36
+    in_review: 6
+    todo: 35
     blocked: 0
     archived: 0
   active_phase:
@@ -72,9 +76,9 @@ context:
     name: Ship V3
     stats:
       total: 78
-      todo: 35
+      todo: 34
       in-progress: 1
-      in-review: 5
+      in-review: 6
       done: 37
       blocked: 0
       archived: 0
@@ -1177,10 +1181,10 @@ epics:
     started: 2026-05-05T15:29
   - id: v3-skills-005
     title: taskmaster:migrate-v3 skill — guided opt-in migration
-    status: in-progress
+    status: in-review
     priority: high
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-05T16:15
+    last_referenced: 2026-05-05T16:26
     notes: Wrap the existing backlog_migrate_v3 MCP tool (verified to ship by v3-release-001)
       with a guided skill. Show pre-flight summary (N tasks, M with non-trivial bodies
       will be extracted), explain the schema break (heavy fields move from backlog.yaml
@@ -1194,7 +1198,6 @@ epics:
     anchors:
     - plugins/taskmaster/skills/migrate-v3/SKILL.md
     started: 2026-05-05T16:15
-    locked_by: Volodymyr-18428-c5ab0885
   - id: v3-skills-006
     title: PreCompact hook + init-taskmaster v3 retrofit
     status: done
@@ -1261,10 +1264,10 @@ epics:
     - plugins/taskmaster/skills/pick-task/SKILL.md
   - id: v3-skills-009
     title: Retrofit end-session — auto-offer handover + snapshot
-    status: todo
+    status: in-progress
     priority: high
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-05T15:01
+    last_referenced: 2026-05-05T16:27
     notes: 'Update end-session skill to: (1) auto-offer handover when any heavy-session
       signal fires (turns > 60, conversation tokens > 200k, task in flight at session
       end, or user said "for tomorrow" / "next time" / "remind future me"), (2) take
@@ -1278,6 +1281,8 @@ epics:
     phase: ship-v3
     anchors:
     - plugins/taskmaster/skills/end-session/SKILL.md
+    started: 2026-05-05T16:27
+    locked_by: Volodymyr-18428-c5ab0885
   - id: v3-skills-010
     title: Quality pass — auto-task skill (wire to real handover/lesson tools)
     status: todo
