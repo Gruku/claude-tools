@@ -11,9 +11,8 @@
     {
       "name": "taskmaster",
       "source": "./plugins/taskmaster",
-      "description": "Latest channel — v3 schema. Universal AI-powered task and backlog management plus narrative continuity: handovers, lessons, issues, recap, snapshot/PreCompact hook, auto-task / auto-epic / auto-phase state machines, per-task files. v2 backlogs keep working unchanged; opt into v3 via init or migrate. For the stable v2-only line, use the `master` branch. Requires: uv.",
-      "version": "2.0.0-beta.1",
-      "channel": "latest"
+      "description": "Universal AI-powered task and backlog management with v3 narrative continuity: handovers, lessons, issues, recap, snapshot/PreCompact hook, auto-task / auto-epic / auto-phase state machines. Redesigned kanban viewer with inline edit-in-UI. Per-task files (.taskmaster/tasks/<id>.md) with slim YAML index. v2 backlogs keep working unchanged; opt into v3 via taskmaster:migrate-v3 skill or backlog_init schema_version=3. Requires: uv (https://docs.astral.sh/uv/)",
+      "version": "2.0.0"
     },
     {
       "name": "guard-hooks",
