@@ -28,13 +28,16 @@ context:
     title: taskmaster:migrate-v3 skill — guided opt-in migration
     epic: v3-skills
     branch: ''
-  - id: v3-skills-009
-    title: Retrofit end-session — auto-offer handover + snapshot
+  - id: v3-skills-008
+    title: Retrofit pick-task — "continue this task" trigger + v3 surfaces
     epic: v3-skills
     branch: ''
     locked_by: Volodymyr-18428-c5ab0885
   blocked: []
   recent_completed:
+  - id: v3-skills-009
+    title: Retrofit end-session — auto-offer handover + snapshot
+    completed: 2026-05-05T16:30
   - id: v3-skills-015
     title: Handover read MCP tool surface (get/list/latest)
     completed: 2026-05-05T16:15
@@ -47,9 +50,6 @@ context:
   - id: v3-edit-014
     title: Inline-edit retrofit on Task Detail
     completed: 2026-05-05T06:30
-  - id: v3-edit-013
-    title: Wire `+ Task` / `✎ Edit` buttons to entity modal
-    completed: 2026-05-05T06:22
   next_up:
   - id: v3-polish-001
     title: 'Build recap picker (was: D·5 rebuild — there is no picker)'
@@ -65,10 +65,10 @@ context:
     epic: v3-polish
   stats:
     total: 79
-    done: 37
+    done: 38
     in_progress: 1
     in_review: 6
-    todo: 35
+    todo: 34
     blocked: 0
     archived: 0
   active_phase:
@@ -76,10 +76,10 @@ context:
     name: Ship V3
     stats:
       total: 78
-      todo: 34
+      todo: 33
       in-progress: 1
       in-review: 6
-      done: 37
+      done: 38
       blocked: 0
       archived: 0
     target_date: null
@@ -1242,10 +1242,10 @@ epics:
     - plugins/taskmaster/skills/start-session/SKILL.md
   - id: v3-skills-008
     title: Retrofit pick-task — "continue this task" trigger + v3 surfaces
-    status: todo
+    status: in-progress
     priority: high
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-05T15:01
+    last_referenced: 2026-05-05T16:30
     notes: 'Update pick-task skill to: (1) accept "continue where we left off" / "continue
       this task" triggers (auto-resolve to the most-recently-touched in-progress task
       with a handover), (2) load related_handovers tldrs (not full bodies, ~50 tokens
@@ -1262,12 +1262,14 @@ epics:
     phase: ship-v3
     anchors:
     - plugins/taskmaster/skills/pick-task/SKILL.md
+    started: 2026-05-05T16:30
+    locked_by: Volodymyr-18428-c5ab0885
   - id: v3-skills-009
     title: Retrofit end-session — auto-offer handover + snapshot
-    status: in-progress
+    status: done
     priority: high
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-05T16:27
+    last_referenced: 2026-05-05T16:30
     notes: 'Update end-session skill to: (1) auto-offer handover when any heavy-session
       signal fires (turns > 60, conversation tokens > 200k, task in flight at session
       end, or user said "for tomorrow" / "next time" / "remind future me"), (2) take
@@ -1282,7 +1284,7 @@ epics:
     anchors:
     - plugins/taskmaster/skills/end-session/SKILL.md
     started: 2026-05-05T16:27
-    locked_by: Volodymyr-18428-c5ab0885
+    completed: 2026-05-05T16:30
   - id: v3-skills-010
     title: Quality pass — auto-task skill (wire to real handover/lesson tools)
     status: todo
