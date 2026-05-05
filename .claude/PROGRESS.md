@@ -15,7 +15,7 @@
 **Active Phase:** Ship V3 (35/78 done)
 **Phases:** >> Ship V3
 
-**In Progress:** v3-polish-027 Kanban columns scroll-reset to top + scrollbar flicker every 3s, v3-polish-028 Auto-mode strip shows "Auto-mode · N running" for stopped/abandoned sessions, v3-skills-002 taskmaster:handover skill — write/read flow, v3-skills-003 taskmaster:lesson skill — write/reinforce/promote, v3-skills-004 taskmaster:issue skill — log/track/close defects
+**In Progress:** v3-polish-027 Kanban columns scroll-reset to top + scrollbar flicker every 3s, v3-polish-028 Auto-mode strip shows "Auto-mode · N running" for stopped/abandoned sessions, v3-skills-002 taskmaster:handover skill — write/read flow, v3-skills-003 taskmaster:lesson skill — write/reinforce/promote, v3-skills-004 taskmaster:issue skill — log/track/close defects, v3-skills-006 PreCompact hook + init-taskmaster v3 retrofit
 **Blocked:** —
 **Next Up:** v3-polish-001 Build recap picker (was: D·5 rebuild — there is no picker) (high), v3-polish-009 Issues screen — align with design concept (concept deltas + 3 real bugs) (high), v3-polish-010 Lessons screen — usability refresh (concept deltas validated) (high)
 

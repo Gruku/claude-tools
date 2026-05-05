@@ -24,6 +24,10 @@ context:
     title: taskmaster:issue skill — log/track/close defects
     epic: v3-skills
     branch: ''
+  - id: v3-skills-006
+    title: PreCompact hook + init-taskmaster v3 retrofit
+    epic: v3-skills
+    branch: ''
     locked_by: Volodymyr-18428-c5ab0885
   blocked: []
   recent_completed:
@@ -59,8 +63,8 @@ context:
     total: 79
     done: 35
     in_progress: 1
-    in_review: 4
-    todo: 39
+    in_review: 5
+    todo: 38
     blocked: 0
     archived: 0
   active_phase:
@@ -68,9 +72,9 @@ context:
     name: Ship V3
     stats:
       total: 78
-      todo: 38
+      todo: 37
       in-progress: 1
-      in-review: 4
+      in-review: 5
       done: 35
       blocked: 0
       archived: 0
@@ -1152,10 +1156,10 @@ epics:
     release: 2.0.0
   - id: v3-skills-004
     title: taskmaster:issue skill — log/track/close defects
-    status: in-progress
+    status: in-review
     priority: critical
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-05T15:29
+    last_referenced: 2026-05-05T15:47
     notes: 'Author the issues skill. Triggers: "log a bug", "found an issue", "this
       is broken", "track this defect". Captures severity (P0–P3), components, impact,
       repro steps, location (file:line). Optional related-task creation ("Want me
@@ -1171,7 +1175,6 @@ epics:
     - plugins/taskmaster/skills/issue/SKILL.md
     - plugins/taskmaster/taskmaster_v3.py
     started: 2026-05-05T15:29
-    locked_by: Volodymyr-18428-c5ab0885
   - id: v3-skills-005
     title: taskmaster:migrate-v3 skill — guided opt-in migration
     status: todo
@@ -1192,10 +1195,10 @@ epics:
     - plugins/taskmaster/skills/migrate-v3/SKILL.md
   - id: v3-skills-006
     title: PreCompact hook + init-taskmaster v3 retrofit
-    status: todo
+    status: in-progress
     priority: high
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-05T15:01
+    last_referenced: 2026-05-05T15:47
     notes: 'Auto-install the PreCompact hook that runs `taskmaster snapshot --quiet`
       before context compaction (so post-compact recap reflects pre-compact state).
       Update init-taskmaster skill to: (1) add the hook to settings.json non-destructively
@@ -1207,6 +1210,8 @@ epics:
     anchors:
     - plugins/taskmaster/skills/init-taskmaster/SKILL.md
     - plugins/taskmaster/hooks/
+    started: 2026-05-05T15:47
+    locked_by: Volodymyr-18428-c5ab0885
   - id: v3-skills-007
     title: Retrofit start-session — surface v3 data plane
     status: todo
