@@ -16,6 +16,10 @@ context:
     title: Smoke-test 2.0.0 against fresh install
     epic: v3-release
     branch: ''
+  - id: v3-release-006
+    title: Merge feature/taskmaster-v3 to master
+    epic: v3-release
+    branch: ''
     locked_by: Volodymyr-18428-c5ab0885
   - id: v3-skills-002
     title: taskmaster:handover skill — write/read flow
@@ -67,8 +71,8 @@ context:
     total: 79
     done: 47
     in_progress: 1
-    in_review: 6
-    todo: 25
+    in_review: 7
+    todo: 24
     blocked: 0
     archived: 0
   active_phase:
@@ -76,9 +80,9 @@ context:
     name: Ship V3
     stats:
       total: 78
-      todo: 24
+      todo: 23
       in-progress: 1
-      in-review: 6
+      in-review: 7
       done: 47
       blocked: 0
       archived: 0
@@ -1033,10 +1037,10 @@ epics:
     completed: 2026-05-05T16:58
   - id: v3-release-005
     title: Smoke-test 2.0.0 against fresh install
-    status: in-progress
+    status: in-review
     priority: high
     created: 2026-05-02T05:47
-    last_referenced: 2026-05-05T16:58
+    last_referenced: 2026-05-05T17:18
     notes: Install the 1.12 plugin into a fresh project. Run init → migrate_v3 → create
       epic/task/handover/lesson → open viewer. Verify no regressions vs 1.11. Captures
       the dogfood outcome of this very initialization session.
@@ -1047,13 +1051,12 @@ epics:
     estimate: M
     phase: ship-v3
     started: 2026-05-05T16:58
-    locked_by: Volodymyr-18428-c5ab0885
   - id: v3-release-006
     title: Merge feature/taskmaster-v3 to master
-    status: todo
+    status: in-progress
     priority: critical
     created: 2026-05-02T05:47
-    last_referenced: 2026-05-05T14:47
+    last_referenced: 2026-05-05T17:18
     notes: 'Final gate. Merge feature/taskmaster-v3 (44+ commits) to master. User
       policy: merge locally first, do NOT push without explicit permission. Tag v2.0.0
       after merge.'
@@ -1061,6 +1064,8 @@ epics:
     - v3-release-005
     estimate: S
     phase: ship-v3
+    started: 2026-05-05T17:18
+    locked_by: Volodymyr-18428-c5ab0885
   - id: v3-release-007
     title: Single-app + project switcher (replace per-project port spawning)
     status: todo
