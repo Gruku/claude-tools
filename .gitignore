@@ -33,3 +33,20 @@ docs/superpowers/
 
 # Git worktrees
 .worktrees/
+
+# Taskmaster v3 runtime — snapshots and auto-mode state
+# (covers both .taskmaster/ and .claude/ "hidden mode" project layouts)
+.taskmaster/snapshots/
+.taskmaster/auto/
+.claude/snapshots/
+.claude/auto/
+
+# Taskmaster v3 session-ephemeral entities — kept local, not tracked
+# Handovers / issues / lessons capture personal session context that
+# shouldn't live in the public repo. Local-only by user preference.
+.taskmaster/handovers/
+.taskmaster/issues/
+.taskmaster/lessons/
+.claude/handovers/
+.claude/issues/
+.claude/lessons/
