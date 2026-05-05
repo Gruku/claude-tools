@@ -50,3 +50,13 @@ docs/superpowers/
 .claude/handovers/
 .claude/issues/
 .claude/lessons/
+
+# Taskmaster v3 backlog + tasks + progress — local-only by user preference.
+# Public repo ships taskmaster as a tool, not as a record of one user's work.
+# Anyone using this repo runs their own taskmaster against an empty backlog.
+.taskmaster/backlog.yaml
+.taskmaster/tasks/
+.taskmaster/PROGRESS.md
+.claude/backlog.yaml
+.claude/tasks/
+.claude/PROGRESS.md
