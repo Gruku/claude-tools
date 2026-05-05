@@ -28,13 +28,16 @@ context:
     title: taskmaster:migrate-v3 skill — guided opt-in migration
     epic: v3-skills
     branch: ''
-  - id: v3-skills-011
-    title: Quality pass — auto-epic + auto-phase orchestrator skills
+  - id: v3-skills-012
+    title: Update taskmaster:taskmaster router skill for new entity skills
     epic: v3-skills
     branch: ''
     locked_by: Volodymyr-18428-c5ab0885
   blocked: []
   recent_completed:
+  - id: v3-skills-011
+    title: Quality pass — auto-epic + auto-phase orchestrator skills
+    completed: 2026-05-05T16:43
   - id: v3-skills-010
     title: Quality pass — auto-task skill (wire to real handover/lesson tools)
     completed: 2026-05-05T16:40
@@ -47,9 +50,6 @@ context:
   - id: v3-skills-009
     title: Retrofit end-session — auto-offer handover + snapshot
     completed: 2026-05-05T16:30
-  - id: v3-skills-015
-    title: Handover read MCP tool surface (get/list/latest)
-    completed: 2026-05-05T16:15
   next_up:
   - id: v3-polish-001
     title: 'Build recap picker (was: D·5 rebuild — there is no picker)'
@@ -65,10 +65,10 @@ context:
     epic: v3-polish
   stats:
     total: 79
-    done: 41
+    done: 42
     in_progress: 1
     in_review: 6
-    todo: 31
+    todo: 30
     blocked: 0
     archived: 0
   active_phase:
@@ -76,10 +76,10 @@ context:
     name: Ship V3
     stats:
       total: 78
-      todo: 30
+      todo: 29
       in-progress: 1
       in-review: 6
-      done: 41
+      done: 42
       blocked: 0
       archived: 0
     target_date: null
@@ -1314,10 +1314,10 @@ epics:
     completed: 2026-05-05T16:40
   - id: v3-skills-011
     title: Quality pass — auto-epic + auto-phase orchestrator skills
-    status: in-progress
+    status: done
     priority: medium
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-05T16:40
+    last_referenced: 2026-05-05T16:43
     notes: Validate the subagent-isolation contract (orchestrator only sees ~50 tokens
       per task; per-task contexts are discarded), per-task summary aggregation (status
       / 1-paragraph summary / commit shas), auto-stage handover stub auto-archival
@@ -1332,13 +1332,13 @@ epics:
     - plugins/taskmaster/skills/auto-epic/SKILL.md
     - plugins/taskmaster/skills/auto-phase/SKILL.md
     started: 2026-05-05T16:40
-    locked_by: Volodymyr-18428-c5ab0885
+    completed: 2026-05-05T16:43
   - id: v3-skills-012
     title: Update taskmaster:taskmaster router skill for new entity skills
-    status: todo
+    status: in-progress
     priority: medium
     created: 2026-05-02T16:30
-    last_referenced: 2026-05-02T16:30
+    last_referenced: 2026-05-05T16:43
     notes: Add routing entries to the taskmaster:taskmaster router skill for the three
       new entity skills. Map intent triggers ("write a handover" / "log a bug" / "remember
       this") to the correct sub-skill. Update the skill description so /help and skill-discovery
@@ -1351,6 +1351,8 @@ epics:
     phase: ship-v3
     anchors:
     - plugins/taskmaster/skills/taskmaster/SKILL.md
+    started: 2026-05-05T16:43
+    locked_by: Volodymyr-18428-c5ab0885
   - id: v3-skills-013
     title: Token budget signal tests per surface
     status: todo
