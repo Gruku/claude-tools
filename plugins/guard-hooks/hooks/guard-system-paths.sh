@@ -8,8 +8,10 @@
 # Exit 2 = block (stderr to model). Exit 0 = allow.
 #
 # Approval flow (shared with the rest of guard-hooks):
-#   The USER (not the AI) runs `touch ~/.claude/guard-approve` in another
-#   terminal. The approval is valid for 60 seconds and consumed on use.
+#   The AI calls AskUserQuestion with labels "Approve"/"Deny"; the PostToolUse
+#   ask-question-approval hook creates the approval file automatically when the
+#   user picks "Approve". The user can also type "approve" as a chat message
+#   (UserPromptSubmit hook). Approval is valid 60 seconds and consumed on use.
 
 APPROVE_FILE="$HOME/.claude/guard-approve"
 LOG_DIR="$HOME/.claude/logs"
@@ -74,11 +76,14 @@ ACTION REQUIRED: Use the AskUserQuestion tool with EXACTLY this shape:
     - label: "Deny"     description: "Cancel; do not run the command"
 
 After the user responds:
-  - "Approve" → the USER must run \`touch ~/.claude/guard-approve\` in another terminal, then you re-run the ORIGINAL command unchanged.
-  - "Deny" or no response → do NOT run the command.
+  - "Approve" → rerun the ORIGINAL command unchanged
+  - "Deny" or no response → do NOT run the command
 
-Only the exact label "Approve" is recognized as authorization.
-You may NOT create the approval file yourself. Do NOT re-run automatically.
+Only the exact label "Approve" is recognized as authorization. The PostToolUse
+hook on AskUserQuestion creates the approval file automatically — you do NOT
+need to ask the user to touch any file. Typing "approve" as a chat message is
+also recognized as a fallback. Do NOT re-run automatically. Do NOT create the
+approval file yourself.
 EOF
   exit 2
 }

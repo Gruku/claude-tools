@@ -47,11 +47,21 @@ Reason: $1
 Recovery: $2
 Command: $COMMAND
 
-ACTION REQUIRED: This is a destructive database operation. Use AskUserQuestion with:
-  options:
+ACTION REQUIRED: Use the AskUserQuestion tool with EXACTLY this shape:
+  question: one short sentence describing the destructive database action
+  options (use these labels verbatim — do not rename, translate, or add more):
     - label: "Approve"  description: "Run the command as shown"
-    - label: "Deny"     description: "Cancel"
-On "Approve", the USER must run \`touch ~/.claude/guard-approve\` in another terminal, then you re-run the command. You may NOT create that file yourself.
+    - label: "Deny"     description: "Cancel; do not run the command"
+
+After the user responds:
+  - "Approve" → rerun the ORIGINAL command unchanged
+  - "Deny" or no response → do NOT run the command
+
+Only the exact label "Approve" is recognized as authorization. The PostToolUse
+hook on AskUserQuestion creates the approval file automatically — you do NOT
+need to ask the user to touch any file. Typing "approve" as a chat message is
+also recognized as a fallback. Do NOT re-run automatically. Do NOT create the
+approval file yourself.
 EOF
   exit 2
 }
@@ -59,7 +69,7 @@ EOF
 block_soft() {
   if check_user_approval || check_ai_ack; then exit 0; fi
   cat >&2 <<EOF
-GUARD HOOK BLOCKED THIS COMMAND (SOFT).
+GUARD HOOK BLOCKED THIS COMMAND (SOFT — AI self-ack permitted).
 Reason: $1
 Recovery: $2
 Command: $COMMAND
@@ -69,8 +79,15 @@ DESTRUCTIVE DB OPERATION REMINDER:
   - Verify you intend exactly this scope (table, collection, container, volume).
   - If a backup matters here, take one before proceeding.
 
-To proceed: \`touch ~/.claude/guard-ack\` then re-run this exact command.
-The ack is one-shot and expires in 60 seconds.
+This is a SOFT block. If you (Claude) have read this warning and verified the
+scope is intended, you may self-acknowledge by running:
+    touch ~/.claude/guard-ack
+yourself, then re-run the ORIGINAL command unchanged. The ack is one-shot and
+expires in 60 seconds.
+
+Do NOT ask the user to run the touch command — this ack is AI-driven by design.
+If you are uncertain whether the scope is intended, defer to the user with the
+AskUserQuestion tool (labels "Approve" / "Deny") instead of self-acking.
 EOF
   exit 2
 }
