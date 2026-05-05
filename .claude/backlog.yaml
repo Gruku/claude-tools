@@ -12,8 +12,8 @@ context:
     title: Auto-mode strip shows "Auto-mode · N running" for stopped/abandoned sessions
     epic: v3-polish
     branch: feature/taskmaster-v3
-  - id: v3-release-004
-    title: Sync marketplace metadata to 2.0
+  - id: v3-release-005
+    title: Smoke-test 2.0.0 against fresh install
     epic: v3-release
     branch: ''
     locked_by: Volodymyr-18428-c5ab0885
@@ -35,6 +35,9 @@ context:
     branch: ''
   blocked: []
   recent_completed:
+  - id: v3-release-004
+    title: Sync marketplace metadata to 2.0
+    completed: 2026-05-05T16:58
   - id: v3-release-003
     title: Write 2.0.0 release notes
     completed: 2026-05-05T16:55
@@ -47,9 +50,6 @@ context:
   - id: v3-skills-012
     title: Update taskmaster:taskmaster router skill for new entity skills
     completed: 2026-05-05T16:45
-  - id: v3-skills-011
-    title: Quality pass — auto-epic + auto-phase orchestrator skills
-    completed: 2026-05-05T16:43
   next_up:
   - id: v3-polish-001
     title: 'Build recap picker (was: D·5 rebuild — there is no picker)'
@@ -65,10 +65,10 @@ context:
     epic: v3-polish
   stats:
     total: 79
-    done: 46
+    done: 47
     in_progress: 1
     in_review: 6
-    todo: 26
+    todo: 25
     blocked: 0
     archived: 0
   active_phase:
@@ -76,10 +76,10 @@ context:
     name: Ship V3
     stats:
       total: 78
-      todo: 25
+      todo: 24
       in-progress: 1
       in-review: 6
-      done: 46
+      done: 47
       blocked: 0
       archived: 0
     target_date: null
@@ -1019,10 +1019,10 @@ epics:
     completed: 2026-05-05T16:55
   - id: v3-release-004
     title: Sync marketplace metadata to 2.0
-    status: in-progress
+    status: done
     priority: high
     created: 2026-05-02T05:47
-    last_referenced: 2026-05-05T16:55
+    last_referenced: 2026-05-05T16:58
     notes: Update the marketplace listing per chore(marketplace) pattern from 1.11.0
       (commit a812b07). Description should reflect v3 capabilities.
     depends_on:
@@ -1030,13 +1030,13 @@ epics:
     estimate: S
     phase: ship-v3
     started: 2026-05-05T16:55
-    locked_by: Volodymyr-18428-c5ab0885
+    completed: 2026-05-05T16:58
   - id: v3-release-005
     title: Smoke-test 2.0.0 against fresh install
-    status: todo
+    status: in-progress
     priority: high
     created: 2026-05-02T05:47
-    last_referenced: 2026-05-05T14:47
+    last_referenced: 2026-05-05T16:58
     notes: Install the 1.12 plugin into a fresh project. Run init → migrate_v3 → create
       epic/task/handover/lesson → open viewer. Verify no regressions vs 1.11. Captures
       the dogfood outcome of this very initialization session.
@@ -1046,6 +1046,8 @@ epics:
     - v3-release-004
     estimate: M
     phase: ship-v3
+    started: 2026-05-05T16:58
+    locked_by: Volodymyr-18428-c5ab0885
   - id: v3-release-006
     title: Merge feature/taskmaster-v3 to master
     status: todo
