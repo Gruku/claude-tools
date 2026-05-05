@@ -1,0 +1,191 @@
+meta:
+  project: viewer-redesign-fixture
+phases:
+  - {id: P-01, name: Discovery,        status: done}
+  - {id: P-02, name: Spike,            status: done}
+  - {id: P-03, name: Foundations,      status: active}
+  - {id: P-04, name: Skeleton,         status: in_progress}
+  - {id: P-05, name: Migration,        status: future}
+  - {id: P-06, name: Visual Redesign,  status: future}
+  - {id: P-07, name: Polish,           status: future}
+  - {id: P-08, name: Launch,           status: future}
+  - {id: P-09, name: Soak,             status: future}
+  - {id: P-10, name: GA,               status: future}
+  - {id: P-11, name: Documentation,    status: future}
+epics:
+  - {id: viewer-redesign,      name: viewer-redesign}
+  - {id: narrative-continuity, name: narrative-continuity}
+  - {id: filter-bar,           name: filter-bar}
+  - {id: kanban-board,         name: kanban-board}
+  - {id: auto-mode,            name: auto-mode}
+tasks:
+  # in_progress (3)
+  - id: v3-009
+    title: "Wire viewer to v3 schema"
+    status: in_progress
+    priority: critical
+    estimate: L
+    phase: P-03
+    epic: viewer-redesign
+    branch: "feat/wire-viewer"
+    started: "2026-04-26T10:00:00Z"
+    description: "Wire the new viewer screens to the v3 backlog schema so kanban, dashboard, and task-detail all read the new shape."
+    notes: "Initial wire-up landed in M2; M3 right-rail follows."
+    depends_on: [v3-001]
+    unblocks: [v3-011, v3-040]
+    anchors:
+      - {kind: file, label: "viewer/js/api.js", href: "viewer/js/api.js"}
+      - {kind: file, label: "viewer/js/store.js", href: "viewer/js/store.js"}
+  - {id: v3-011, title: "Lesson digest sidebar",               status: in_progress, priority: high,     estimate: M, phase: P-03, epic: viewer-redesign,      branch: "feat/lesson-digest"}
+  - {id: v3-040, title: "Sidebar collapse toggle",             status: in_progress, priority: medium,   estimate: S, phase: P-03, epic: viewer-redesign,      branch: "feat/sidebar-collapse"}
+
+  # in_review (2)
+  - {id: v3-012, title: "Issue panel",                         status: in_review,   priority: high,     estimate: M, phase: P-03, epic: narrative-continuity, branch: "feat/issue-panel"}
+  - {id: v3-031, title: "Auto-mode strip auto-cleanup",        status: in_review,   priority: medium,   estimate: S, phase: P-03, epic: auto-mode,            branch: "feat/auto-strip-cleanup"}
+
+  # todo (12 — overflow target)
+  - {id: v3-014, title: "Auto-mode status indicator",          status: todo,        priority: high,     estimate: M, phase: P-03, epic: auto-mode,            branch: "feat/auto-mode-strip"}
+  - {id: v3-015, title: "Density toggle persistence",          status: todo,        priority: medium,   estimate: S, phase: P-03, epic: kanban-board}
+  - {id: v3-016, title: "Group-by phase + epic",               status: todo,        priority: medium,   estimate: M, phase: P-03, epic: kanban-board}
+  - {id: v3-017, title: "Click-to-copy task IDs",              status: todo,        priority: low,      estimate: S, phase: P-03, epic: kanban-board}
+  - {id: v3-018, title: "Filter chip rendering",               status: todo,        priority: medium,   estimate: S, phase: P-03, epic: filter-bar}
+  - {id: v3-019, title: "Phase stepper polish",                status: todo,        priority: low,      estimate: S, phase: P-03, epic: filter-bar}
+  - {id: v3-020, title: "Epic chip overflow handling",         status: todo,        priority: low,      estimate: S, phase: P-03, epic: filter-bar}
+  - {id: v3-022, title: "Search debounce timing",              status: todo,        priority: low,      estimate: S, phase: P-03, epic: filter-bar}
+  - {id: v3-023, title: "Task detail screen scaffold",         status: todo,        priority: high,     estimate: L, phase: P-04, epic: viewer-redesign}
+  - {id: v3-024, title: "Dashboard widget catalog",            status: todo,        priority: medium,   estimate: L, phase: P-04, epic: viewer-redesign}
+  - {id: v3-025, title: "Sessions screen variant lanes",       status: todo,        priority: medium,   estimate: M, phase: P-04, epic: viewer-redesign}
+  - {id: v3-026, title: "Lessons shelves view",                status: todo,        priority: medium,   estimate: M, phase: P-04, epic: viewer-redesign}
+
+  # blocked (2)
+  - {id: v3-021, title: "Hook compact recap on PreCompact",    status: blocked,     priority: high,     estimate: S, phase: P-03, epic: narrative-continuity}
+  - {id: v3-027, title: "Issue aging tier rules",              status: blocked,     priority: medium,   estimate: M, phase: P-04, epic: narrative-continuity}
+
+  # done (5)
+  - {id: v3-001, title: "Bootstrap viewer shell",              status: done,        priority: critical, estimate: M, phase: P-01, epic: viewer-redesign}
+  - {id: v3-002, title: "Shell tokens + dark theme",           status: done,        priority: high,     estimate: M, phase: P-01, epic: viewer-redesign}
+  - {id: v3-003, title: "Router with hash routing",            status: done,        priority: high,     estimate: S, phase: P-01, epic: viewer-redesign}
+  - {id: v3-004, title: "Backlog YAML poller",                 status: done,        priority: high,     estimate: M, phase: P-02, epic: viewer-redesign}
+  - {id: v3-005, title: "Prefs persistence round-trip",        status: done,        priority: medium,   estimate: M, phase: P-02, epic: viewer-redesign}
+
+  # rich detail tasks — exercise task-detail fields
+  - id: v3-050
+    title: "Auto-mode runner contract"
+    status: in_review
+    priority: critical
+    estimate: L
+    phase: P-03
+    epic: auto-mode
+    branch: "feat/runner-contract"
+    worktree: ".worktrees/v3-050"
+    started: "2026-04-28T09:00:00Z"
+    created: "2026-04-26T11:00:00Z"
+    description: "Define the contract between the auto-mode runner and the viewer — state.json schema, events.jsonl event types, hooks.jsonl format."
+    specification: |
+      The runner emits three streams the viewer reads:
+
+      - `state.json` — current cursor (stage, task_id, started_at), plus running/paused/stopped flags
+      - `events.jsonl` — append-only log of stage transitions and tool calls
+      - `hooks.jsonl` — pre/post-tool hook firings with status
+
+      Viewer reads via 200ms poll; runner writes atomically (tmp + rename).
+    plan: |
+      1. Pin schemas in `plugins/taskmaster/auto/schemas/`
+      2. Add JSON-schema validation in the server before exposing /api/auto/state
+      3. Document write-atomicity expectations in the runner spec
+      4. Add a fixture session (v3-031) that exercises every event type
+    notes: "Schema versioning needs a hard call before this lands — propose `schema_version: 1` on every record, viewer rejects mismatches."
+    review_instructions: "Verify all event types from `events.jsonl` have a corresponding handler in `viewer/js/screens/auto-mode.js`. Eyeball the spine renders correctly when a session is paused."
+    spec_review:
+      verdict: concerns
+      codex_note: "Schema looks good; one concern — `hooks.jsonl` format varies by hook source. Consider a discriminator field rather than relying on shape inference."
+    depends_on: [v3-009]
+    unblocks: [v3-014, v3-031]
+    anchors:
+      - {kind: file,   label: "auto/schemas/state.schema.json",  href: "plugins/taskmaster/auto/schemas/state.schema.json"}
+      - {kind: file,   label: "auto/schemas/events.schema.json", href: "plugins/taskmaster/auto/schemas/events.schema.json"}
+      - {kind: pr,     label: "PR #142",                         href: "https://github.com/example/repo/pull/142"}
+      - {kind: spec,   label: "design-v3-narrative-continuity",  href: "docs/design-v3-narrative-continuity.md"}
+    docs:
+      Spec:    "docs/design-v3-narrative-continuity.md"
+      Runner:  "plugins/taskmaster/auto/runner.py"
+      Hooks:   "plugins/taskmaster/hooks/README.md"
+    activity:
+      - "2026-04-28 09:00  started in worktree v3-050"
+      - "2026-04-28 14:30  schemas drafted, sample fixture v3-031 created"
+      - "2026-04-29 10:15  validation wired into _make_server"
+      - "2026-04-30 16:45  moved to in_review; codex pass logged a discriminator concern"
+
+  - id: v3-051
+    title: "Locked: keyboard nav for kanban (in progress, do not touch)"
+    status: in_progress
+    priority: medium
+    estimate: M
+    phase: P-03
+    epic: kanban-board
+    branch: "feat/kbd-nav-kanban"
+    worktree: ".worktrees/v3-051"
+    started: "2026-04-30T14:00:00Z"
+    locked_by: "agent-codex-2"
+    description: "j/k to move cursor between cards; h/l to switch columns; enter to open task detail; space to toggle status."
+    notes: "Lock claim taken at 2026-04-30T14:00Z; claim auto-renews every 30s. Do not edit while locked."
+    depends_on: [v3-001]
+    unblocks: []
+
+  - id: v3-052
+    title: "Compact card density mode"
+    status: done
+    priority: medium
+    estimate: S
+    phase: P-02
+    epic: kanban-board
+    branch: "feat/density-compact"
+    started: "2026-04-15T09:00:00Z"
+    completed: "2026-04-17T18:30:00Z"
+    description: "Add a compact density mode for kanban cards — half the vertical padding, smaller priority pill, no description preview."
+    notes: "Toggle persisted via prefs.ui.kanban_density. Default still 'comfortable'."
+    patchnote: |
+      Three-line diff in `card.css` plus one new pref key. The interesting bit was making sure compact and comfortable use the same chip widths so density toggles don't reflow the column.
+
+      Watch out: any future card field additions need to be tested in both densities — added a Playwright assertion that compact mode keeps cards under 80px tall.
+    activity:
+      - "2026-04-15 09:00  branch cut"
+      - "2026-04-15 14:20  compact CSS landed"
+      - "2026-04-16 11:00  pref persistence wired"
+      - "2026-04-17 16:00  Playwright snapshot for both densities"
+      - "2026-04-17 18:30  merged to feature/taskmaster-v3"
+    anchors:
+      - {kind: file, label: "viewer/css/components/card.css", href: "plugins/taskmaster/viewer/css/components/card.css"}
+      - {kind: pr,   label: "PR #128",                         href: "https://github.com/example/repo/pull/128"}
+    release: "v3.0.0-beta.4"
+
+  - id: v3-053
+    title: "Codex pass: dependency graph readability"
+    status: in_review
+    priority: medium
+    estimate: M
+    phase: P-04
+    epic: viewer-redesign
+    branch: "feat/graph-readability"
+    started: "2026-04-29T10:00:00Z"
+    description: "Tighten the bezier-chain rendering on task-detail Variant B. Curves should not cross when L−2/L+2 columns are sparse."
+    review_instructions: "Open /v3/#/task/v3-009 in graph mode. Compare visual quality against task-detail-graph.html mockup. Validate non-crossing for the v3-009 dependency chain."
+    spec_review:
+      verdict: ok
+      codex_note: "Considered using d3-dag for layout but rejected — overkill for graphs ≤20 nodes. The current columnar approach is simpler and matches the mockup."
+    depends_on: [v3-023]
+    anchors:
+      - {kind: file,   label: "viewer/js/components/task-detail-graph.js", href: "plugins/taskmaster/viewer/js/components/task-detail-graph.js"}
+      - {kind: spec,   label: "task-detail-graph.html",                    href: ".superpowers/brainstorm/16245-1777231623/content/task-detail-graph.html"}
+
+  - id: v3-054
+    title: "Hook: pre-tool path safety (sub-repo)"
+    status: blocked
+    priority: high
+    estimate: M
+    phase: P-04
+    epic: narrative-continuity
+    sub_repo: "plugins/taskmaster"
+    description: "Before any Edit/Write call, verify the target path is inside the active worktree, not the parent checkout."
+    notes: "Blocked on v3-021 because we need PreCompact-style hook plumbing first. Re-evaluate after Plan 6 wraps."
+    depends_on: [v3-021]

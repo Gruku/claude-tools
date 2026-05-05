@@ -1,0 +1,14 @@
+{
+  "tasks": {
+    "v3-001": { "status": "done", "title": "Worktree shadow setup", "epic": "v3" },
+    "v3-002": { "status": "done", "title": "Review-gate stitching",  "epic": "v3" },
+    "v3-003": { "status": "done", "title": "Initial backlog seed",   "epic": "v3" }
+  },
+  "issues": {},
+  "lessons_fired": [],
+  "files_touched": [
+    "plugins/taskmaster/scripts/review-gate.sh",
+    "plugins/taskmaster/docs/worktree-shadow.md",
+    ".taskmaster/handovers/HND-0001.md"
+  ]
+}

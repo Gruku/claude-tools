@@ -25,6 +25,9 @@ codex-dispatch/
 # Superpowers docs (local-only specs and plans)
 docs/superpowers/
 
+# Brainstorm artifacts (local-only concept HTMLs from brainstorming skill)
+.superpowers/
+
 # Logs
 *.log
 

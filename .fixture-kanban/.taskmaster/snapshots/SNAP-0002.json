@@ -1,0 +1,24 @@
+{
+  "tasks": {
+    "v3-001": { "status": "done", "title": "Worktree shadow setup",      "epic": "v3" },
+    "v3-002": { "status": "done", "title": "Review-gate stitching",      "epic": "v3" },
+    "v3-003": { "status": "done", "title": "Initial backlog seed",       "epic": "v3" },
+    "v3-015": { "status": "done", "title": "Final card layout",          "epic": "v3" },
+    "v3-017": { "status": "done", "title": "Kanban filter bar v2",       "epic": "v3" },
+    "v3-018": { "status": "done", "title": "Density toggle persistence", "epic": "v3" },
+    "v3-019": { "status": "done", "title": "Click-to-copy task IDs",     "epic": "v3" },
+    "v3-020": { "status": "done", "title": "Per-epic chip wiring",       "epic": "v3" }
+  },
+  "issues": {
+    "ISS-001": { "severity": "high", "status": "open", "title": "Stepper detour during M7" }
+  },
+  "lessons_fired": [
+    { "id": "L-001", "fires": 1, "first_time": "2026-04-27T18:00:00Z" }
+  ],
+  "files_touched": [
+    "plugins/taskmaster/viewer/js/screens/kanban.js",
+    "plugins/taskmaster/viewer/css/screens/kanban.css",
+    "plugins/taskmaster/viewer/js/components/card.js",
+    "plugins/taskmaster/viewer/js/components/phase-stepper.js"
+  ]
+}

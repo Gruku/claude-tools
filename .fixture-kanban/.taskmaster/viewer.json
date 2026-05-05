@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "use_v3": false,
+  "theme": "dark",
+  "card_density": "full",
+  "zoom": 1.5,
+  "screens": {
+    "task_detail": {
+      "view": "A"
+    },
+    "kanban": {
+      "view": "A"
+    },
+    "sessions": {
+      "view": "A"
+    },
+    "lessons": {
+      "view": "A"
+    },
+    "issues": {
+      "view": "A"
+    },
+    "auto_mode": {
+      "view": "A"
+    }
+  },
+  "dashboard": {
+    "layout": [
+      {
+        "id": "sn-0",
+        "type": "suggested-next",
+        "size": "medium",
+        "rail": "left",
+        "index": 0
+      },
+      {
+        "id": "pd-0",
+        "type": "phase-deliverables",
+        "size": "tall",
+        "rail": "left",
+        "index": 1
+      },
+      {
+        "id": "nu-0",
+        "type": "newly-unblocked",
+        "size": "medium",
+        "rail": "left",
+        "index": 2
+      },
+      {
+        "id": "wc-0",
+        "type": "what-changed",
+        "size": "tall",
+        "rail": "right",
+        "index": 0
+      },
+      {
+        "id": "ls-0",
+        "type": "last-session",
+        "size": "medium",
+        "rail": "right",
+        "index": 1
+      },
+      {
+        "id": "oi-0",
+        "type": "open-issues",
+        "size": "medium",
+        "rail": "right",
+        "index": 2
+      },
+      {
+        "id": "btp-0",
+        "type": "build-test-pulse",
+        "size": "small",
+        "rail": "bottom",
+        "index": 0
+      },
+      {
+        "id": "ld-0",
+        "type": "lessons-digest",
+        "size": "small",
+        "rail": "bottom",
+        "index": 1
+      },
+      {
+        "id": "rc-0",
+        "type": "recent-commits",
+        "size": "small",
+        "rail": "bottom",
+        "index": 2
+      },
+      {
+        "id": "aa-0",
+        "type": "agent-activity",
+        "size": "small",
+        "rail": "bottom",
+        "index": 3
+      },
+      {
+        "id": "stale-tasks-molplb56-5a8",
+        "type": "stale-tasks",
+        "size": "medium",
+        "rail": "left",
+        "index": 3
+      }
+    ],
+    "last_seen_at": "2026-05-01T16:01:07.905Z"
+  },
+  "kanban": {
+    "filters": {
+      "priorities": [],
+      "epics": [],
+      "phase": "__all__",
+      "group_by": "status",
+      "sort": {
+        "by": "priority",
+        "dir": "desc"
+      },
+      "search": ""
+    },
+    "collapsed_columns": []
+  },
+  "lessons": {
+    "thresholds": {
+      "core_count": 7,
+      "core_window_days": 60,
+      "core_recency_days": 14,
+      "retired_after_days": 30
+    }
+  },
+  "issues": {
+    "aging": {
+      "Critical": 14,
+      "High": 30,
+      "Medium": 60,
+      "Low": 120
+    }
+  },
+  "ui": {
+    "sidebar_collapsed": false,
+    "last_task_id": "v3-050"
+  },
+  "table": {
+    "sort": {
+      "by": "status",
+      "dir": "asc"
+    },
+    "search": "",
+    "filters": {
+      "status": [],
+      "priority": [],
+      "epic": []
+    }
+  }
+}

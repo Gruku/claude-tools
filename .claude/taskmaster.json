@@ -1,0 +1,4 @@
+{
+  "backlog_path": ".claude/backlog.yaml",
+  "progress_path": ".claude/PROGRESS.md"
+}

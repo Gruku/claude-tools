@@ -15,6 +15,89 @@ Log the current work session, transition tasks, and commit tracking files.
 
 ## Steps
 
+### v3 pre-steps (skip on v2 backlogs)
+
+Check `backlog_status` for `schema_version`. If `>= 3`, run these BEFORE the existing flow:
+
+**v3-pre-1: Snapshot.** Call `backlog_snapshot(quiet=true)` to capture pre-end-of-session state. This makes the next session's `backlog_recap` show what changed across the session boundary, not just from now to the next snapshot. Cheap (~50ms), no token cost.
+
+**v3-pre-2a: Lesson candidate sweep.** Decide whether to invoke `taskmaster:lesson` for an end-session sweep. Auto-offer when ANY of:
+   - Any `<lesson-candidate>` tag visible in the current conversation context.
+   - Any entries in `.taskmaster/lessons/_candidates.md` (check via `backlog_lesson_candidates_list`).
+   - Any feedback-memory cluster with 2+ entries scoped to this project (auto-suggestion source — separate from candidate scans).
+
+   Inputs (gathered in this order, then merged for review):
+
+   1. **Candidate-discovery scans** (routine):
+      - In-context scan: grep Claude's own conversation memory for `<lesson-candidate `.
+      - Deferred-file read: `backlog_lesson_candidates_list`.
+   2. **Auto-suggestion source** (routine, separate input — not a candidate scan):
+      - Scan auto-memory `feedback/*.md` for 2+ similar entries this project. These are *promotion suggestions*, not pre-flagged candidates.
+   3. **Disk-transcript scan** (on-demand only): if this session had a `/compact` event, offer `backlog_lesson_candidates_scan(days=7)` as a recovery option. Skip otherwise.
+
+   If any candidates or suggestions exist, ask:
+
+   > *"Found N lesson candidates from this session. Review now?"* (user-confirmed; default skip)
+
+   If the user accepts, invoke `taskmaster:lesson` with each candidate. Per-candidate options:
+
+   | Action | What runs |
+   |---|---|
+   | Promote | Lesson skill's write subflow (auto-extract + user review + `backlog_lesson_create`). |
+   | Defer | `backlog_lesson_candidate_defer(...)` — the candidate stays in `_candidates.md` for next session. |
+   | Discard | Drop without persisting (no tool call). |
+
+   For any promoted candidate with `scope="session"`: the lesson skill **buffers** a `flag_for_review` for the upcoming handover write (next sub-step). Do not modify any existing handover here.
+
+   Then: list lessons that were trigger-loaded at start-session OR cited mid-session by Claude. Multi-select prompt: "which actually applied this session?" For each pick:
+
+   ```
+   backlog_lesson_reinforce(lesson_id="L-NNN")
+   ```
+
+   After all reinforcements: if any return surfaces "Eligible for promotion to core tier", ask the user once:
+
+   > *"L-NNN is eligible for core tier (auto-loaded every session). Promote?"* (yes → `backlog_lesson_update(lesson_id, tier="core")`; respect the core cap from references/promotion-decay.md)
+
+   Finally: if any lessons auto-retired this session (server-side), emit one info line:
+
+   > *"Retired N stale lessons (review with `backlog_lesson_list --tier retired`)."*
+
+   No prompt, signal only.
+
+   If none of the auto-offer conditions apply, skip this whole sub-step silently — no prompt.
+
+**v3-pre-2: Handover offer.** Decide whether to offer a session handover. Auto-offer when ANY of:
+   - Session length > 60 turns of conversation.
+   - Conversation context estimate > 200k tokens.
+   - A task is still in flight (status `in-progress` or `auto/state.json` cursor non-null).
+   - User said anything like "for tomorrow", "remind me next time", "context handoff", "pick this up later".
+
+If offering, ask:
+
+   ```
+   AskUserQuestion({
+     questions: [{
+       question: "Write a session handover? It captures decisions, blockers, and where to start next session.",
+       header: "Handover",
+       multiSelect: false,
+       options: [
+         { label: "Yes, end-of-day handover", description: "Standard wrap-up" },
+         { label: "Yes, context handoff", description: "Near compaction — flag this as such" },
+         { label: "Yes, milestone-complete", description: "Chunk done, next chunk ready to dispatch" },
+         { label: "Skip", description: "Lightweight session, no handover needed" }
+       ]
+     }]
+   })
+   ```
+
+If user picks yes, **invoke the `taskmaster:handover` skill** with the chosen `session_kind`. End-session does NOT draft the body itself — the handover skill owns tier selection, auto-extraction, and supersession chaining. End-session continues regardless of the handover skill's outcome.
+If v3-pre-2a buffered a `pending_review_flag` (any `scope="session"` candidate was promoted in this session), pass `flag_for_review=true` and `review_reason=<buffered reason>` through to the handover skill's call. The handover skill forwards both kwargs to `backlog_handover_create`. If the user skipped the handover write, the flag is dropped silently.
+
+**v3-pre-2b: Handover archive sweep.** Call `backlog_handover_resync()` quietly to enforce the 30-entry index cap and move any overflow into `handovers/_archive/<year>/`. `backlog_handover_create` already runs the sync, so this sub-step only matters when (a) no handover was written this session but the user manually edited the `handovers/` directory between sessions, or (b) the cap was lowered. Cheap (~30ms), no token cost. Skip silently on v2.
+
+### Existing flow
+
 0. **Determine summary mode.** Check the session weight:
    - Count commits this session and files changed
    - If the session was **light** (1-2 commits, single-topic work, or user says "quick wrap"):
@@ -70,6 +153,23 @@ Log the current work session, transition tasks, and commit tracking files.
    For OTHER tasks that also need transitions (not the primary task):
    - Use `backlog_update_task` for individual status changes — these won't get changelog entries, which is fine for secondary tasks.
 
+**v3-post-complete-1: Issue-close-on-task-complete hook.** (v3 backlogs only — schema_version >= 3)
+
+After `backlog_complete_task` succeeds, check whether the just-completed task has any `related_issues`. For each issue whose current `status` is `open` or `investigating`, prompt:
+
+> *"ISS-XXX is still open — close it as fixed in `<task_id>`, or leave for follow-up?"*
+
+| Choice | Action |
+|---|---|
+| Close as fixed | `backlog_issue_update(issue_id="ISS-XXX", status="fixed", fixed_in_task="<task_id>")` |
+| Leave for follow-up | No tool call — issue remains open |
+
+If the task has no `related_issues`, or all related issues are already `fixed` / `closed` / `wont-fix`, skip this sub-step silently — no prompt.
+
+If multiple issues are open, prompt for each in sequence (or offer a multi-select if the skill implementation supports it).
+
+Reference: `taskmaster:issue` skill, entry point `close-on-task-complete`.
+
 7. **Worktree cleanup (done tasks only):**
    - If the task was marked **done** and has a worktree, offer cleanup:
      "Clean up the worktree for `{task_id}`? This removes the isolated working directory."
@@ -85,6 +185,14 @@ Log the current work session, transition tasks, and commit tracking files.
    {1-line summary}"
    ```
 
+   **(v3) Also stage these directories if they have changes:**
+   - `.claude/handovers/` (handovers written this session)
+   - `.taskmaster/issues/` (issues created or updated)
+   - `.taskmaster/lessons/` (lessons reinforced — last_reinforced field updates)
+   - `.taskmaster/tasks/` (per-task body updates from spec-review or notes)
+
+   Do NOT stage `.taskmaster/snapshots/` or `.taskmaster/auto/` — both are gitignored. If git complains they're tracked, that's a misconfiguration the user should fix; do not work around it.
+
 9. **Confirm:** "Session logged and committed. Task is now `{target_status}`."
 
 ## Edge Cases
@@ -96,3 +204,9 @@ Log the current work session, transition tasks, and commit tracking files.
 ## Task Lifecycle
 
 See `references/task-lifecycle.md` for the full state machine. Key point: `in-review` means "Claude is done, user tests now." `done` means "user confirmed it works."
+
+## Auto-mode interaction (v3)
+
+If `backlog_auto_status` reports an active run, do NOT call `backlog_complete_task` directly — that's the auto-task skill's job at its END_SESSION stage. Instead, defer to the auto run:
+- If auto-task is currently driving the session, end-session is being called as part of that flow. Proceed with the v3-pre-steps above (snapshot + handover) and otherwise let auto-task handle the task transition.
+- If the user invokes /end-session manually mid-auto-run, ask: "There's an active auto run on `<target>`. Pause and write a handover, or abort the run?" — `backlog_auto_abort` clears the state, invoking `taskmaster:handover` with `session_kind="context-handoff"` preserves it.

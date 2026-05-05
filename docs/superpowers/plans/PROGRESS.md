@@ -1,0 +1,308 @@
+# Viewer Redesign — Progress
+
+**Total:** 271 tasks · 7 plans · ~25% complete (38/38 Plan 5a, 32/32 Plan 5b, 43/58 Plan 6 M1+M2+M3+M4+M5+M6 done)
+
+## Pre-execution
+- [x] Plan 1 layout-shape reconciliation applied
+- [x] Plan 6 prefs-API reconciliation applied
+- [x] Reconciliation commit landed
+
+## Plan 1 — Foundation (0/28)
+*See `2026-04-26-viewer-redesign-plan-1-foundation.md` for task definitions.*
+- [x] T1.1 Define ViewerPrefs schema constants and defaults
+- [x] T1.2 Implement load_viewer_prefs() and save_viewer_prefs()
+- [x] T1.3 Add `viewer_prefs_get` and `viewer_prefs_set` MCP tools
+- [x] T1.4 Add HTTP endpoint `GET /api/viewer/prefs`
+- [x] T1.5 Add HTTP endpoint `PUT /api/viewer/prefs`
+- [x] T1.6 Wire `_send_json` helper into existing `/api/*` handlers
+- [x] T1.7 Scaffold the viewer/ directory and tokens.css
+- [x] T1.8 Write shell.css
+- [x] T1.9 Write components.css (shared chips, pills, buttons)
+- [x] T1.10 Write index.html shell
+- [x] T1.11 Serve the new viewer at `/v3` and static assets at `/static/v3/*`
+- [x] T1.12 Manual smoke — open `/v3` in a browser
+- [x] T1.13 Implement `js/api.js`
+- [x] T1.14 Implement `js/store.js` (in-memory state + subscriptions)
+- [x] T1.15 Implement `js/router.js`
+- [x] T1.16 Implement `js/components/sidebar.js`
+- [x] T1.17 Implement `js/main.js` (entry, boot, polling)
+- [x] T1.18 Stub `screens/dashboard.js`
+- [x] T1.19 Stub `screens/kanban.js`, `screens/task-detail.js`, `screens/sessions.js`
+- [x] T1.20 Stub `screens/lessons.js`, `screens/issues.js`, `screens/auto-mode.js`, `screens/recap.js`
+- [x] T1.21 Manual smoke — every nav item resolves
+- [x] T1.22 Add `viewer.use_v3` flag and switch root URL when set
+- [x] T1.23 Set up Playwright
+- [x] T1.24 Write the smoke test
+- [x] T1.25 Verify prefs round-trip end-to-end
+- [x] T1.26 Document how to develop against the new viewer
+- [x] T1.27 Run full test suite + push status
+- [x] T1.28 Verify Plan 1 deliverables match spec scope
+
+## Plan 2 — Kanban + Cards (0/33)
+*See `2026-04-26-viewer-redesign-plan-2-kanban-cards.md` for task definitions.*
+- [x] T2.1 Helper to load `.taskmaster/auto/state.json`
+- [x] T2.2 HTTP endpoint `GET /api/auto/state`
+- [x] T2.3 Add `api.autoState()` and store wiring
+- [x] T2.4 Poll auto-mode state from `main.js`
+- [x] T2.5 `lib/time.js` (time-in-status + elapsed formatters)
+- [x] T2.6 `lib/epics.js` (epic palette + auto-assignment)
+- [x] T2.7 `lib/filters.js` (apply filters + sort + group)
+- [x] T2.8 `lib/copy.js` (click-to-copy with green flash)
+- [x] T2.9 Initial `kanban.css` skeleton + per-epic tokens
+- [x] T2.10 Card CSS (Minimal + Full + Variant E)
+- [x] T2.11 Implement `components/card.js`
+- [x] T2.12 Implement `components/auto-mode-live-block.js`
+- [x] T2.13 Quick visual sanity — render two cards in dev console
+- [x] T2.14 Spinner + strip CSS
+- [x] T2.15 Implement `components/auto-mode-strip.js`
+- [x] T2.16 Strip session-timer ticks every second
+- [x] T2.17 `priority-chips.js` + CSS
+- [x] T2.18 `phase-stepper.js` + CSS
+- [x] T2.19 `epic-chips.js` + CSS
+- [x] T2.20 Group-by + sort dropdowns (popover-free)
+- [x] T2.21 Board surface + columns CSS
+- [x] T2.22 Density-toggle CSS for the page header
+- [x] T2.23 Kanban screen — header skeleton
+- [x] T2.24 Manual smoke — open `/v3#/kanban` against a fixture backlog
+- [x] T2.24α Zoom removal + 1.5× source CSS rescale
+- [x] T2.24β Signal alignment + collapsible columns + prefs default
+- [x] T2.25 Persist density toggle round-trip via Playwright (TDD)
+- [x] T2.26 Group-by phase + epic visual sanity
+- [x] T2.27 Prefs reset behavior
+- [x] T2.28 Click-to-copy IDs and branches
+- [ ] T2.29 Playwright config addition (kanban-aware fixture)
+- [ ] T2.30 Playwright smoke for kanban
+- [ ] T2.31 Auto-mode strip Playwright smoke (state.json injected by node fixture)
+- [ ] T2.32 Run all server + unit + smoke tests in sequence
+- [ ] T2.33 Final integration smoke + plan-level verification commit
+
+## Plan 3 — Task Detail (46/46)
+*See `2026-04-26-viewer-redesign-plan-3-task-detail.md` for task definitions.*
+- [x] T3.1 Define the `GET /api/task/<id>` payload shape with a failing test
+- [x] T3.2 Implement `GET /api/task/<id>` — index merge
+- [x] T3.3 Add 404 + malformed-id handling for `/api/task/<id>`
+- [x] T3.4 Implement `GET /api/task/<id>/related` — anchors-matched lessons + handovers + issues
+- [x] T3.5 Verify forward-compat fields (`spec_review`, `patchnote`, `worktree`, `release`, `locked_by`) round-trip
+- [x] T3.6 Suite-level run of all server tests so far
+- [x] T3.7 Author the layout function with a failing Node test (empty graph)
+- [x] T3.8 Implement empty + L0-only layout
+- [x] T3.9 Add the deep-upstream-chain test
+- [x] T3.10 Add the deep-downstream-chain test
+- [x] T3.11 Add the mixed-graph test
+- [x] T3.12 Add the cycle-handling test (deduplicated nodes)
+- [x] T3.13 Wire `node --test` into a `package.json` script
+- [x] T3.14 Add `markdown.js` (sandboxed `marked` wrapper)
+- [x] T3.15 Extend `api.js` with `getTask` and `getTaskRelated`
+- [x] T3.16 Cache the full task payload in the store
+- [x] T3.17 Build the shared `right-rail.js`
+- [x] T3.18 Create `task-detail.css` skeleton
+- [x] T3.19 Stub `task-detail-document.js` and a failing Playwright test for header + meta
+- [x] T3.20 Wire `task-detail.js` to mount the document renderer (so Task 19's test passes)
+- [x] T3.21 Add the lock banner (conditional on `locked_by`)
+- [x] T3.22 Add the chip row (status / priority / size / epic / branch / worktree / release / sub_repo)
+- [x] T3.23 Add the spec-review badge with click-to-expand codex note
+- [x] T3.24 Add the auto-mode banner (conditional)
+- [x] T3.25 Add Docs / Specification / Plan / Notes / Review-instructions sections
+- [x] T3.26 Add Latest activity + Patchnote sections (conditional)
+- [x] T3.27 Add the dates footer block (Created / Started / Completed)
+- [x] T3.28 Add click-to-copy on the meta `id` chip
+- [x] T3.29 Stub `task-detail-graph.js` and a failing Playwright test for the Graph variant
+- [x] T3.30 Build the SVG graph frame (axis rail, canvas, column guides)
+- [x] T3.31 Render the context band (lessons / handovers / issues pills)
+- [x] T3.32 Render graph controls (depth toggle / show all / hide context / fullscreen)
+- [x] T3.33 Render the tab bar (Spec / Plan / Notes / Activity / Anchors / Raw YAML)
+- [x] T3.34 Add a Playwright assertion for the graph SVG node count
+- [x] T3.35 Add a Playwright assertion for tab switching
+- [x] T3.36 Wire the right rail into Variant B identically to Variant A
+- [ ] T3.37 Visual verification against `task-detail-graph.html` mockup (deferred — needs live server)
+- [x] T3.38 Confirm `task-detail.js` resolves both subpath and `?view=` override
+- [x] T3.39 Persist toggle clicks via `api.savePrefs`
+- [x] T3.40 Handle 404 gracefully (unknown task id in URL)
+- [x] T3.41 Clean up the old Plan 1 stub references
+- [x] T3.42 Run all server tests
+- [x] T3.43 Run all unit tests
+- [x] T3.44 Run the Playwright suite — 10/10 PASS against fixture-kanban server on :8765
+- [x] T3.45 Spec coverage audit — all §3.9 items present (Variant A + Rail + Variant B)
+- [x] T3.46 Final integration smoke + plan handoff — server 5/5, unit 30/30, Playwright 10/10; tag pending user OK
+
+## Plan 4 — Dashboard (36/36)
+*See `2026-04-26-viewer-redesign-plan-4-dashboard.md` for task definitions.*
+- [x] T4.1 Read mockups + seed dashboard.css with bento grid skeleton
+- [x] T4.2 `dashboard-grid.js` — `computePlacements` (pure)
+- [x] T4.3 `dashboard-grid.js` — `addWidget` / `removeWidget` / `moveWidget` tests
+- [x] T4.4 `widget-frame.js` — common chrome
+- [x] T4.5 Briefing strip component
+- [x] T4.6 Center board surface component (preview of Up next + In progress)
+- [x] T4.7 Replace `js/screens/dashboard.js` stub with the orchestrator skeleton (no widgets yet)
+- [x] T4.8 `widget-catalog.js` — empty registry + helpers
+- [x] T4.9 Wire briefing strip + auto-mode-strip + catalog mounting into `dashboard.js`
+- [x] T4.10 Default-layout seeding test
+- [x] T4.11 Widget — `suggested-next.js`
+- [x] T4.12 Widget — `phase-deliverables.js`
+- [x] T4.13 Widget — `newly-unblocked.js`
+- [x] T4.14 Widget — `what-changed.js`
+- [x] T4.15 Widget — `last-session.js`
+- [x] T4.16 Widget — `open-issues.js`
+- [x] T4.17 Widget — `build-test-pulse.js`
+- [x] T4.18 Widget — `lessons-digest.js`
+- [x] T4.19 Widget — `quick-capture.js`
+- [x] T4.20 Widget — `recent-commits.js`
+- [x] T4.21 Widget — `agent-activity.js`
+- [x] T4.22 Widget — `stale-tasks.js`
+- [x] T4.23 Widget — `auto-mode-stepper.js` stub (Plan 6 fills in)
+- [x] T4.24 `edit-mode.js` — toggle + remove
+- [x] T4.25 Wire edit mode into the dashboard orchestrator
+- [x] T4.26 Drag-and-drop reorder within a rail
+- [x] T4.27 Size cycler on widget frame
+- [x] T4.28 Edit-mode tests (Playwright)
+- [x] T4.29 pytest scaffolding for the new endpoint
+- [x] T4.30 Implement the endpoint
+- [x] T4.31 Add `api.getRecentEvents()` to `js/api.js`
+- [x] T4.32 Stamp `last_seen_at` on dashboard mount
+- [x] T4.33 Spec §3.4 coverage walkthrough
+- [x] T4.34 150% zoom verification
+- [x] T4.35 Final integration smoke (Playwright 5/5 FAIL — see notes)
+- [x] T4.36 Plan handoff — type/contract self-review
+
+## Plan 5a — Sessions + Recap (38/38) ✓ COMPLETE
+*See `2026-04-26-viewer-redesign-plan-5a-sessions-recap.md` for task definitions.*
+- [x] T5a.1 Add `RECAP_SCHEMA_VERSION` and handover-kind mapping
+- [x] T5a.2 `recap_path()` + `_format_recap_markdown()` helper
+- [x] T5a.3 `save_recap()` writes file with frontmatter + 3 sections
+- [x] T5a.4 `load_recap()` returns parsed dict; missing → None
+- [x] T5a.5 `list_recaps()` enumerates the recaps directory
+- [x] T5a.6 `save_session_snapshot()` writes per-session snapshot
+- [x] T5a.7 `snapshot_diff(a, b)` returns structured delta
+- [x] T5a.8 `list_sessions()` synthesises sessions from PROGRESS.md + handovers
+- [x] T5a.9 `get_session_detail(sid)` bundles handovers + recap + tasks
+- [x] T5a.10 MCP tools `recap_get`, `recap_set`, `recap_list`, `snapshot_diff`
+- [x] T5a.11 HTTP `GET /api/sessions` + `GET /api/sessions/<sid>`
+- [x] T5a.12 HTTP `GET /api/recap/<sid>` + `PUT /api/recap/<sid>`
+- [x] T5a.13 HTTP `GET /api/snapshots/diff?from=&to=`
+- [x] T5a.14 Final server-side test sweep
+- [x] T5a.15 `diff-row.js` — `+`/`~`/`-` row component
+- [x] T5a.16 `parallel-block.test.js` — overlap-cluster algorithm
+- [x] T5a.17 `timeline.js` — clustering algorithm + render
+- [x] T5a.18 `right-rail.js` — generic 480px right-rail
+- [x] T5a.19 `recap-receipts-grid.js` — 2×2 diff card grid
+- [x] T5a.20 `snapshot-diff.test.js` — client mirror of server diff
+- [x] T5a.21 Run full pure-data test sweep
+- [x] T5a.22 Add API client methods to `js/api.js`
+- [x] T5a.23 `sessions.css` — base diary styling
+- [x] T5a.24 Right-rail CSS (shared, lives in components.css)
+- [x] T5a.25 `sessions.js` — module skeleton + mount
+- [x] T5a.26 Sessions screen — Playwright smoke test
+- [x] T5a.27 Wire `viewer:prefs-patch` event into store/api
+- [x] T5a.28 `recap.css` — hero + receipts styling
+- [x] T5a.29 `recap.js` skeleton + picker + prev/next
+- [x] T5a.30 Recap screen — Playwright smoke test
+- [x] T5a.31 Receipt-filter chips wire-up
+- [x] T5a.32 Hero stat-strip exclusion of handovers (regression guard)
+- [x] T5a.33 Right-rail close on Escape + outside-click
+- [x] T5a.34 Run full Plan 5a test sweep
+- [x] T5a.35 Spec §3.12 coverage walk — checklist tied to assertions
+- [x] T5a.36 Spec §3.16 coverage walk — checklist tied to assertions
+- [x] T5a.37 Cross-screen integration — Sessions row → Recap deep link
+- [x] T5a.38 Final integration sweep + plan handoff commit
+
+## Plan 5b — Lessons + Issues (32/32) ✓ COMPLETE
+*See `2026-04-26-viewer-redesign-plan-5b-lessons-issues.md` for task definitions.*
+- [x] T5b.1 Extend the lesson schema with `reinforce_events`
+- [x] T5b.2 Implement `lesson_reinforce()` helper
+- [x] T5b.3 Add `lesson_reinforce` MCP tool
+- [x] T5b.4 Add `POST /api/lessons/<id>/reinforce` HTTP endpoint
+- [x] T5b.5 Pure-Python `compute_lesson_shelf` helper
+- [x] T5b.6 `lesson_list_extended` MCP tool + `GET /api/lessons` endpoint
+- [x] T5b.7 Pure-Python `compute_issue_aging` helper
+- [x] T5b.8 `issue_list_extended` MCP tool + `GET /api/issues` endpoint
+- [x] T5b.9 `severity-glyph.js` — SVG hexagon symbol defs
+- [x] T5b.10 `aging-bar.js` + JS-side `computeAgingTier` + unit test
+- [x] T5b.11 `sparkline.js` — gold active-signal sparkline
+- [x] T5b.12 `dot-meter.js` — passive-signal anchor-match meter
+- [x] T5b.13 `anchor-pills.js` — mono pills with "When:" label
+- [x] T5b.14 `lesson-shelf-placement.test.js` — JS-side `computeShelfPlacement`
+- [x] T5b.15 `issue-blocks-count.test.js` — JS-side `computeBlocksCount`
+- [x] T5b.16 `severity-label.js` JS helper
+- [x] T5b.17 Extend `api.js` with `reinforceLesson`, `getLessons`, `getIssues`
+- [x] T5b.18 `css/screens/lessons.css` — three shelves + tokens
+- [x] T5b.19 `lesson-card.js` — full card with all signals
+- [x] T5b.20 `js/screens/lessons.js` — Shelves view (default)
+- [x] T5b.21 Playwright smoke — Lessons screen mounts and Reinforce works
+- [x] T5b.22 `css/screens/issues.css` — hybrid layout + card
+- [x] T5b.23 `issue-card.js` — bug-report flavor
+- [x] T5b.24 `js/screens/issues.js` — Hybrid view (default)
+- [x] T5b.25 Playwright smoke — Issues screen renders + repro expands
+- [x] T5b.26 Lessons screen — anchor-pills, since-caption, kind-icon assertions
+- [x] T5b.27 Issues screen — location, symptom, blocks-chip assertions
+- [x] T5b.28 Cross-screen routing smoke
+- [x] T5b.29 Threshold override — `viewer.lessons.thresholds` end-to-end
+- [x] T5b.30 Aging override — `viewer.issues.aging` end-to-end
+- [x] T5b.31 Reinforce-event source enforcement (viewer must send valid source)
+- [x] T5b.32 Final spec-coverage walk + plan handoff
+
+## Plan 6 — Auto Mode (43/58)
+*See `2026-04-26-viewer-redesign-plan-6-auto-mode.md` for task definitions.*
+- [x] T6.1 Define auto-mode storage layout constants
+- [x] T6.2 Implement `load_auto_session`, `save_auto_session`, `list_auto_sessions`
+- [x] T6.3 One-time migration of legacy `state.json` → `sessions/<sid>.json`
+- [x] T6.4 Wire migration into server startup
+- [x] T6.5 Implement `append_auto_event` and `read_auto_events`
+- [x] T6.6 Implement `read_hook_events` (read-only scrape)
+- [x] T6.7 Create `tests/test_server_auto_mode.py` skeleton + first endpoint test
+- [x] T6.8 `GET /api/auto/sessions/<sid>` — single session detail
+- [x] T6.9 `GET /api/auto/state` returns most-recent session (Plan-2 compat shim)
+- [x] T6.10 `POST /api/auto/pause` and `POST /api/auto/stop`
+- [x] T6.11 `GET /api/auto/events?sid=&since=`
+- [x] T6.12 `GET /api/auto/budget/<sid>` + `compute_budget`
+- [x] T6.13 MCP tools — `auto_state_get`, `auto_pause`, `auto_stop`, `auto_history`, `auto_event_log`
+- [x] T6.14 Extend `js/api.js` with auto-mode HTTP wrappers
+- [x] T6.15 Define exported function signatures for `auto-spine-layout.js`
+- [x] T6.16 Lock node radii (active=18, others=10) and y-positions
+- [x] T6.17 Lock connector geometry (start at edge, end at edge)
+- [x] T6.18 Lock satellite bezier control points (horizontal in/out tangents)
+- [x] T6.19 Edge case — no cursor stage (session paused/stopped)
+- [x] T6.20 Stub `quest-spine.js` — render an empty SVG into a root element
+- [x] T6.21 Add `auto-mode.css` — deep-recess frame and base spine styles
+- [x] T6.22 Mount the spine inside the auto-mode screen (smoke wiring only)
+- [x] T6.23 Wire Spine|Log toggle to `prefs.screens.auto_mode.view` (persisted)
+- [x] T6.24 Wire pause/stop buttons to `api.autoPause` / `api.autoStop`
+- [x] T6.25 Helper note shown on first visit only (persisted dismissal)
+- [x] T6.26 Spine renders title + worktree above the SVG
+- [x] T6.27 Empty-state — when there is no running auto-mode session
+- [x] T6.28 Sidebar live-dot publish — extend `store.autoState` setter
+- [x] T6.29 Flight log component skeleton
+- [x] T6.30 Flight log styles
+- [x] T6.31 Wire flight log into the auto-mode screen (Log view branch)
+- [x] T6.32 Poll events at 3-second cadence while Log view is active
+- [x] T6.33 Playwright smoke for Spine|Log toggle
+- [x] T6.34 Sessions strip component
+- [x] T6.35 Wire sessions strip into auto-mode screen
+- [x] T6.36 `store.setActiveAutoSession` + `getActiveAutoSession`
+- [x] T6.37 Budget meter component
+- [x] T6.38 Side-panels component (left + right)
+- [x] T6.39 Side-panel styles
+- [x] T6.40 Server endpoint augmentation — include `hook_counts` in session detail
+- [x] T6.41 Wire side panels into the auto-mode screen
+- [x] T6.42 Playwright — sessions strip with multiple sessions
+- [x] T6.43 Playwright — pause button fires API
+- [ ] T6.44 Replace the Plan-4 stub `auto-mode-stepper.js` with the real widget
+- [ ] T6.45 Stepper widget styles — circles, labels, footer
+- [ ] T6.46 Unit test — stepper connector geometry
+- [ ] T6.47 Verify widget catalog registration (Plan 4 hand-off)
+- [ ] T6.48 Playwright — dashboard widget click navigates to `#/auto`
+- [ ] T6.49 Widget hides itself when no session is running OR shows calm placeholder
+- [ ] T6.50 "+1 more" pill on the widget when multiple sessions are running
+- [ ] T6.51 Re-run unit + smoke after widget changes
+- [ ] T6.52 Sidebar live-dot — Playwright verifies it appears when state.cursor exists
+- [ ] T6.53 Helper note shows on first visit, not after dismissal
+- [ ] T6.54 Spine renders the right node count for given state — pin the assertion
+- [ ] T6.55 Stop button issues a confirm and posts on accept
+- [ ] T6.56 Full auto-mode test suite green-bar
+- [ ] T6.57 Update plan handoff document
+- [ ] T6.58 Final integration sanity (visual review checklist)
+
+## Post-execution
+- [ ] All 7 plans complete
+- [ ] Manual end-to-end smoke pass
+- [ ] viewer.use_v3 flipped to true
+- [ ] Soak window (1 week) before retiring legacy viewer

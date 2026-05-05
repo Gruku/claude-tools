@@ -17,8 +17,10 @@ import webbrowser
 from datetime import date, datetime
 from functools import partial
 from http import HTTPStatus
+from copy import deepcopy
 from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
 from pathlib import Path
+from typing import Any
 
 import yaml
 from fastmcp import FastMCP
@@ -44,6 +46,93 @@ VERSION = json.loads(_plugin_json.read_text(encoding="utf-8"))["version"] if _pl
 PRIORITY_NAMES = ("critical", "high", "medium", "low")
 _LEGACY_TO_NAME = {"P0": "critical", "P1": "high", "P2": "medium", "P3": "low"}
 _NAME_TO_LEGACY = {v: k for k, v in _LEGACY_TO_NAME.items()}
+
+# v3 layout primitives (schema versions, atomic writes, etc.) live in taskmaster_v3.
+# Re-imported here for in-module reference.
+from taskmaster_v3 import (
+    SCHEMA_V2,
+    SCHEMA_V3,
+    SCHEMA_DEFAULT,
+    HANDOVER_KINDS,
+    detect_schema_version as _detect_schema_version,
+    atomic_write as _atomic_write,
+    load_v3 as _load_v3,
+    save_v3 as _save_v3,
+    migrate_v2_to_v3 as _migrate_v2_to_v3,
+    take_snapshot as _take_snapshot,
+    write_snapshot as _write_snapshot,
+    read_snapshot as _read_snapshot,
+    diff_against_snapshot as _diff_against_snapshot,
+    format_recap as _format_recap,
+    write_handover as _write_handover,
+    read_handover as _read_handover,
+    apply_supersession as _apply_supersession,
+    apply_handover_review_flag as _apply_handover_review_flag,
+    list_handover_ids as _list_handover_ids,
+    latest_handover_id as _latest_handover_id,
+    sync_handover_index as _sync_handover_index,
+    ISSUE_STATUSES,
+    ISSUE_SEVERITIES,
+    write_issue as _write_issue,
+    read_issue as _read_issue,
+    update_issue as _update_issue,
+    list_issue_ids as _list_issue_ids,
+    sync_issue_index as _sync_issue_index,
+    LESSON_KINDS,
+    LESSON_TIERS,
+    write_lesson as _write_lesson,
+    read_lesson as _read_lesson,
+    update_lesson as _update_lesson,
+    reinforce_lesson as _reinforce_lesson,
+    list_lesson_ids as _list_lesson_ids,
+    match_lessons_for_task as _match_lessons_for_task,
+    lesson_digest as _lesson_digest,
+    core_lessons as _core_lessons,
+    sync_lesson_index as _sync_lesson_index,
+    lesson_eligible_for_promotion as _lesson_eligible_for_promotion,
+    LESSON_CANDIDATE_KINDS,
+    LESSON_CANDIDATE_SCOPES,
+    lesson_candidates_defer as _lesson_candidates_defer,
+    lesson_candidates_read as _lesson_candidates_read,
+    lesson_candidates_clear as _lesson_candidates_clear,
+    scan_transcripts_for_candidates as _scan_transcripts_for_candidates,
+    AUTO_MODES,
+    AUTO_STAGES,
+    AUTO_TASK_STATUSES,
+    AUTO_FAIL_REASONS,
+    init_auto_run as _init_auto_run,
+    read_auto_state as _read_auto_state,
+    write_auto_state as _write_auto_state,
+    clear_auto_state as _clear_auto_state,
+    advance_stage as _advance_stage,
+    complete_current_task as _complete_current_task,
+    auto_run_summary as _auto_run_summary,
+    load_viewer_prefs,
+    save_viewer_prefs,
+    load_recap,
+    save_recap,
+    list_recaps,
+    list_sessions,
+    get_session_detail,
+    load_session_snapshot,
+    snapshot_diff as _snapshot_diff,
+    read_hook_events as _read_hook_events,
+)
+
+
+def _load_auto_state():
+    """Read .taskmaster/auto/state.json, return parsed dict or None.
+
+    Returns None when the file is missing OR contains invalid JSON.
+    Used by GET /api/auto/state. Mutating writes are out of scope for Plan 2.
+    """
+    p = Path(".taskmaster") / "auto" / "state.json"
+    if not p.exists():
+        return None
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return None
 
 
 def _resolve_paths() -> tuple[Path, Path]:
@@ -128,8 +217,12 @@ def _normalize_priority(value: str) -> str:
 
 
 def _load() -> dict:
-    data = yaml.safe_load(_backlog_path().read_text(encoding="utf-8"))
-    # Backfill missing 'created' on tasks + normalize legacy priorities
+    bp = _backlog_path()
+    # Peek at version without per-file enrichment so we can dispatch.
+    raw = yaml.safe_load(bp.read_text(encoding="utf-8")) or {}
+    version = _detect_schema_version(raw)
+    data = _load_v3(bp) if version >= SCHEMA_V3 else raw
+    # Backfill missing 'created' on tasks + normalize legacy priorities (applies to both versions).
     for epic in data.get("epics", []):
         for t in epic.get("tasks", []):
             if not t.get("created"):
@@ -144,11 +237,13 @@ def _save(data: dict) -> None:
     with _backlog_lock:
         data["meta"]["updated"] = _today()
         bp = _backlog_path()
-        bp.parent.mkdir(parents=True, exist_ok=True)
-        bp.write_text(
-            yaml.dump(data, default_flow_style=False, sort_keys=False, allow_unicode=True),
-            encoding="utf-8",
-        )
+        if _detect_schema_version(data) >= SCHEMA_V3:
+            _save_v3(bp, data)
+        else:
+            _atomic_write(
+                bp,
+                yaml.dump(data, default_flow_style=False, sort_keys=False, allow_unicode=True),
+            )
 
 
 def _find_task(data: dict, task_id: str) -> tuple[dict, dict] | None:
@@ -470,6 +565,20 @@ def _mutate_and_save(data: dict) -> None:
     regenerate_context(data)
     _save(data)
     regenerate_progress_dashboard(data)
+
+
+def _deep_merge(dst: dict, src: dict) -> dict:
+    """Recursively merge *src* into *dst* in-place and return *dst*.
+
+    Dict-valued keys are merged recursively; all other values are replaced
+    with a deep copy of the source value.
+    """
+    for k, v in src.items():
+        if isinstance(v, dict) and isinstance(dst.get(k), dict):
+            _deep_merge(dst[k], v)
+        else:
+            dst[k] = deepcopy(v)
+    return dst
 
 
 def _task_context(data: dict, task: dict, epic: dict) -> str:
@@ -1101,7 +1210,7 @@ def backlog_validate() -> str:
 
 
 @mcp.tool()
-def backlog_init(project_name: str = "", location: str = "hidden") -> str:
+def backlog_init(project_name: str = "", location: str = "hidden", schema_version: int = 0) -> str:
     """Initialize taskmaster in the current project. Creates config, backlog.yaml, and PROGRESS.md.
 
     Args:
@@ -1109,9 +1218,17 @@ def backlog_init(project_name: str = "", location: str = "hidden") -> str:
         location: Where to store backlog files.
                   "hidden" — .claude/ directory (won't pollute repo, gitignored by default).
                   "tracked" — project root (visible, can be committed to git for team visibility).
+        schema_version: 2 (stable, single backlog.yaml) or 3 (latest, slim index +
+                  per-task files + handovers/issues/lessons/auto). 0 → use SCHEMA_DEFAULT.
+                  v3 init creates the directory layout up front (tasks/, handovers/,
+                  lessons/, issues/, snapshots/, auto/).
     """
     if location not in ("hidden", "tracked"):
         return f"Error: location must be 'hidden' or 'tracked', got '{location}'"
+    if schema_version == 0:
+        schema_version = SCHEMA_DEFAULT
+    if schema_version not in (SCHEMA_V2, SCHEMA_V3):
+        return f"Error: schema_version must be {SCHEMA_V2} or {SCHEMA_V3}, got {schema_version}"
 
     if not project_name:
         project_name = ROOT.name
@@ -1149,6 +1266,7 @@ def backlog_init(project_name: str = "", location: str = "hidden") -> str:
     initial_data = {
         "meta": {
             "project": project_name,
+            "schema_version": schema_version,
             "updated": _today(),
         },
         "context": {
@@ -1162,6 +1280,15 @@ def backlog_init(project_name: str = "", location: str = "hidden") -> str:
         "epics": [],
         "phases": [],
     }
+    if schema_version >= SCHEMA_V3:
+        # v3 adds top-level entity indexes + creates the directory layout.
+        initial_data["handovers"] = []
+        initial_data["issues"] = []
+        initial_data["lessons_meta"] = []
+        # Pre-create directories so first-run tooling has somewhere to write.
+        for sub in ("tasks", "handovers", "lessons", "issues", "snapshots", "auto"):
+            (backlog_abs.parent / sub).mkdir(parents=True, exist_ok=True)
+
     backlog_abs.write_text(
         yaml.dump(initial_data, default_flow_style=False, sort_keys=False, allow_unicode=True),
         encoding="utf-8",
@@ -1174,10 +1301,1097 @@ def backlog_init(project_name: str = "", location: str = "hidden") -> str:
     created.append(progress_rel)
 
     location_label = "`.claude/` (hidden from repo)" if location == "hidden" else "`.taskmaster/` (trackable in git)"
+    schema_label = "v3 (latest — narrative continuity)" if schema_version >= SCHEMA_V3 else "v2 (stable)"
     return (
-        f"Initialized taskmaster for **{project_name}** in {location_label}\n"
+        f"Initialized taskmaster for **{project_name}** in {location_label} on schema {schema_label}.\n"
         f"Created: {', '.join(created)}"
     )
+
+
+@mcp.tool()
+def backlog_migrate_v3() -> str:
+    """Migrate this project's backlog to v3 layout (slim index + per-task files).
+
+    v3 introduces narrative-continuity features (handovers, lessons, issues, recap,
+    auto modes). The on-disk shape changes: heavy task fields (description, notes,
+    docs, review_instructions) move out of `backlog.yaml` into per-task files at
+    `tasks/<id>.md`. Slim metadata (id, title, status, priority, etc.) stays in
+    `backlog.yaml` as the index.
+
+    The migration is idempotent — running on a v3 backlog is a no-op. The in-memory
+    shape is identical across versions, so existing tools/skills keep working.
+    """
+    bp = _backlog_path()
+    if not bp.exists():
+        return f"Error: no backlog found at {bp}. Run `backlog_init` first."
+    summary = _migrate_v2_to_v3(bp)
+    if summary["status"] == "already_v3":
+        return (
+            f"Already on v3 — {summary['tasks_total']} tasks, no changes made.\n"
+            f"Backlog at: {bp.relative_to(ROOT)}"
+        )
+    files = summary["task_files_written"]
+    files_msg = (
+        f"Wrote {len(files)} per-task files under `tasks/`."
+        if files
+        else "No tasks had heavy content — only the index was rewritten."
+    )
+    return (
+        f"Migrated v2 → v3.\n"
+        f"- Tasks: {summary['tasks_total']}\n"
+        f"- {files_msg}\n"
+        f"- Index: {bp.relative_to(ROOT)}\n"
+        f"\nv3 features (handovers, lessons, issues, recap, auto modes) will land in "
+        f"subsequent slices."
+    )
+
+
+@mcp.tool()
+def backlog_snapshot(quiet: bool = False) -> str:
+    """Capture a slim snapshot of the backlog for later recap diffing.
+
+    Snapshots are written to `<backlog_dir>/snapshots/last.json` (gitignored).
+    Each snapshot tracks per-task status/priority/stage/epic and the active
+    phase — enough to compute a "what changed since" diff without storing
+    full backlog history.
+
+    Args:
+        quiet: When true, return an empty string on success (use for hooks).
+               Errors still surface.
+    """
+    bp = _backlog_path()
+    if not bp.exists():
+        return "" if quiet else "No backlog found — nothing to snapshot."
+    try:
+        data = _load()
+    except Exception as exc:
+        return f"snapshot failed: {exc}"
+    snap = _take_snapshot(data)
+    sp = _write_snapshot(bp, snap)
+    if quiet:
+        return ""
+    return f"Snapshot written: {sp.relative_to(ROOT)} ({snap['structural_hash'][:18]}…)"
+
+
+@mcp.tool()
+def backlog_recap() -> str:
+    """Show what changed in the backlog since the last snapshot.
+
+    Compares the current backlog state against `<backlog_dir>/snapshots/last.json`
+    and renders a compact diff: tasks added/removed, status/priority/stage/epic
+    changes, and active-phase transitions. Returns guidance text when no prior
+    snapshot exists.
+    """
+    bp = _backlog_path()
+    if not bp.exists():
+        return "No backlog found."
+    try:
+        data = _load()
+    except Exception as exc:
+        return f"recap failed: {exc}"
+    prev = _read_snapshot(bp)
+    diff = _diff_against_snapshot(data, prev)
+    return _format_recap(diff)
+
+
+@mcp.tool()
+def backlog_handover_create(
+    tldr: str,
+    next_action: str = "",
+    body: str = "",
+    task_ids: list[str] | None = None,
+    session_kind: str = "end-of-day",
+    context_size_at_write: str = "",
+    supersedes: str = "",
+    branch: str = "",
+    tip_commit: str = "",
+    flag_for_review: bool = False,
+    review_reason: str = "",
+) -> str:
+    """Write a session handover — committed markdown artifact for cross-session
+    continuity.
+
+    Use to capture the unwritten context at the end of a long session: decisions
+    made, blockers, where to start tomorrow. The body is freeform markdown
+    (suggested sections: Decisions, Blockers, Where I'd start, Open threads).
+
+    Args:
+        tldr: One-line summary. Required.
+        next_action: One-line "where to start next session." Optional but useful.
+        body: Markdown body (the four-section narrative).
+        task_ids: Tasks this handover relates to (surfaces in pick-task).
+        session_kind: One of {", ".join(HANDOVER_KINDS)}.
+        context_size_at_write: Optional marker for compaction-prompted handovers.
+        supersedes: Optional id of an older handover this one supersedes. When
+            set, the new handover records `supersedes:` in its frontmatter and
+            the old handover gets a `superseded_by:` field plus a SUPERSEDED
+            callout prepended to its body. Use for milestone-complete or pivot
+            chains.
+        branch: Optional git branch name. Lands in frontmatter when set.
+        tip_commit: Optional tip commit SHA (short or long). Lands in
+            frontmatter when set.
+        flag_for_review: When True, marks this handover for retro extraction in
+            the next lesson-sweep session. Sets `flag_for_review: true` and
+            `review_reason` in the handover's frontmatter.
+        review_reason: Free-text reason for the review flag (e.g. "multi-tab
+            fanout retro"). Only used when `flag_for_review` is True.
+    """
+    bp = _backlog_path()
+    if not bp.exists():
+        return f"Error: no backlog found at {bp}. Run `backlog_init` first."
+    try:
+        hid, target = _write_handover(
+            bp,
+            tldr=tldr,
+            next_action=next_action,
+            body=body,
+            task_ids=task_ids or [],
+            session_kind=session_kind,
+            context_size_at_write=context_size_at_write or None,
+            supersedes=supersedes or None,
+            branch=branch or None,
+            tip_commit=tip_commit or None,
+        )
+    except ValueError as exc:
+        return f"Error: {exc}"
+
+    superseded_warning = None
+    if supersedes:
+        try:
+            _apply_supersession(bp, old_id=supersedes, new_id=hid)
+        except FileNotFoundError:
+            superseded_warning = (
+                f"WARNING: supersedes={supersedes} not found on disk; old "
+                f"handover not updated."
+            )
+
+    if flag_for_review:
+        try:
+            _apply_handover_review_flag(
+                bp, handover_id=hid, review_reason=review_reason or ""
+            )
+        except FileNotFoundError as exc:
+            return f"Error: handover not found: {exc}."
+
+    data = _load()
+    _sync_handover_index(data, bp)
+    _save(data)
+
+    lines = [
+        f"Handover written: {hid}",
+        f"- File: {target.relative_to(ROOT)}",
+        f"- Index entries: {len(data.get('handovers') or [])}",
+    ]
+    if supersedes and not superseded_warning:
+        lines.append(f"- Superseded: {supersedes}")
+    if superseded_warning:
+        lines.append(f"- {superseded_warning}")
+    if flag_for_review:
+        lines.append(f"- Flagged for review: {review_reason}")
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def backlog_handover_list(
+    task_id: str = "",
+    session_kind: str = "",
+    since: str = "",
+    limit: int = 10,
+) -> str:
+    """List recent handovers (slim metadata only — no bodies).
+
+    Reads from the backlog.yaml index, which is bounded to the most recent 30.
+    Older handovers are still on disk under handovers/_archive/ but not listed
+    here — fetch by id with `backlog_handover_get` if needed.
+
+    Args:
+        task_id: If set, only entries whose `task_ids` list contains this id.
+        session_kind: If set, only entries with this session_kind
+            (e.g. "end-of-day", "context-handoff", "milestone-complete").
+        since: ISO date string (YYYY-MM-DD). If set, only entries whose
+            date prefix is >= since. Raises ValueError for invalid formats.
+        limit: Maximum number of entries to return after filtering (default 10).
+    """
+    bp = _backlog_path()
+    if not bp.exists():
+        return "No backlog found."
+    data = _load()
+    entries = list(data.get("handovers") or [])
+
+    # Validate `since` before filtering so we fail fast on bad input.
+    if since:
+        from datetime import date as _date
+        try:
+            _date.fromisoformat(since)
+        except ValueError:
+            return f"Error: `since` must be a date in YYYY-MM-DD format, got {since!r}."
+
+    # Apply filters in spec order.
+    if task_id:
+        entries = [e for e in entries if task_id in e.get("task_ids", [])]
+    if session_kind:
+        entries = [e for e in entries if e.get("session_kind") == session_kind]
+    if since:
+        entries = [e for e in entries if e.get("id", "") >= since]
+
+    # Truncate to limit after all filters.
+    entries = entries[: max(1, limit)]
+
+    if not entries:
+        filtered = any([task_id, session_kind, since])
+        return "No handovers match those filters." if filtered else "No handovers yet."
+
+    lines = []
+    for e in entries:
+        kind = e.get("session_kind", "")
+        tag = f" [{kind}]" if kind else ""
+        lines.append(f"- {e['id']}{tag} — {e.get('tldr', '')}")
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def backlog_handover_get(handover_id: str) -> str:
+    """Read a handover's full content (frontmatter + body).
+
+    Use when start-session shows a handover tldr that you want to read in full,
+    or when picking a task that has linked handovers.
+    """
+    bp = _backlog_path()
+    if not bp.exists():
+        return "No backlog found."
+    try:
+        fm, body = _read_handover(bp, handover_id)
+    except FileNotFoundError:
+        # Maybe it's archived?
+        archive_root = bp.parent / "handovers" / "_archive"
+        candidates = list(archive_root.rglob(f"{handover_id}.md")) if archive_root.exists() else []
+        if not candidates:
+            return f"Handover not found: {handover_id}"
+        from taskmaster_v3 import read_task_file as _read_task_file
+        fm, body = _read_task_file(candidates[0])
+
+    fm_lines = [f"  {k}: {v}" for k, v in fm.items()]
+    return "---\n" + "\n".join(fm_lines) + "\n---\n" + body
+
+
+@mcp.tool()
+def backlog_handover_latest() -> str:
+    """Return the latest handover's frontmatter (lightweight).
+
+    Use this in start-session to surface 'where I left off' without loading the
+    full body. Body fetch is on-demand via `backlog_handover_get`.
+    """
+    bp = _backlog_path()
+    if not bp.exists():
+        return "No backlog found."
+    hid = _latest_handover_id(bp)
+    if not hid:
+        return "No handovers yet."
+    fm, _ = _read_handover(bp, hid)
+    return (
+        f"Latest handover: {hid}\n"
+        f"- TLDR: {fm.get('tldr', '')}\n"
+        f"- Next: {fm.get('next_action', '(none)')}\n"
+        f"- Tasks: {', '.join(fm.get('task_ids') or []) or '(none)'}\n"
+        f"- Kind: {fm.get('session_kind', 'end-of-day')}\n"
+        f"\nFetch body with `backlog_handover_get {hid}`."
+    )
+
+
+@mcp.tool()
+def backlog_handover_resync() -> str:
+    """Rebuild the handover index in backlog.yaml from disk.
+
+    Useful after manual edits to the handovers/ directory (deletes, renames),
+    or to enforce the 30-entry cap and archive overflow.
+    """
+    bp = _backlog_path()
+    if not bp.exists():
+        return "No backlog found."
+    data = _load()
+    _sync_handover_index(data, bp)
+    _save(data)
+    n = len(data.get("handovers") or [])
+    return f"Handover index resynced — {n} entries in `backlog.yaml`."
+
+
+@mcp.tool()
+def backlog_handover_supersede(old_id: str, new_id: str) -> str:
+    """Mark an existing handover as superseded by another.
+
+    Edits the old handover in place: prepends a SUPERSEDED callout, sets
+    `superseded_by: <new_id>` in its frontmatter. Use this to repair a
+    supersession chain after the fact (e.g., a handover was written without
+    `supersedes=`, but should chain off a prior one).
+
+    Both ids must exist on disk. Idempotent on the same `old_id` — calling it
+    again with a newer `new_id` updates the pointer instead of stacking
+    callouts.
+    """
+    bp = _backlog_path()
+    if not bp.exists():
+        return "No backlog found."
+    try:
+        old_path = _apply_supersession(bp, old_id=old_id, new_id=new_id)
+    except FileNotFoundError as exc:
+        return f"Error: handover not found: {exc}."
+    return f"Superseded {old_id} → {new_id} ({old_path.name} updated)."
+
+
+@mcp.tool()
+def backlog_issue_create(
+    title: str,
+    severity: str,
+    impact: str = "",
+    components: list[str] | None = None,
+    location: list[str] | None = None,
+    related_tasks: list[str] | None = None,
+    discovered_by: str = "",
+    body: str = "",
+) -> str:
+    """Log a bug as a first-class issue, separate from tasks.
+
+    A *task* is the unit of work; an *issue* is the unit of broken-ness.
+    One issue can spawn multiple fix attempts; one task can close many issues.
+
+    Args:
+        title: Required. Short summary.
+        severity: One of P0 (data loss/security), P1, P2, P3 (cosmetic).
+        impact: Why this matters (user-visible consequences).
+        components: Tags for which parts of the system are affected.
+        location: file:line refs to relevant code.
+        related_tasks: Task ids attempting or related to this issue.
+        discovered_by: Who/what found it (manual QA, alert, customer report).
+        body: Markdown body for repro steps + investigation notes.
+    """
+    bp = _backlog_path()
+    if not bp.exists():
+        return f"Error: no backlog found at {bp}. Run `backlog_init` first."
+    if severity not in ISSUE_SEVERITIES:
+        return f"Error: severity must be one of {ISSUE_SEVERITIES}"
+    try:
+        iid, target = _write_issue(
+            bp,
+            title=title,
+            severity=severity,
+            impact=impact,
+            components=components or [],
+            location=location or [],
+            related_tasks=related_tasks or [],
+            discovered_by=discovered_by,
+            body=body,
+        )
+    except ValueError as exc:
+        return f"Error: {exc}"
+
+    data = _load()
+    _sync_issue_index(data, bp)
+    _save(data)
+    return f"Issue created: {iid} ({severity}) — {title}\nFile: {target.relative_to(ROOT)}"
+
+
+@mcp.tool()
+def backlog_issue_list(
+    severity: str = "",
+    status: str = "",
+    limit: int = 20,
+) -> str:
+    """List issues, optionally filtered by severity and/or status.
+
+    Reads from the backlog.yaml index (sorted P0 → P3). Default lists the
+    top 20 active issues regardless of status — pass `status=open` to
+    focus on what still needs work.
+    """
+    bp = _backlog_path()
+    if not bp.exists():
+        return "No backlog found."
+    data = _load()
+    entries = data.get("issues") or []
+    if severity:
+        entries = [e for e in entries if e.get("severity") == severity]
+    if status:
+        entries = [e for e in entries if e.get("status") == status]
+    entries = entries[: max(1, limit)]
+    if not entries:
+        return "No issues match."
+    lines = []
+    for e in entries:
+        comps = ", ".join(e.get("components") or [])
+        comps_tag = f" [{comps}]" if comps else ""
+        lines.append(
+            f"- {e['id']} {e.get('severity', '?')} {e.get('status', '?'):14} "
+            f"— {e.get('title', '')}{comps_tag}"
+        )
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def backlog_issue_get(issue_id: str) -> str:
+    """Read an issue's full content (frontmatter + body)."""
+    bp = _backlog_path()
+    if not bp.exists():
+        return "No backlog found."
+    try:
+        fm, body = _read_issue(bp, issue_id)
+    except FileNotFoundError:
+        return f"Issue not found: {issue_id}"
+    fm_lines = [f"  {k}: {v}" for k, v in fm.items()]
+    return "---\n" + "\n".join(fm_lines) + "\n---\n" + body
+
+
+@mcp.tool()
+def backlog_issue_update(
+    issue_id: str,
+    status: str = "",
+    title: str = "",
+    severity: str = "",
+    impact: str = "",
+    components: list[str] | None = None,
+    location: list[str] | None = None,
+    related_tasks: list[str] | None = None,
+    fixed_in_task: str = "",
+    duplicate_of: str = "",
+    body: str = "",
+) -> str:
+    """Update an issue's metadata or body. Pass empty strings/None to skip a field.
+
+    Lifecycle constraints enforced:
+    - status=fixed requires fixed_in_task to be set.
+    - status=duplicate requires duplicate_of to be set.
+    - resolved date is auto-filled when status moves to fixed.
+    """
+    bp = _backlog_path()
+    if not bp.exists():
+        return "No backlog found."
+    updates: dict[str, Any] = {}
+    if status:
+        if status not in ISSUE_STATUSES:
+            return f"Error: status must be one of {ISSUE_STATUSES}"
+        updates["status"] = status
+    if title:
+        updates["title"] = title
+    if severity:
+        if severity not in ISSUE_SEVERITIES:
+            return f"Error: severity must be one of {ISSUE_SEVERITIES}"
+        updates["severity"] = severity
+    if impact:
+        updates["impact"] = impact
+    if components is not None:
+        updates["components"] = components
+    if location is not None:
+        updates["location"] = location
+    if related_tasks is not None:
+        updates["related_tasks"] = related_tasks
+    if fixed_in_task:
+        updates["fixed_in_task"] = fixed_in_task
+    if duplicate_of:
+        updates["duplicate_of"] = duplicate_of
+    if body:
+        updates["body"] = body
+
+    try:
+        fm, _ = _update_issue(bp, issue_id, **updates)
+    except FileNotFoundError:
+        return f"Issue not found: {issue_id}"
+    except ValueError as exc:
+        return f"Error: {exc}"
+
+    data = _load()
+    _sync_issue_index(data, bp)
+    _save(data)
+    return f"Issue updated: {issue_id} → status={fm['status']}, severity={fm['severity']}"
+
+
+@mcp.tool()
+def backlog_issue_resync() -> str:
+    """Rebuild the issue index in backlog.yaml from disk."""
+    bp = _backlog_path()
+    if not bp.exists():
+        return "No backlog found."
+    data = _load()
+    _sync_issue_index(data, bp)
+    _save(data)
+    n = len(data.get("issues") or [])
+    return f"Issue index resynced — {n} entries."
+
+
+@mcp.tool()
+def viewer_prefs_get() -> str:
+    """Return current viewer prefs as JSON."""
+    import json
+    prefs = load_viewer_prefs()
+    return json.dumps(prefs, indent=2)
+
+
+@mcp.tool()
+def viewer_prefs_set(patch_json: str) -> str:
+    """Deep-merge a JSON patch into the persisted viewer prefs.
+    Patch is a JSON object; only the keys present are updated.
+    """
+    import json
+    try:
+        patch = json.loads(patch_json)
+    except Exception as e:
+        return f"error: invalid JSON ({e})"
+    if not isinstance(patch, dict):
+        return "error: patch must be a JSON object"
+
+    prefs = load_viewer_prefs()
+    _deep_merge(prefs, patch)
+    save_viewer_prefs(prefs)
+    return "ok"
+
+
+@mcp.tool()
+def backlog_lesson_create(
+    title: str,
+    kind: str,
+    body: str = "",
+    files: list[str] | None = None,
+    task_titles_match: list[str] | None = None,
+    task_kinds: list[str] | None = None,
+    related_tasks: list[str] | None = None,
+    related_issues: list[str] | None = None,
+    tier: str = "active",
+) -> str:
+    """Create a project-scoped lesson — a reusable pattern, anti-pattern, or gotcha.
+
+    Lessons compound: each session reinforces lessons that get applied,
+    raising their priority. Auto-promote to 'core' tier (always loaded full)
+    when a gotcha/anti-pattern reaches reinforce_count >= 5.
+
+    Triggers determine when this lesson loads on `pick-task`:
+    - files: glob patterns matched against files the task will touch.
+    - task_titles_match: substrings checked against the task title.
+    - task_kinds: list of task kinds (feature/bug/spike/etc).
+
+    Args:
+        title: Required. One-line summary of the lesson.
+        kind: pattern | anti-pattern | gotcha.
+        body: Markdown body. Suggested sections: ## Why, ## What to do, ## Examples.
+        files: Glob patterns for trigger matching.
+        task_titles_match: Substrings for trigger matching.
+        task_kinds: Task kinds for trigger matching.
+        related_tasks / related_issues: Cross-refs.
+        tier: active (default) | core | retired.
+    """
+    bp = _backlog_path()
+    if not bp.exists():
+        return f"Error: no backlog found at {bp}. Run `backlog_init` first."
+    if kind not in LESSON_KINDS:
+        return f"Error: kind must be one of {LESSON_KINDS}"
+    if tier not in LESSON_TIERS:
+        return f"Error: tier must be one of {LESSON_TIERS}"
+    triggers = {
+        "files": files or [],
+        "task_titles_match": task_titles_match or [],
+        "task_kinds": task_kinds or [],
+    }
+    try:
+        lid, target = _write_lesson(
+            bp,
+            title=title,
+            kind=kind,
+            triggers=triggers,
+            body=body,
+            tier=tier,
+            related_tasks=related_tasks or [],
+            related_issues=related_issues or [],
+        )
+    except ValueError as exc:
+        return f"Error: {exc}"
+
+    data = _load()
+    _sync_lesson_index(data, bp)
+    _save(data)
+    return f"Lesson created: {lid} ({kind}, {tier}) — {title}\nFile: {target.relative_to(ROOT)}"
+
+
+@mcp.tool()
+def backlog_lesson_list(tier: str = "", kind: str = "") -> str:
+    """List lessons, optionally filtered by tier and/or kind."""
+    bp = _backlog_path()
+    if not bp.exists():
+        return "No backlog found."
+    lines = []
+    for lid in _list_lesson_ids(bp):
+        try:
+            fm, _ = _read_lesson(bp, lid)
+        except Exception:
+            continue
+        if tier and fm.get("tier") != tier:
+            continue
+        if kind and fm.get("kind") != kind:
+            continue
+        rc = fm.get("reinforce_count", 0)
+        lines.append(f"- {fm['id']} [{fm.get('tier','active')}/{fm.get('kind','?')}] x{rc} — {fm.get('title','')}")
+    return "\n".join(lines) if lines else "No lessons match."
+
+
+@mcp.tool()
+def backlog_lesson_get(lesson_id: str) -> str:
+    """Read a lesson's full content (frontmatter + body)."""
+    bp = _backlog_path()
+    if not bp.exists():
+        return "No backlog found."
+    try:
+        fm, body = _read_lesson(bp, lesson_id)
+    except FileNotFoundError:
+        return f"Lesson not found: {lesson_id}"
+    fm_lines = [f"  {k}: {v}" for k, v in fm.items()]
+    return "---\n" + "\n".join(fm_lines) + "\n---\n" + body
+
+
+@mcp.tool()
+def backlog_lesson_update(
+    lesson_id: str,
+    title: str = "",
+    kind: str = "",
+    tier: str = "",
+    files: list[str] | None = None,
+    task_titles_match: list[str] | None = None,
+    task_kinds: list[str] | None = None,
+    body: str = "",
+) -> str:
+    """Update a lesson's metadata or body. Pass empty values to skip a field."""
+    bp = _backlog_path()
+    if not bp.exists():
+        return "No backlog found."
+    updates: dict[str, Any] = {}
+    if title:
+        updates["title"] = title
+    if kind:
+        if kind not in LESSON_KINDS:
+            return f"Error: kind must be one of {LESSON_KINDS}"
+        updates["kind"] = kind
+    if tier:
+        if tier not in LESSON_TIERS:
+            return f"Error: tier must be one of {LESSON_TIERS}"
+        updates["tier"] = tier
+    if files is not None or task_titles_match is not None or task_kinds is not None:
+        # Need a fresh read to merge trigger fields
+        fm, _ = _read_lesson(bp, lesson_id)
+        triggers = dict(fm.get("triggers") or {})
+        if files is not None:
+            triggers["files"] = files
+        if task_titles_match is not None:
+            triggers["task_titles_match"] = task_titles_match
+        if task_kinds is not None:
+            triggers["task_kinds"] = task_kinds
+        updates["triggers"] = triggers
+    if body:
+        updates["body"] = body
+    try:
+        _update_lesson(bp, lesson_id, **updates)
+    except FileNotFoundError:
+        return f"Lesson not found: {lesson_id}"
+    except ValueError as exc:
+        return f"Error: {exc}"
+    data = _load()
+    _sync_lesson_index(data, bp)
+    _save(data)
+    return f"Lesson updated: {lesson_id}"
+
+
+@mcp.tool()
+def backlog_lesson_reinforce(lesson_id: str) -> str:
+    """Mark a lesson as applied this session (reinforce_count++, last_reinforced=today).
+
+    Suggests promotion to core tier when a gotcha/anti-pattern reaches the
+    reinforcement threshold.
+    """
+    bp = _backlog_path()
+    if not bp.exists():
+        return "No backlog found."
+    try:
+        fm = _reinforce_lesson(bp, lesson_id)
+    except FileNotFoundError:
+        return f"Lesson not found: {lesson_id}"
+    msg = f"Reinforced {lesson_id} → x{fm['reinforce_count']}"
+    if _lesson_eligible_for_promotion(fm):
+        msg += "\n→ Eligible for promotion to core tier (auto-load at session start). Use `backlog_lesson_update {} tier=core` to promote.".format(lesson_id)
+    return msg
+
+
+@mcp.tool()
+def lesson_reinforce(lesson_id: str, source: str = "user", note: str = "") -> str:
+    """Record a reinforcement event for a lesson.
+
+    Args:
+        lesson_id: e.g. "L-014"
+        source: one of "user" | "claude" | "skill"
+        note: optional free-text annotation
+
+    Returns the updated lesson summary as a JSON string.
+    """
+    import json as _json
+    from taskmaster_v3 import lesson_reinforce as _impl
+
+    try:
+        summary = _impl(lesson_id, source=source, note=note)
+    except FileNotFoundError:
+        return _json.dumps({"ok": False, "error": f"lesson {lesson_id} not found"})
+    except ValueError as e:
+        return _json.dumps({"ok": False, "error": str(e)})
+    return _json.dumps(summary, indent=2, default=str)
+
+
+@mcp.tool()
+def backlog_lesson_digest() -> str:
+    """Return the slim digest of active-tier lessons for session-start injection.
+
+    Format: one line per lesson with id, kind, title. Capped at 30 entries.
+    Excludes core (loaded separately, full body) and retired tiers.
+    """
+    bp = _backlog_path()
+    if not bp.exists():
+        return "No backlog found."
+    digest = _lesson_digest(bp)
+    if not digest:
+        return "No active lessons."
+    return "\n".join(f"- {d['id']} [{d['kind']}] {d['title']}" for d in digest)
+
+
+def _transcripts_dir() -> Path:
+    """Resolve the Claude project transcripts directory.
+
+    Override with `TASKMASTER_TRANSCRIPTS_DIR` for tests. Default is
+    `~/.claude/projects/<encoded-cwd>/` per Claude Code's storage layout.
+    """
+    override = os.environ.get("TASKMASTER_TRANSCRIPTS_DIR")
+    if override:
+        return Path(override)
+    home = Path.home() / ".claude" / "projects"
+    encoded = str(ROOT.resolve()).replace("\\", "-").replace("/", "-").replace(":", "")
+    return home / encoded
+
+
+@mcp.tool()
+def backlog_lesson_candidate_defer(
+    title: str,
+    kind: str = "",
+    topic: str = "",
+    scope: str = "point",
+    context: str = "",
+) -> str:
+    """Defer a lesson candidate to `.taskmaster/lessons/_candidates.md`.
+
+    Use mid-session when Claude wants to flag a candidate but the user isn't
+    ready to write a full lesson. End-session sweep reads this file.
+
+    Args:
+        title: One-line summary. Required.
+        kind: pattern | anti-pattern | gotcha. Optional — leave empty to
+            classify later during the sweep.
+        topic: One-word handle for grouping in the sweep UI.
+        scope: 'point' (default) or 'session' (flags the active handover for
+            retro-extraction; see references/session-retro.md).
+        context: Free text — session id, commit sha, anything traceable.
+    """
+    bp = _backlog_path()
+    if not bp.exists():
+        return f"Error: no backlog found at {bp}. Run `backlog_init` first."
+    try:
+        idx = _lesson_candidates_defer(
+            bp,
+            title=title,
+            kind=kind,
+            topic=topic,
+            scope=scope,
+            context=context,
+        )
+    except ValueError as exc:
+        return f"Error: {exc}"
+    return f"Deferred candidate #{idx}: {title.strip()}"
+
+
+@mcp.tool()
+def backlog_lesson_candidates_list() -> str:
+    """List deferred lesson candidates (markdown bullet list, indexed)."""
+    bp = _backlog_path()
+    if not bp.exists():
+        return f"Error: no backlog found at {bp}."
+    items = _lesson_candidates_read(bp)
+    if not items:
+        return "No deferred candidates."
+    lines = []
+    for idx, it in enumerate(items):
+        kind = it.get("kind") or "?"
+        topic = it.get("topic") or ""
+        scope = it.get("scope") or "point"
+        head = f"- [#{idx}] [{kind}/{scope}]"
+        if topic:
+            head += f" ({topic})"
+        head += f" — {it.get('title', '')}"
+        lines.append(head)
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def backlog_lesson_candidate_drop(index: int) -> str:
+    """Drop the deferred candidate at `index` (0-based)."""
+    bp = _backlog_path()
+    if not bp.exists():
+        return f"Error: no backlog found at {bp}."
+    items = _lesson_candidates_read(bp)
+    if index < 0 or index >= len(items):
+        return f"Error: candidate #{index} not found (have {len(items)} entries)."
+    title = items[index].get("title", "")
+    n = _lesson_candidates_clear(bp, indices=[index])
+    if not n:
+        return f"Error: candidate #{index} not found."
+    return f"Dropped candidate #{index}: {title}"
+
+
+@mcp.tool()
+def backlog_lesson_candidates_scan(days: int = 7, kind: str = "") -> str:
+    """Grep this project's transcript jsonl for `<lesson-candidate>` tags.
+
+    Recovery path for tags lost to compaction (until the PreCompact hook in
+    v3-skills-006 lands, this is the only such path). Reads
+    `~/.claude/projects/<this-project>/*.jsonl` within the last `days` days.
+
+    Args:
+        days: Window in days (default 7).
+        kind: Filter to a single kind (gotcha / pattern / anti-pattern).
+
+    Returns markdown grouped by source jsonl filename.
+    """
+    transcripts = _transcripts_dir()
+    if not transcripts.exists():
+        return f"No transcripts directory at {transcripts}."
+    matches = _scan_transcripts_for_candidates(
+        transcripts, days=days, kind_filter=kind
+    )
+    if not matches:
+        return f"No `<lesson-candidate>` tags found in last {days} days."
+    by_file: dict[str, list[dict[str, Any]]] = {}
+    for m in matches:
+        by_file.setdefault(Path(m["source_file"]).name, []).append(m)
+    lines: list[str] = []
+    for fname, items in by_file.items():
+        lines.append(f"## {fname}")
+        for it in items:
+            tag = f"[{it.get('kind') or '?'}]"
+            topic = f" ({it['topic']})" if it.get("topic") else ""
+            preview = (it.get("body") or "").splitlines()[0][:100]
+            lines.append(
+                f"- L{it['source_line']} {tag}{topic} — {preview}"
+            )
+        lines.append("")
+    return "\n".join(lines).rstrip()
+
+
+@mcp.tool()
+def backlog_auto_start(
+    mode: str,
+    target: str,
+    continue_on_fail: bool = False,
+    no_gate: bool = False,
+) -> str:
+    """Start an auto run (skill-driven state machine).
+
+    The orchestrating skill (taskmaster:auto-task / auto-epic / auto-phase)
+    drives Claude through PICK → SPEC_REVIEW → IMPLEMENT → REVIEW_GATE →
+    HANDOVER_STUB → END_SESSION for each task. This tool seeds the run.
+
+    Args:
+        mode: 'task', 'epic', or 'phase'.
+        target: Task id (mode=task), epic id (mode=epic), or phase id (mode=phase).
+        continue_on_fail: If true, batch runs proceed past failed tasks.
+        no_gate: If true, skip user-approval gates (SPEC_REVIEW, REVIEW_GATE).
+
+    Per-task model selection:
+        Each task may declare `auto_model: sonnet|opus`. Missing → sonnet.
+        The orchestrator skill reads `state.cursor.model` to pick the
+        subagent model when dispatching.
+    """
+    if mode not in AUTO_MODES:
+        return f"Error: mode must be one of {AUTO_MODES}"
+    bp = _backlog_path()
+    if not bp.exists():
+        return "No backlog found."
+
+    data = _load()
+    pending: list[str] = []
+    model_for_task: dict[str, str] = {}
+
+    if mode == "task":
+        # target is a task id
+        if not _find_task(data, target):
+            return f"Error: task {target} not found"
+        task, _ = _find_task(data, target)
+        pending = [target]
+        model_for_task[target] = task.get("auto_model", "sonnet")
+    elif mode == "epic":
+        epic = next((e for e in data.get("epics") or [] if e.get("id") == target), None)
+        if not epic:
+            return f"Error: epic {target} not found"
+        for t in epic.get("tasks") or []:
+            if t.get("status") in (None, "todo"):
+                pending.append(t["id"])
+                model_for_task[t["id"]] = t.get("auto_model", "sonnet")
+    else:  # phase
+        for epic in data.get("epics") or []:
+            for t in epic.get("tasks") or []:
+                if t.get("phase") == target and t.get("status") in (None, "todo"):
+                    pending.append(t["id"])
+                    model_for_task[t["id"]] = t.get("auto_model", "sonnet")
+
+    if not pending:
+        return f"No todo tasks under {mode} {target} — nothing to do."
+
+    state = _init_auto_run(
+        bp,
+        mode=mode,
+        target=target,
+        pending_task_ids=pending,
+        model_for_task=model_for_task,
+        config={"continue_on_fail": continue_on_fail, "no_gate": no_gate},
+    )
+
+    cur = state["cursor"]
+    return (
+        f"Auto run started: mode={mode}, target={target}, tasks={len(pending)}.\n"
+        f"First task: {cur['task_id']} (model={cur['model']}).\n"
+        f"Cursor stage: PICK. The auto-{mode} skill should drive from here."
+    )
+
+
+@mcp.tool()
+def backlog_auto_status() -> str:
+    """Show current auto-run status (which task, which stage, completed/pending counts)."""
+    bp = _backlog_path()
+    if not bp.exists():
+        return "No backlog found."
+    state = _read_auto_state(bp)
+    if not state:
+        return "No auto run in progress."
+    return _auto_run_summary(state)
+
+
+@mcp.tool()
+def backlog_auto_advance(stage: str) -> str:
+    """Move the cursor to a new stage. Used by orchestrating skills between steps.
+
+    Valid stages: PICK, SPEC_REVIEW, WRITE_TESTS, IMPLEMENT, TEST,
+    REVIEW_GATE, HANDOVER_STUB, END_SESSION, COMPLETE.
+    """
+    if stage not in AUTO_STAGES:
+        return f"Error: stage must be one of {AUTO_STAGES}"
+    bp = _backlog_path()
+    state = _read_auto_state(bp)
+    if not state:
+        return "No auto run in progress."
+    try:
+        _advance_stage(state, stage)
+    except ValueError as exc:
+        return f"Error: {exc}"
+    _write_auto_state(bp, state)
+    cur = state["cursor"]
+    return f"Stage → {stage} (task={cur['task_id']}, model={cur['model']})"
+
+
+@mcp.tool()
+def backlog_auto_complete_task(
+    status: str,
+    summary: str = "",
+    commits: list[str] | None = None,
+    fail_reason: str = "",
+    handover_id: str = "",
+) -> str:
+    """Finalize the current cursor task and advance to the next pending task.
+
+    Args:
+        status: 'done' | 'failed' | 'blocked'.
+        summary: One-paragraph summary returned by the task subagent.
+        commits: Commit shas produced by the task.
+        fail_reason: Required if status != 'done'. One of tests-failed |
+                     spec-rejected | blocked | crashed | user-aborted.
+        handover_id: If a per-task handover was written, its id.
+    """
+    if status not in AUTO_TASK_STATUSES:
+        return f"Error: status must be one of {AUTO_TASK_STATUSES}"
+    if status != "done" and not fail_reason:
+        return "Error: fail_reason is required when status != 'done'"
+    bp = _backlog_path()
+    state = _read_auto_state(bp)
+    if not state:
+        return "No auto run in progress."
+    try:
+        _complete_current_task(
+            state,
+            status=status,
+            summary=summary,
+            commits=commits or [],
+            fail_reason=fail_reason,
+            handover_id=handover_id,
+        )
+    except ValueError as exc:
+        return f"Error: {exc}"
+    _write_auto_state(bp, state)
+
+    if state["cursor"] is None:
+        return (
+            f"Task complete (status={status}). No more pending tasks — auto run is done.\n"
+            f"Completed: {len(state['completed'])}, Failed: {len(state['failed'])}.\n"
+            f"Use `backlog_auto_finish` to clear state and write run-level handover."
+        )
+    cur = state["cursor"]
+    return (
+        f"Task complete (status={status}). Next: {cur['task_id']} (model={cur['model']}, stage={cur['stage']}).\n"
+        f"Completed so far: {len(state['completed'])}, Pending: {len(state['pending'])}, Failed: {len(state['failed'])}."
+    )
+
+
+@mcp.tool()
+def backlog_auto_finish() -> str:
+    """Clear the auto state file. Call after the run-level handover is written."""
+    bp = _backlog_path()
+    state = _read_auto_state(bp)
+    if not state:
+        return "No auto run to finish."
+    cleared = _clear_auto_state(bp)
+    return f"Auto run cleared. Final: completed={len(state.get('completed') or [])}, failed={len(state.get('failed') or [])}." if cleared else "No state to clear."
+
+
+@mcp.tool()
+def backlog_auto_abort() -> str:
+    """Abort an in-progress auto run, leaving completed work intact."""
+    bp = _backlog_path()
+    state = _read_auto_state(bp)
+    if not state:
+        return "No auto run to abort."
+    cleared = _clear_auto_state(bp)
+    return f"Auto run aborted. Completed: {len(state.get('completed') or [])}." if cleared else "Nothing to abort."
+
+
+@mcp.tool()
+def backlog_lesson_match(
+    task_title: str = "",
+    touched_files: list[str] | None = None,
+) -> str:
+    """Find lessons matching a task by title and/or file globs.
+
+    Used by `pick-task` to inject relevant lessons (full body) before a
+    task starts. Returns up to 3 best-match lesson summaries.
+    """
+    bp = _backlog_path()
+    if not bp.exists():
+        return "No backlog found."
+    matches = _match_lessons_for_task(
+        bp,
+        {"title": task_title or ""},
+        touched_files=touched_files or [],
+    )
+    if not matches:
+        return "No matching lessons."
+    lines = []
+    for fm, _body in matches:
+        lines.append(
+            f"- {fm.get('id')} [{fm.get('kind')}] x{fm.get('reinforce_count', 0)}: {fm.get('title')}"
+        )
+    return "\n".join(lines)
 
 
 @mcp.tool()
@@ -2675,9 +3889,11 @@ def backlog_batch_update(operations: str) -> str:
 
 
 @mcp.tool()
-def backlog_snapshot(operations: str) -> str:
-    """Preview what would change without writing to disk. Dry-run mode for batch planning.
-    Describes the current state of the specified tasks/epics and what the requested operations would do.
+def backlog_batch_preview(operations: str) -> str:
+    """Preview what a batch of task operations would do without writing to disk.
+
+    Distinct from `backlog_snapshot` (which captures backlog state for `recap`
+    diffing) — this is a planning aid for batch operations.
 
     Args:
         operations: Newline-separated list of operations to preview. Each line is:
@@ -2911,6 +4127,245 @@ def _format_evidence(analysis: dict) -> str:
     return "\n".join(lines)
 
 
+def _compute_recent_events(since_iso: str) -> list:
+    """Synthesize a 'since you last looked' event stream from the backlog.
+
+    Plan 4 stub: derive events from backlog state. Plan 5+ may swap in a
+    persisted event log.
+    Event shape: {kind, at, summary, ref?}
+    Kinds: task_closed, task_moved, issue_opened, lesson_promoted, phase_advanced.
+    """
+    from datetime import datetime
+    try:
+        since = datetime.fromisoformat(since_iso.replace("Z", "+00:00"))
+    except Exception as e:
+        raise ValueError(f"invalid since: {e}")
+
+    backlog = yaml.safe_load(_backlog_path().read_text(encoding="utf-8")) or {}  # existing helper from Plan 1
+    events: list = []
+
+    def _parse(s):
+        if not s:
+            return None
+        try:
+            return datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+        except Exception:
+            return None
+
+    for t in (backlog.get("tasks") or []):
+        completed = _parse(t.get("completed"))
+        if completed and completed >= since and t.get("status") in ("done", "completed"):
+            events.append({
+                "kind": "task_closed",
+                "at": t["completed"],
+                "summary": f"{t.get('id','')}: {t.get('title','')}",
+                "ref": t.get("id"),
+            })
+        started = _parse(t.get("started"))
+        if started and started >= since and t.get("status") in ("in-progress", "in_progress"):
+            events.append({
+                "kind": "task_moved",
+                "at": t["started"],
+                "summary": f"{t.get('id','')} → in progress",
+                "ref": t.get("id"),
+            })
+
+    for ph in (backlog.get("phases") or []):
+        advanced = _parse(ph.get("advanced_at") or ph.get("started"))
+        if advanced and advanced >= since and ph.get("status") == "active":
+            events.append({
+                "kind": "phase_advanced",
+                "at": ph.get("advanced_at") or ph.get("started"),
+                "summary": f"phase {ph.get('id','')}: {ph.get('name','')}",
+                "ref": ph.get("id"),
+            })
+
+    # Sort newest first, drop None ats.
+    events = [e for e in events if e.get("at")]
+    events.sort(key=lambda e: e["at"], reverse=True)
+    return events
+
+
+def _load_task_full(task_id: str) -> dict | None:
+    """Merge backlog.yaml index entry with the per-task markdown file body.
+    Returns None if the task id is not in the index.
+    """
+    import re
+    import yaml
+
+    backlog_path = _backlog_path()
+    if not backlog_path.exists():
+        return None
+    backlog = yaml.safe_load(backlog_path.read_text(encoding="utf-8")) or {}
+    tasks = backlog.get("tasks")
+    if not isinstance(tasks, list):
+        tasks = [
+            {**t, "epic": t.get("epic", e.get("id"))}
+            for e in (backlog.get("epics") or [])
+            for t in (e.get("tasks") or [])
+        ]
+    index_entry = next((t for t in tasks if t.get("id") == task_id), None)
+    if index_entry is None:
+        return None
+
+    out = dict(index_entry)
+    out.setdefault("docs", {})
+    out.setdefault("description", "")
+    out.setdefault("notes", "")
+    out.setdefault("review_instructions", "")
+    out.setdefault("_body", "")
+
+    md_path = backlog_path.parent / "tasks" / f"{task_id}.md"
+    if md_path.exists():
+        raw = md_path.read_text(encoding="utf-8")
+        fm_match = re.match(r"^---\n(.*?)\n---\n(.*)$", raw, re.DOTALL)
+        if fm_match:
+            try:
+                fm = yaml.safe_load(fm_match.group(1)) or {}
+            except Exception:
+                fm = {}
+            body = fm_match.group(2)
+            for k in ("docs", "review_instructions", "patchnote", "release",
+                      "worktree", "spec_review", "locked_by"):
+                if k in fm:
+                    out[k] = fm[k]
+        else:
+            body = raw
+        out["_body"] = body
+
+        sections: dict[str, list[str]] = {}
+        current: str | None = None
+        for line in body.splitlines():
+            m = re.match(r"^## +(.+?)\s*$", line)
+            if m:
+                current = m.group(1).strip().lower()
+                sections[current] = []
+                continue
+            if current is not None:
+                sections[current].append(line)
+        for key in ("description", "notes", "specification", "plan",
+                    "review instructions", "activity", "patchnote"):
+            if key in sections:
+                out_key = key.replace(" ", "_")
+                out[out_key] = "\n".join(sections[key]).strip()
+    return out
+
+
+def _load_related_for_task(task_id: str) -> dict | None:
+    """Build the related-entities payload for a task: lessons (anchor-matched),
+    handovers (task_ids), issues (task_ids), forward deps, reverse deps.
+    Returns None if the task is unknown.
+    """
+    import fnmatch
+    import re
+    import yaml
+
+    backlog_path = _backlog_path()
+    if not backlog_path.exists():
+        return None
+    backlog = yaml.safe_load(backlog_path.read_text(encoding="utf-8")) or {}
+    tasks = backlog.get("tasks")
+    if not isinstance(tasks, list):
+        tasks = [
+            {**t, "epic": t.get("epic", e.get("id"))}
+            for e in (backlog.get("epics") or [])
+            for t in (e.get("tasks") or [])
+        ]
+    me = next((t for t in tasks if t.get("id") == task_id), None)
+    if me is None:
+        return None
+
+    my_anchors = list(me.get("anchors") or [])
+
+    def _read_fm(p: Path) -> tuple[dict, str]:
+        raw = p.read_text(encoding="utf-8")
+        m = re.match(r"^---\n(.*?)\n---\n(.*)$", raw, re.DOTALL)
+        if not m:
+            return {}, raw
+        try:
+            fm = yaml.safe_load(m.group(1)) or {}
+        except Exception:
+            fm = {}
+        return fm, m.group(2)
+
+    def _anchors_overlap(a: list, b: list) -> bool:
+        for pat in a:
+            for other in b:
+                if fnmatch.fnmatch(other, pat) or fnmatch.fnmatch(pat, other):
+                    return True
+                if pat == other:
+                    return True
+        return False
+
+    sidecar_root = backlog_path.parent
+
+    lessons: list[dict] = []
+    lessons_dir = sidecar_root / "lessons"
+    if lessons_dir.is_dir():
+        for f in sorted(lessons_dir.glob("*.md")):
+            fm, body = _read_fm(f)
+            their_anchors = list(fm.get("anchors") or [])
+            if _anchors_overlap(my_anchors, their_anchors):
+                lessons.append({
+                    "id": fm.get("id") or f.stem,
+                    "kind": fm.get("kind"),
+                    "title": fm.get("title") or "",
+                    "anchors": their_anchors,
+                    "summary": body.strip().splitlines()[0] if body.strip() else "",
+                    "_path": str(f),
+                })
+
+    handovers: list[dict] = []
+    handovers_dir = sidecar_root / "handovers"
+    if handovers_dir.is_dir():
+        for f in sorted(handovers_dir.glob("*.md")):
+            fm, body = _read_fm(f)
+            tids = list(fm.get("task_ids") or [])
+            if task_id in tids:
+                handovers.append({
+                    "id": fm.get("id") or f.stem,
+                    "kind": fm.get("kind"),
+                    "session": fm.get("session"),
+                    "created": fm.get("created"),
+                    "quote": body.strip().splitlines()[0] if body.strip() else "",
+                    "_path": str(f),
+                })
+
+    issues: list[dict] = []
+    issues_dir = sidecar_root / "issues"
+    if issues_dir.is_dir():
+        for f in sorted(issues_dir.glob("*.md")):
+            fm, body = _read_fm(f)
+            tids = list(fm.get("task_ids") or [])
+            if task_id in tids:
+                issues.append({
+                    "id": fm.get("id") or f.stem,
+                    "severity": fm.get("severity"),
+                    "status": fm.get("status"),
+                    "title": fm.get("title") or "",
+                    "_path": str(f),
+                })
+
+    dep_ids = list(me.get("depends_on") or [])
+    dependencies = [
+        {"id": t["id"], "title": t.get("title", ""), "status": t.get("status", "")}
+        for t in tasks if t.get("id") in dep_ids
+    ]
+    unblocks = [
+        {"id": t["id"], "title": t.get("title", ""), "status": t.get("status", "")}
+        for t in tasks if task_id in (t.get("depends_on") or [])
+    ]
+
+    return {
+        "task_id": task_id,
+        "lessons": lessons,
+        "handovers": handovers,
+        "issues": issues,
+        "dependencies": dependencies,
+        "unblocks": unblocks,
+    }
+
+
 # ── HTTP Viewer Server ───────────────────────────────────
 
 
@@ -2923,9 +4378,157 @@ class ViewerHandler(BaseHTTPRequestHandler):
         clean_path = unquote(parsed.path)
 
         if clean_path in ("/", "/index.html"):
+            try:
+                prefs = load_viewer_prefs()
+                if prefs.get("use_v3"):
+                    self.path = "/v3"
+                    return self.do_GET()
+            except Exception:
+                pass
             self._serve_file(VIEWER_PATH, "text/html")
+        elif clean_path in ("/v3", "/v3/", "/v3/index.html"):
+            viewer_root = Path(__file__).parent / "viewer"
+            idx = viewer_root / "index.html"
+            if not idx.exists():
+                self.send_response(404); self.send_header("Content-Length", "0"); self.end_headers(); return
+            html = idx.read_text(encoding="utf-8")
+            # Make relative asset refs absolute under /static/v3/.
+            html = html.replace('href="css/', 'href="/static/v3/css/')
+            html = html.replace('src="js/', 'src="/static/v3/js/')
+            body = html.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        elif clean_path.startswith("/static/v3/"):
+            from urllib.parse import unquote as _unquote
+            rel = _unquote(clean_path[len("/static/v3/"):])
+            viewer_root = (Path(__file__).parent / "viewer").resolve()
+            target = (viewer_root / rel).resolve()
+            if not str(target).startswith(str(viewer_root) + os.sep) and target != viewer_root:
+                self.send_response(400); self.send_header("Content-Length", "0"); self.end_headers(); return
+            if not target.is_file():
+                self.send_response(404); self.send_header("Content-Length", "0"); self.end_headers(); return
+            ext = target.suffix.lower()
+            ctype = {
+                ".html":  "text/html; charset=utf-8",
+                ".css":   "text/css; charset=utf-8",
+                ".js":    "application/javascript; charset=utf-8",
+                ".json":  "application/json; charset=utf-8",
+                ".svg":   "image/svg+xml",
+                ".woff2": "font/woff2",
+                ".woff":  "font/woff",
+                ".png":   "image/png",
+                ".ico":   "image/x-icon",
+            }.get(ext, "application/octet-stream")
+            body = target.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        elif clean_path == "/v3/dev/edit-demo" or clean_path == "/v3/dev/edit-demo/":
+            viewer_root = Path(__file__).parent / "viewer"
+            self._serve_file(viewer_root / "dev" / "edit-demo.html", "text/html")
+        elif clean_path == "/api/auto/sessions":
+            import json as _json
+            from taskmaster_v3 import list_auto_sessions
+            body = _json.dumps({"sessions": list_auto_sessions()}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        elif clean_path.startswith("/api/auto/sessions/"):
+            import json as _json
+            from taskmaster_v3 import load_auto_session
+            sid = clean_path[len("/api/auto/sessions/"):]
+            state = load_auto_session(sid)
+            if state is None:
+                self.send_response(404)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"ok":false,"error":"not found"}')
+                return
+            state["hook_counts"] = _read_hook_events(sid)
+            body = _json.dumps(state).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        elif clean_path == "/api/auto/state":
+            import json as _json
+            from taskmaster_v3 import list_auto_sessions
+            sessions = list_auto_sessions()
+            body = (
+                _json.dumps(sessions[0]).encode("utf-8") if sessions
+                else b'{"running":false}'
+            )
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        elif clean_path.startswith("/api/auto/events"):
+            from urllib.parse import urlsplit, parse_qs
+            from taskmaster_v3 import read_auto_events
+            qs = parse_qs(urlsplit(self.path).query)
+            sid = (qs.get("sid") or [None])[0]
+            since = (qs.get("since") or [None])[0]
+            if not sid:
+                self._send_json(400, {"ok": False, "error": "sid required"})
+                return
+            events = read_auto_events(sid, since=since)
+            self._send_json(200, {"events": events})
+            return
+        elif clean_path.startswith("/api/auto/budget/"):
+            from taskmaster_v3 import load_auto_session, compute_budget
+            sid = clean_path[len("/api/auto/budget/"):]
+            state = load_auto_session(sid)
+            if state is None:
+                self._send_json(404, {"ok": False, "error": "not found"})
+                return
+            self._send_json(200, {"session_id": sid, "meters": compute_budget(state)})
+            return
+        elif clean_path == "/api/viewer/prefs":
+            self._send_json(200, load_viewer_prefs())
+            return
         elif clean_path == "/backlog.yaml":
             self._serve_file(_backlog_path(), "text/yaml")
+        elif clean_path.startswith("/api/task/"):
+            rest = clean_path[len("/api/task/"):].rstrip("/")
+            if rest.endswith("/related"):
+                task_id = rest[: -len("/related")]
+                related = _load_related_for_task(task_id)
+                if related is None:
+                    self._send_json(404, {"ok": False, "error": f"task {task_id} not found"})
+                    return
+                self._send_json(200, related)
+                return
+            if "/" not in rest and rest:
+                full = _load_task_full(rest)
+                if full is None:
+                    self._send_json(404, {"ok": False, "error": f"task {rest} not found"})
+                    return
+                from taskmaster_v3 import compute_etag
+                etag = compute_etag(_backlog_path())
+                self._send_json(200, full, etag=etag)
+                return
+            self.send_error(HTTPStatus.NOT_FOUND)
         elif clean_path == "/api/backlog":
             self._serve_json()
         elif clean_path == "/api/session":
@@ -2934,6 +4537,101 @@ class ViewerHandler(BaseHTTPRequestHandler):
             self._serve_identity()
         elif clean_path.startswith("/file/"):
             self._serve_repo_file(clean_path)
+        elif self.path.startswith("/api/dashboard/recent-events"):
+            import urllib.parse
+            parsed = urllib.parse.urlparse(self.path)
+            qs = urllib.parse.parse_qs(parsed.query)
+            since = (qs.get("since") or [None])[0]
+            if not since:
+                self._send_json(400, {"ok": False, "error": "missing 'since' query param"})
+                return
+            try:
+                events = _compute_recent_events(since)
+            except ValueError as e:
+                self._send_json(400, {"ok": False, "error": str(e)})
+                return
+            self._send_json(200, events)
+            return
+        elif clean_path == "/api/sessions":
+            self._send_json(200, list_sessions())
+            return
+        elif clean_path.startswith("/api/sessions/"):
+            sid = clean_path[len("/api/sessions/"):]
+            detail = get_session_detail(sid)
+            if detail is None:
+                self._send_json(404, {"ok": False, "error": f"unknown session {sid}"})
+                return
+            self._send_json(200, detail)
+            return
+        elif clean_path.startswith("/api/recap/"):
+            sid = clean_path[len("/api/recap/"):]
+            rec = load_recap(sid)
+            if rec is None:
+                self._send_json(404, {"ok": False, "error": f"no recap for {sid}"})
+                return
+            self._send_json(200, rec)
+            return
+        elif clean_path.startswith("/api/snapshots/diff"):
+            from urllib.parse import urlsplit, parse_qs
+            qs = parse_qs(urlsplit(self.path).query)
+            a = (qs.get("from") or [None])[0]
+            b = (qs.get("to")   or [None])[0]
+            if not a or not b:
+                self._send_json(400, {"ok": False,
+                    "error": "both 'from' and 'to' query params required"})
+                return
+            snap_a = load_session_snapshot(a)
+            snap_b = load_session_snapshot(b)
+            if snap_a is None or snap_b is None:
+                self._send_json(404, {"ok": False,
+                    "error": f"missing snapshot(s): from={snap_a is not None} to={snap_b is not None}"})
+                return
+            self._send_json(200, _snapshot_diff(snap_a, snap_b))
+            return
+        elif clean_path == "/api/lessons":
+            import json
+            from taskmaster_v3 import (
+                list_lesson_ids_cwd, load_lesson, compute_lesson_shelf,
+            )
+            prefs = load_viewer_prefs()
+            thresholds = prefs.get("lessons", {}).get("thresholds", {})
+            lessons = []
+            for lid in list_lesson_ids_cwd():
+                try:
+                    lesson = load_lesson(lid)
+                except Exception:
+                    continue
+                summary = {k: v for k, v in lesson.items() if k != "_body"}
+                summary["shelf"] = compute_lesson_shelf(lesson, thresholds)
+                summary["summary"] = (lesson.get("_body") or "").strip()
+                lessons.append(summary)
+            self._send_json(200, {"lessons": lessons})
+            return
+        elif clean_path.startswith("/api/issues"):
+            import json
+            from urllib.parse import urlparse, parse_qs
+            from taskmaster_v3 import (
+                list_issue_ids_cwd, load_issue, compute_issue_aging, severity_label,
+            )
+            qs = parse_qs(urlparse(self.path).query)
+            include_resolved = qs.get("include_resolved", ["true"])[0].lower() != "false"
+            prefs = load_viewer_prefs()
+            aging_cfg = prefs.get("issues", {}).get("aging", {})
+            issues = []
+            for iid in list_issue_ids_cwd():
+                try:
+                    issue = load_issue(iid)
+                except Exception:
+                    continue
+                if not include_resolved and issue.get("status") in ("fixed", "wontfix"):
+                    continue
+                summary = {k: v for k, v in issue.items() if k != "_body"}
+                summary["severity_label"] = severity_label(summary.get("severity", "P2"))
+                summary["aging"] = compute_issue_aging(issue, aging_cfg)
+                summary["summary"] = (issue.get("_body") or "").strip()
+                issues.append(summary)
+            self._send_json(200, {"issues": issues})
+            return
         else:
             self.send_error(HTTPStatus.NOT_FOUND)
 
@@ -2952,23 +4650,11 @@ class ViewerHandler(BaseHTTPRequestHandler):
     def _serve_session(self) -> None:
         session_data = dict(_session_task) if _session_task else {}
         session_data["session_id"] = SESSION_ID
-        body = json.dumps(session_data).encode("utf-8")
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.end_headers()
-        self.wfile.write(body)
+        self._send_json(200, session_data)
 
     def _serve_identity(self) -> None:
         """Return the project root and version so callers can verify which project this server serves."""
-        body = json.dumps({"root": str(ROOT.resolve()), "version": VERSION}).encode("utf-8")
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.end_headers()
-        self.wfile.write(body)
+        self._send_json(200, {"root": str(ROOT.resolve()), "version": VERSION})
 
     def _serve_repo_file(self, clean_path: str) -> None:
         """Serve a file from the repo root. Renders .md files as styled HTML."""
@@ -3020,15 +4706,312 @@ class ViewerHandler(BaseHTTPRequestHandler):
         try:
             data = yaml.safe_load(_backlog_path().read_text(encoding="utf-8"))
             data.setdefault("meta", {})["_version"] = VERSION
-            body = json.dumps(data, default=str).encode("utf-8")
-            self.send_response(HTTPStatus.OK)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(body)
+            if not isinstance(data.get("tasks"), list):
+                data["tasks"] = [
+                    {**t, "epic": t.get("epic", e.get("id"))}
+                    for e in (data.get("epics") or [])
+                    for t in (e.get("tasks") or [])
+                ]
+            from taskmaster_v3 import compute_etag
+            etag = compute_etag(_backlog_path())
+            self._send_json(200, data, etag=etag)
         except Exception as e:
             self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
+
+    def do_POST(self):
+        import json
+        import re
+        from taskmaster_v3 import lesson_reinforce as _reinforce
+
+        if self.path in ("/api/auto/pause", "/api/auto/stop"):
+            from datetime import datetime, timezone
+            from taskmaster_v3 import load_auto_session, save_auto_session, append_auto_event
+            length = int(self.headers.get("Content-Length") or 0)
+            try:
+                payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
+            except Exception as e:
+                self._send_json(400, {"ok": False, "error": f"invalid JSON: {e}"})
+                return
+            sid = payload.get("session_id")
+            if not sid:
+                self._send_json(400, {"ok": False, "error": "session_id required"})
+                return
+            state = load_auto_session(sid)
+            if state is None:
+                self._send_json(404, {"ok": False, "error": "not found"})
+                return
+            kind = "control_pause" if self.path.endswith("/pause") else "control_stop"
+            flag = "paused" if kind == "control_pause" else "stopped"
+            state[flag] = True
+            save_auto_session(sid, state)
+            append_auto_event(sid, {
+                "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "kind": kind, "stage": state.get("cursor", {}).get("stage"),
+                "msg": f"{kind} via /api/auto",
+            })
+            self._send_json(200, {"ok": True})
+            return
+
+        m = re.fullmatch(r"/api/lessons/([A-Za-z0-9_\-]+)/reinforce", self.path)
+        if m:
+            lesson_id = m.group(1)
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length).decode("utf-8") if length else ""
+            try:
+                data = json.loads(raw) if raw else {}
+            except Exception as e:
+                self._send_json(400, {"ok": False, "error": f"invalid JSON: {e}"})
+                return
+            source = data.get("source", "user")
+            note = data.get("note", "")
+            try:
+                summary = _reinforce(lesson_id, source=source, note=note)
+            except FileNotFoundError:
+                self._send_json(404, {"ok": False, "error": f"lesson {lesson_id} not found"})
+                return
+            except ValueError as e:
+                self._send_json(400, {"ok": False, "error": str(e)})
+                return
+            self._send_json(200, summary)
+            return
+
+        if self.path == "/api/tasks/validate":
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length).decode("utf-8") if length else ""
+            try:
+                payload = json.loads(raw)
+            except Exception as e:
+                self._send_json(400, {"ok": False, "error": f"invalid JSON: {e}"})
+                return
+            tid = payload.get("task_id") or "<new>"
+            patch = payload.get("patch") or {}
+            from taskmaster_v3 import validate_task_write
+            errors = validate_task_write(tid, patch)
+            self._send_json(200, {"ok": len(errors) == 0, "errors": errors})
+            return
+
+        # Edit-in-UI: create task, archive task
+        if self.path == "/api/tasks":
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length).decode("utf-8") if length else ""
+            try:
+                payload = json.loads(raw)
+            except Exception as e:
+                self._send_json(400, {"ok": False, "error": f"invalid JSON: {e}"})
+                return
+            try:
+                from taskmaster_v3 import validate_task_write, create_task
+                errors = validate_task_write("<new>", payload)
+                if errors:
+                    self._send_json(422, {"ok": False, "errors": errors})
+                    return
+                new_id = create_task(payload)
+                # Look up the new task to return.
+                task = _load_task_full(new_id) or {"id": new_id}
+                self._send_json(201, {"ok": True, "task": task})
+            except (KeyError, ValueError) as e:
+                self._send_json(400, {"ok": False, "error": str(e)})
+            except Exception as e:
+                self._send_json(500, {"ok": False, "error": str(e)})
+            return
+
+        m = re.fullmatch(r"/api/tasks/([A-Za-z0-9_\-]+)/archive", self.path)
+        if m:
+            task_id = m.group(1)
+            # If-Match check
+            from taskmaster_v3 import compute_etag, archive_task
+            if_match = self.headers.get("If-Match")
+            if if_match:
+                if_match = if_match.strip('"')
+                current_etag = compute_etag(_backlog_path())
+                if if_match != current_etag:
+                    current = _load_task_full(task_id)
+                    self._send_json(409, {
+                        "ok": False, "error": "stale",
+                        "current_etag": current_etag,
+                        "current": current,
+                    })
+                    return
+            try:
+                archive_task(task_id)
+                new_etag = compute_etag(_backlog_path())
+                self._send_json(200, {"ok": True}, etag=new_etag)
+            except KeyError as e:
+                self._send_json(404, {"ok": False, "error": str(e)})
+            except Exception as e:
+                self._send_json(500, {"ok": False, "error": str(e)})
+            return
+
+        self.send_response(404)
+        self.end_headers()
+
+    def do_PUT(self):
+        import re
+        if self.path == "/api/viewer/prefs":
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length).decode("utf-8") if length else ""
+            try:
+                patch = json.loads(raw)
+            except Exception as e:
+                self._send_json(400, {"ok": False, "error": f"invalid JSON: {e}"})
+                return
+            if not isinstance(patch, dict):
+                self._send_json(400, {"ok": False, "error": "patch must be a JSON object"})
+                return
+
+            prefs = load_viewer_prefs()
+            _deep_merge(prefs, patch)
+            save_viewer_prefs(prefs)
+            self._send_json(200, {"ok": True})
+            return
+
+        if self.path.startswith("/api/recap/"):
+            import json as _json
+            sid = self.path[len("/api/recap/"):]
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length).decode("utf-8") if length else ""
+            try:
+                payload = _json.loads(raw)
+            except Exception as e:
+                self._send_json(400, {"ok": False, "error": f"invalid JSON: {e}"})
+                return
+            required = {"frontmatter", "title", "what_happened", "what_landed", "whats_next"}
+            if not required.issubset(payload.keys()):
+                self._send_json(400, {"ok": False,
+                    "error": f"payload missing keys: {sorted(required - set(payload.keys()))}"})
+                return
+            save_recap(
+                session_id=sid,
+                frontmatter=payload["frontmatter"],
+                title=payload["title"],
+                what_happened=payload["what_happened"],
+                what_landed=payload["what_landed"],
+                whats_next=payload["whats_next"],
+            )
+            self._send_json(200, {"ok": True})
+            return
+
+        if m := re.fullmatch(r"/api/tasks/([A-Za-z0-9_\-]+)", self.path):
+            task_id = m.group(1)
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length).decode("utf-8") if length else ""
+            try:
+                full = json.loads(raw)
+            except Exception as e:
+                self._send_json(400, {"ok": False, "error": f"invalid JSON: {e}"})
+                return
+            if not isinstance(full, dict):
+                self._send_json(400, {"ok": False, "error": "body must be object"})
+                return
+            # If-Match check
+            from taskmaster_v3 import compute_etag, update_task
+            if_match = self.headers.get("If-Match")
+            if if_match:
+                if_match = if_match.strip('"')
+                current_etag = compute_etag(_backlog_path())
+                if if_match != current_etag:
+                    current = _load_task_full(task_id)
+                    self._send_json(409, {
+                        "ok": False, "error": "stale",
+                        "current_etag": current_etag,
+                        "current": current,
+                    })
+                    return
+            try:
+                from taskmaster_v3 import validate_task_write, update_task
+                errors = validate_task_write(task_id, full)
+                if "_task" in errors:
+                    self._send_json(404, {"ok": False, "error": errors["_task"]})
+                    return
+                if errors:
+                    self._send_json(422, {"ok": False, "errors": errors})
+                    return
+                task = update_task(task_id, full)
+                new_etag = compute_etag(_backlog_path())
+                self._send_json(200, {"ok": True, "task": task}, etag=new_etag)
+            except KeyError as e:
+                self._send_json(404, {"ok": False, "error": str(e)})
+            return
+
+        self.send_response(404)
+        self.end_headers()
+
+    def do_PATCH(self):
+        import json
+        import re
+        from taskmaster_v3 import compute_etag, update_task
+        if m := re.fullmatch(r"/api/tasks/([A-Za-z0-9_\-]+)", self.path):
+            task_id = m.group(1)
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length).decode("utf-8") if length else ""
+            try:
+                patch = json.loads(raw)
+            except Exception as e:
+                self._send_json(400, {"ok": False, "error": f"invalid JSON: {e}"})
+                return
+            if not isinstance(patch, dict):
+                self._send_json(400, {"ok": False, "error": "patch must be object"})
+                return
+            # If-Match check
+            if_match = self.headers.get("If-Match")
+            if if_match:
+                if_match = if_match.strip('"')
+                current_etag = compute_etag(_backlog_path())
+                if if_match != current_etag:
+                    current = _load_task_full(task_id)
+                    self._send_json(409, {
+                        "ok": False, "error": "stale",
+                        "current_etag": current_etag,
+                        "current": current,
+                    })
+                    return
+            try:
+                from taskmaster_v3 import validate_task_write, update_task
+                errors = validate_task_write(task_id, patch)
+                if "_task" in errors:
+                    self._send_json(404, {"ok": False, "error": errors["_task"]})
+                    return
+                if errors:
+                    self._send_json(422, {"ok": False, "errors": errors})
+                    return
+                task = update_task(task_id, patch)
+                new_etag = compute_etag(_backlog_path())
+                self._send_json(200, {"ok": True, "task": task}, etag=new_etag)
+            except KeyError as e:
+                self._send_json(404, {"ok": False, "error": str(e)})
+            except Exception as e:
+                self._send_json(500, {"ok": False, "error": str(e)})
+            return
+
+        self.send_error(404)
+
+    def _send_json(self, status: int, payload: dict, etag: str | None = None):
+        """Serialize *payload* as JSON and write the complete HTTP response."""
+        body = json.dumps(payload, default=str).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        if etag:
+            self.send_header("ETag", f'"{etag}"')
+        # JSON API responses are intentionally uncached — no Cache-Control header
+        # means browsers apply their default heuristic (usually no-store for XHR).
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_OPTIONS(self):
+        """Allow cross-origin preflight for /api/* endpoints only."""
+        from urllib.parse import urlparse
+        clean_path = urlparse(self.path).path
+        if not clean_path.startswith("/api/"):
+            self.send_response(404)
+            self.end_headers()
+            return
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, PUT, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
 
     def log_message(self, format: str, *args: object) -> None:
         pass  # suppress HTTP logs in MCP stderr
@@ -3132,6 +5115,19 @@ def _check_identity(port: int) -> bool:
         return False
 
 
+def _make_server(host: str = "127.0.0.1", port: int = 0):
+    """Build the HTTP server without starting it. Returns (server, bound_port)."""
+    server = ThreadingHTTPServer((host, port), ViewerHandler)
+    return server, server.server_address[1]
+
+
+def _init_storage() -> None:
+    """One-time storage migrations / dir setup. Called by server entry + tests."""
+    from taskmaster_v3 import migrate_auto_state_to_sessions, AUTO_SESSIONS_DIR
+    AUTO_SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+    migrate_auto_state_to_sessions()
+
+
 def _start_viewer_server() -> int:
     """Start the viewer HTTP server on a deterministic per-project port.
 
@@ -3163,6 +5159,7 @@ def _start_viewer_server() -> int:
         server = _ExclusiveServer(("127.0.0.1", 0), ViewerHandler)
         VIEWER_PORT = server.server_address[1]
 
+    _init_storage()
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     _viewer_started = True
@@ -3180,6 +5177,174 @@ def backlog_open_viewer() -> str:
     url = f"http://127.0.0.1:{port}/"
     webbrowser.open(url)
     return f"Opened backlog viewer at {url}"
+
+
+@mcp.tool()
+def recap_get(session_id: str) -> str:
+    """Return the recap for a session as JSON, or `null` when missing."""
+    import json as _json
+    rec = load_recap(session_id)
+    return _json.dumps(rec)
+
+
+@mcp.tool()
+def recap_set(
+    session_id: str,
+    frontmatter_json: str,
+    title: str,
+    what_happened: str,
+    what_landed: str,
+    whats_next: str,
+) -> str:
+    """Write a recap. `frontmatter_json` is a JSON object holding
+    snapshot_before / snapshot_after / generator / generated_at / token_cost.
+    `session_id` and `schema_version` are auto-injected.
+    """
+    import json as _json
+    try:
+        fm = _json.loads(frontmatter_json)
+    except Exception as e:
+        return f"error: invalid frontmatter JSON ({e})"
+    if not isinstance(fm, dict):
+        return "error: frontmatter must be a JSON object"
+    save_recap(
+        session_id=session_id,
+        frontmatter=fm,
+        title=title,
+        what_happened=what_happened,
+        what_landed=what_landed,
+        whats_next=whats_next,
+    )
+    return "ok"
+
+
+@mcp.tool()
+def recap_list() -> str:
+    """List session ids that have a recap on disk (newest first)."""
+    import json as _json
+    return _json.dumps(list_recaps())
+
+
+@mcp.tool()
+def snapshot_diff(snapshot_a_json: str, snapshot_b_json: str) -> str:
+    """Compute structured diff between two snapshot payloads, returned as JSON."""
+    import json as _json
+    a = _json.loads(snapshot_a_json)
+    b = _json.loads(snapshot_b_json)
+    return _json.dumps(_snapshot_diff(a, b))
+
+
+@mcp.tool()
+def lesson_list_extended() -> str:
+    """List all lessons with computed shelf placement using current viewer thresholds."""
+    import json as _json
+    from taskmaster_v3 import (
+        list_lesson_ids_cwd, load_lesson, compute_lesson_shelf, load_viewer_prefs,
+    )
+
+    prefs = load_viewer_prefs()
+    thresholds = prefs.get("lessons", {}).get("thresholds", {})
+    out = []
+    for lid in list_lesson_ids_cwd():
+        try:
+            lesson = load_lesson(lid)
+        except Exception:
+            continue
+        summary = {k: v for k, v in lesson.items() if k != "_body"}
+        summary["shelf"] = compute_lesson_shelf(lesson, thresholds)
+        summary["summary"] = (lesson.get("_body") or "").strip()
+        out.append(summary)
+    return _json.dumps({"lessons": out}, indent=2, default=str)
+
+
+@mcp.tool()
+def issue_list_extended(include_resolved: bool = True) -> str:
+    """List all issues with computed aging tier per severity base."""
+    import json as _json
+    from taskmaster_v3 import (
+        list_issue_ids_cwd, load_issue, compute_issue_aging, severity_label, load_viewer_prefs,
+    )
+
+    prefs = load_viewer_prefs()
+    aging_cfg = prefs.get("issues", {}).get("aging", {})
+    out = []
+    for iid in list_issue_ids_cwd():
+        try:
+            issue = load_issue(iid)
+        except Exception:
+            continue
+        if not include_resolved and issue.get("status") in ("fixed", "wontfix"):
+            continue
+        summary = {k: v for k, v in issue.items() if k != "_body"}
+        summary["severity_label"] = severity_label(summary.get("severity", "P2"))
+        summary["aging"] = compute_issue_aging(issue, aging_cfg)
+        summary["summary"] = (issue.get("_body") or "").strip()
+        out.append(summary)
+    return _json.dumps({"issues": out}, indent=2, default=str)
+
+
+@mcp.tool()
+def auto_state_get() -> str:
+    """Return the most-recent auto-mode session state as JSON. {} if none running."""
+    import json
+    from taskmaster_v3 import list_auto_sessions
+    sessions = list_auto_sessions()
+    return json.dumps(sessions[0] if sessions else {})
+
+
+@mcp.tool()
+def auto_pause(session_id: str) -> str:
+    """Mark a running auto-mode session as paused. Returns 'ok' or 'error: ...'."""
+    from datetime import datetime, timezone
+    from taskmaster_v3 import load_auto_session, save_auto_session, append_auto_event
+    state = load_auto_session(session_id)
+    if state is None:
+        return f"error: session {session_id} not found"
+    state["paused"] = True
+    save_auto_session(session_id, state)
+    append_auto_event(session_id, {
+        "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "kind": "control_pause",
+        "stage": state.get("cursor", {}).get("stage"),
+        "msg": "paused via MCP",
+    })
+    return "ok"
+
+
+@mcp.tool()
+def auto_stop(session_id: str) -> str:
+    """Mark a running auto-mode session as stopped. Returns 'ok' or 'error: ...'."""
+    from datetime import datetime, timezone
+    from taskmaster_v3 import load_auto_session, save_auto_session, append_auto_event
+    state = load_auto_session(session_id)
+    if state is None:
+        return f"error: session {session_id} not found"
+    state["stopped"] = True
+    save_auto_session(session_id, state)
+    append_auto_event(session_id, {
+        "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "kind": "control_stop",
+        "stage": state.get("cursor", {}).get("stage"),
+        "msg": "stopped via MCP",
+    })
+    return "ok"
+
+
+@mcp.tool()
+def auto_history(limit: int = 50) -> str:
+    """Return recent auto-mode sessions as JSON, newest first."""
+    import json
+    from taskmaster_v3 import list_auto_sessions
+    sessions = list_auto_sessions()[: max(1, int(limit))]
+    return json.dumps({"sessions": sessions}, indent=2)
+
+
+@mcp.tool()
+def auto_event_log(session_id: str, since: str | None = None) -> str:
+    """Return events for a session, optionally filtered by ISO 8601 timestamp."""
+    import json
+    from taskmaster_v3 import read_auto_events
+    return json.dumps({"events": read_auto_events(session_id, since=since)}, indent=2)
 
 
 if __name__ == "__main__":

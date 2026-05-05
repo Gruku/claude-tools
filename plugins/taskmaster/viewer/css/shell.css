@@ -1,0 +1,271 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+Pro:ital,wght@1,400&display=swap');
+
+:root {
+  /* Shell-specific vars (behavioural + shell-scoped design values; not in tokens.css) */
+  /* spec §3.4 — 1.5x baked into source CSS values, not via CSS zoom */
+  --shell-bg-sidebar:   #101116;                   /* sidebar surface, darker than --bg-shell */
+  --shell-label-size:   14px;                      /* section header caps, sub-text-xs */
+  --shell-hover-overlay: rgba(255,255,255,0.03);   /* near-invisible hover scrim */
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  background: var(--bg-canvas);
+  color: var(--ink);
+  font-size: var(--text-base);
+  line-height: 1.5;
+}
+
+.mono { font-family: var(--font-mono); }
+.serif { font-family: var(--font-serif); font-style: italic; }
+
+/* Shell grid: sidebar + main */
+.shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  background: var(--bg-shell);
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--ink);
+}
+
+/* Sidebar */
+.sidebar {
+  background: var(--shell-bg-sidebar);
+  border-right: 1px solid var(--border);
+  padding: var(--sp-6) 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  min-height: 0;
+}
+.sidebar-logo {
+  padding: 0 var(--sp-6) var(--sp-6);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  border-bottom: 1px solid var(--border-soft);
+}
+.sidebar-logo .mark {
+  width: 27px; height: 27px; border-radius: var(--r-sm);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+.sidebar-logo .name { font-weight: 600; font-size: var(--text-md); }
+.sidebar-logo .ver { color: var(--ink-3); font-size: var(--text-xs); margin-left: auto; font-family: var(--font-mono); }
+
+.sidebar-section-h {
+  padding: var(--sp-4) var(--sp-6) var(--sp-2);
+  font-size: var(--shell-label-size); text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--ink-3);
+}
+.sidebar-link {
+  padding: var(--sp-2) var(--sp-6);
+  display: flex; align-items: center; gap: var(--sp-3);
+  color: var(--ink-2);
+  cursor: pointer;
+  text-decoration: none;
+  font-size: var(--text-base);
+}
+.sidebar-link:hover { background: var(--shell-hover-overlay); }
+.sidebar-link.active {
+  background: var(--accent-soft);
+  color: var(--ink);
+  /* inset shadow on left edge, not a left ribbon */
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.sidebar-link .ic { width: 21px; height: 21px; opacity: 0.65; }
+.sidebar-link .badge {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+}
+.sidebar-link.live .badge::before {
+  content: '●';
+  color: var(--green);
+  margin-right: 6px;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding: var(--sp-4) var(--sp-6);
+  border-top: 1px solid var(--border-soft);
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+  display: flex; align-items: center; gap: var(--sp-2);
+}
+.sidebar-footer .pulse {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--green);
+  display: none;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+.sidebar-footer.auto-running .pulse { display: inline-block; }
+
+/* Collapse toggle button */
+.sidebar-collapse-btn {
+  margin-left: auto;
+  width: 24px; height: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0;
+}
+.sidebar-collapse-btn:hover { color: var(--ink); background: var(--shell-hover-overlay); }
+
+/* Sidebar width animates between expanded and collapsed states. */
+.shell {
+  transition: grid-template-columns var(--t-slow) var(--ease);
+}
+.sidebar-logo .name,
+.sidebar-logo .ver,
+.sidebar-link .lbl,
+.sidebar-link .badge,
+.sidebar-footer span:last-child {
+  transition: opacity var(--t-base) var(--ease), max-width var(--t-slow) var(--ease);
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 200px;
+  opacity: 1;
+}
+
+/* Collapsed sidebar — icons-only.
+   Section labels become hairline dividers (text hidden, padding preserved).
+   Icon size + per-link vertical rhythm match the expanded layout. */
+.shell.sidebar-collapsed { grid-template-columns: 56px minmax(0, 1fr); }
+.shell.sidebar-collapsed .sidebar-logo {
+  /* Keep horizontal layout so the row height matches expanded mode and
+     subsequent links align at the same vertical positions. The logo mark
+     hides; only the toggle button remains, centered in the row. */
+  padding: 0 0 var(--sp-6);
+  flex-direction: row;
+  gap: 0;
+  justify-content: center;
+}
+.shell.sidebar-collapsed .sidebar-logo .mark {
+  display: none;
+}
+.shell.sidebar-collapsed .sidebar-logo .name,
+.shell.sidebar-collapsed .sidebar-logo .ver,
+.shell.sidebar-collapsed .sidebar-link .lbl,
+.shell.sidebar-collapsed .sidebar-link .badge,
+.shell.sidebar-collapsed .sidebar-footer span:last-child {
+  opacity: 0;
+  max-width: 0;
+  margin: 0;
+  padding: 0;
+}
+.shell.sidebar-collapsed .sidebar-section-h {
+  /* Keep the SAME vertical box as expanded so links align row-for-row.
+     Hide the text via color:transparent and render the divider as an
+     inset box-shadow so it doesn't add to the box height. */
+  color: transparent;
+  box-shadow: inset 0 -1px 0 var(--border-soft);
+  padding-left: var(--sp-3);
+  padding-right: var(--sp-3);
+}
+.shell.sidebar-collapsed .sidebar-collapse-btn { margin: 0 auto; }
+.shell.sidebar-collapsed .sidebar-link {
+  padding: var(--sp-2) 0;
+  justify-content: center;
+  gap: 0; /* prevent invisible .lbl / .badge from offsetting the centered icon */
+}
+.shell.sidebar-collapsed .sidebar-link .ic { display: inline-flex; align-items: center; justify-content: center; }
+.shell.sidebar-collapsed .sidebar-link.active { box-shadow: none; }
+.shell.sidebar-collapsed .sidebar-footer {
+  padding: var(--sp-4) 0;
+  justify-content: center;
+}
+
+/* Main */
+.main {
+  display: flex; flex-direction: column;
+  height: 100vh;
+  min-height: 0;
+  min-width: 0;
+  padding: var(--page-pad);
+  overflow: hidden;
+}
+
+.topbar {
+  display: flex; align-items: center; gap: var(--sp-5);
+  margin-bottom: var(--sp-6);
+  flex-wrap: nowrap;
+  min-height: 48px;
+}
+.topbar h1 {
+  font-size: var(--text-2xl);
+  margin: 0;
+  font-weight: 600;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.topbar-actions {
+  display: flex; align-items: center; gap: var(--sp-3);
+  flex: 1 1 0;
+  flex-wrap: wrap;
+  row-gap: var(--sp-2);
+  min-width: 0;
+  justify-content: flex-end;
+  container-type: inline-size;
+  container-name: topbar;
+}
+.topbar-actions:empty { display: none; }
+
+.screen-mount {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* ── Header auto-status pill ──
+   Visually aligned with .tm-action so it sits cleanly in the topbar cluster:
+   same height, radius, padding, font; tinted green to keep its live-state semantics.
+   It's pinned to the LEFT of the cluster (margin-right:auto) so it's the first
+   thing the eye lands on whenever auto-mode is running. */
+.auto-status-pill {
+  order: -1;                 /* pin to the left of the cluster */
+  margin-right: auto;        /* push subsequent siblings to the right */
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  background: color-mix(in srgb, var(--green) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--green) 32%, transparent);
+  color: var(--ink);
+  border-radius: var(--r-md);
+  padding: 6px var(--sp-3);
+  font-size: var(--text-sm);
+  font-family: var(--font-sans);
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.auto-status-pill:hover  {
+  background: color-mix(in srgb, var(--green) 18%, transparent);
+  border-color: color-mix(in srgb, var(--green) 48%, transparent);
+}
+.auto-status-pill:focus-visible { outline: 2px solid var(--green); outline-offset: 1px; }
+.auto-status-pill[hidden] { display: none; }
+.auto-status-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green);
+  animation: pulse 1.6s ease-in-out infinite;
+  flex: 0 0 auto;
+}
+.auto-status-text {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.02em;
+}
+
+/* Stub screen — see _placeholders.css */
