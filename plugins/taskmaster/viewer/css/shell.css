@@ -269,3 +269,46 @@ html, body {
 }
 
 /* Stub screen — see _placeholders.css */
+
+/* ─────────── MOBILE SHELL (< 768px = --bp-md) ─────────── */
+/* Open up scroll so kanban columns can stack vertically as a scrollable feed.
+   Desktop layout (≥ 768px) is completely unchanged. */
+@media (max-width: 768px) {
+  /* Allow page-level scroll (body/html locked overflow is the main blocker on mobile) */
+  html, body {
+    overflow-x: hidden;
+    overflow-y: auto;
+    height: auto;
+    min-height: 100%;
+  }
+
+  /* Shell: single column (sidebar hidden — hamburger/drawer is task 003's scope) */
+  .shell {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+    transition: none;
+  }
+
+  /* Sidebar hidden on mobile for now — task 003 adds hamburger/drawer */
+  .sidebar {
+    display: none;
+  }
+
+  /* Main: natural height, vertical scroll */
+  .main {
+    height: auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: visible;
+    padding: var(--sp-3);
+  }
+
+  /* Screen mount: natural flow */
+  .screen-mount {
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: visible;
+  }
+}
