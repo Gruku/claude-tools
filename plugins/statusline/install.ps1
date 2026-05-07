@@ -36,6 +36,62 @@ function Read-YesNo([string]$question, [bool]$default) {
     return ($resp -match '^\s*[Yy]')
 }
 
+function Invoke-PreflightChecks {
+    Write-Host "Preflight checks:" -ForegroundColor Cyan
+    $warnings = 0
+
+    # CLAUDE_CODE_GIT_BASH_PATH stale-path check.
+    # Claude Code routes shell commands (incl. statusLine.command) through this binary
+    # when set. If the path no longer exists (common after reinstalling Git), Claude
+    # Code hangs silently — popup window stays open, statusline never renders.
+    $scopes = @(
+        @{ Name = 'User';    Value = [Environment]::GetEnvironmentVariable('CLAUDE_CODE_GIT_BASH_PATH','User') },
+        @{ Name = 'Machine'; Value = [Environment]::GetEnvironmentVariable('CLAUDE_CODE_GIT_BASH_PATH','Machine') }
+    )
+    $sawAny = $false
+    foreach ($s in $scopes) {
+        if (-not $s.Value) { continue }
+        $sawAny = $true
+        if (Test-Path $s.Value) {
+            Write-Host "  [OK]   CLAUDE_CODE_GIT_BASH_PATH ($($s.Name)) -> $($s.Value)" -ForegroundColor Green
+        } else {
+            Write-Host "  [WARN] CLAUDE_CODE_GIT_BASH_PATH ($($s.Name)) points at a missing file:" -ForegroundColor Yellow
+            Write-Host "         $($s.Value)"
+            Write-Host "         Claude Code will hang trying to run shell commands (including this statusline)."
+            Write-Host "         Fix:" -ForegroundColor Yellow
+            Write-Host "           [Environment]::SetEnvironmentVariable('CLAUDE_CODE_GIT_BASH_PATH', `$null, '$($s.Name)')"
+            Write-Host "         Then FULLY kill every claude.exe / node.exe in Task Manager and relaunch from PowerShell."
+            $warnings++
+        }
+    }
+    if (-not $sawAny) {
+        Write-Host "  [OK]   CLAUDE_CODE_GIT_BASH_PATH not set (Claude Code will auto-detect Git Bash)." -ForegroundColor Green
+    }
+
+    # WSL bash.exe stub on PATH — informational. Doesn't block anything for the
+    # statusline (which goes through powershell.exe directly), but useful breadcrumb
+    # if shell commands ever route through WSL and hang.
+    $bashSrc = (Get-Command bash -ErrorAction SilentlyContinue).Source
+    if ($bashSrc -eq 'C:\Windows\System32\bash.exe') {
+        Write-Host "  [INFO] 'bash' on PATH resolves to the WSL launcher ($bashSrc)." -ForegroundColor DarkGray
+        Write-Host "         Harmless on its own. If the statusline ever stops rendering, look at" -ForegroundColor DarkGray
+        Write-Host "         the popup window's title bar — '/usr/bin/bash --login -i -c …' means" -ForegroundColor DarkGray
+        Write-Host "         Claude Code is routing through WSL/Git Bash. Re-run this installer." -ForegroundColor DarkGray
+    }
+
+    Write-Host ""
+    return $warnings
+}
+
+$preflightWarnings = Invoke-PreflightChecks
+if ($preflightWarnings -gt 0 -and -not $NonInteractive) {
+    if (-not (Read-YesNo "Continue with install despite the warnings?" $true)) {
+        Write-Host "Aborted. Resolve the warnings above and re-run." -ForegroundColor Yellow
+        exit 0
+    }
+    Write-Host ""
+}
+
 if ($NonInteractive) {
     $showGit       = -not $NoGit
     $showUpdate    = -not $NoUpdateCheck
