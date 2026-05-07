@@ -138,6 +138,18 @@ if (Test-Path $configPath) {
     } catch {}
 }
 
+# --- Statusline config (~/.claude/statusline.config.json, written by install.ps1) ---
+$slShowGit = $true
+$slShowUpdate = $true
+$slConfigPath = Join-Path ([System.Environment]::GetFolderPath('UserProfile')) ".claude\statusline.config.json"
+if (Test-Path $slConfigPath) {
+    try {
+        $slConfig = Get-Content $slConfigPath -Raw | ConvertFrom-Json
+        if ($slConfig.PSObject.Properties['showGit'])         { $slShowGit    = [bool]$slConfig.showGit }
+        if ($slConfig.PSObject.Properties['showUpdateCheck']) { $slShowUpdate = [bool]$slConfig.showUpdateCheck }
+    } catch {}
+}
+
 # --- Context percentage (adjusted for autocompact buffer) ---
 # When autocompact is on, it reserves ~33000 tokens (20000 max_output + 13000 buffer).
 # used_percentage is raw % of total window — we recalculate against usable space.
@@ -236,6 +248,8 @@ if ($pct -ge 100) {
 }
 
 # --- Git info (cached 30s, per-project) ---
+$gitDisplay = ""
+if ($slShowGit) {
 $gitCache = Join-Path $env:TEMP "claude-sl-git.json"
 $branch = ""; $gitStaged = 0; $gitModified = 0; $repoUrl = ""; $hasGit = $false; $gitNested = $false
 $needGit = $true
@@ -317,6 +331,7 @@ if ($hasGit -and $branch) {
     # No git initialized
     $gitDisplay = "${cDimmer}${gitIcon} no git${R}"
 }
+}  # end if ($slShowGit)
 
 # --- Session start detection (show limit % on first render only) ---
 $sessionMarker = Join-Path $env:TEMP "claude-sl-session.json"
@@ -508,6 +523,7 @@ $sdResetTxt = if ($sdShowReset -and $sdReset) { " ${cMauve}${sdReset}${R}" } els
 # --- Claude Code update check (per-session cache, checked once per session) ---
 $hasUpdate = $false; $updateLocal = ""; $updateRemote = ""
 $needUpdateCheck = $true
+if ($slShowUpdate) {
 
 # Per-session cache: each session gets its own file, no cross-session pollution
 $updateCacheTag = if ($sid) { $sid.Substring(0, [Math]::Min(12, $sid.Length)) } else { "nosid" }
@@ -545,6 +561,7 @@ if ($needUpdateCheck) {
             ConvertTo-Json | Set-Content $updateCache -Encoding UTF8
     }
 }
+}  # end if ($slShowUpdate)
 
 # --- Session cost (from statusline JSON) ---
 $costTxt = ""
@@ -597,7 +614,7 @@ if ($hasUpdate) {
 
 # Line 2: git  limits  [extra]
 $line2Parts = @()
-$line2Parts += $gitDisplay
+if ($gitDisplay) { $line2Parts += $gitDisplay }
 if ($limitsOk) {
     $line2Parts += "${fhBar}${fhResetTxt}"
     $line2Parts += "${sdBar}${sdResetTxt}"

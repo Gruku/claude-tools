@@ -206,6 +206,17 @@ if [[ -f "$configPath" ]]; then
     [[ "$acVal" == "false" ]] && autoCompactOn=false
 fi
 
+# --- Statusline config (~/.claude/statusline.config.json, written by install.sh) ---
+slShowGit=true
+slShowUpdate=true
+slConfigPath="$HOME/.claude/statusline.config.json"
+if [[ -f "$slConfigPath" ]]; then
+    sg=$(jq -r '.showGit // true' "$slConfigPath" 2>/dev/null || echo "true")
+    [[ "$sg" == "false" ]] && slShowGit=false
+    su=$(jq -r '.showUpdateCheck // true' "$slConfigPath" 2>/dev/null || echo "true")
+    [[ "$su" == "false" ]] && slShowUpdate=false
+fi
+
 # --- Context percentage (adjusted for autocompact buffer) ---
 if $autoCompactOn; then autocompactBuffer=33000; else autocompactBuffer=0; fi
 pct=0; currentTokens=0
@@ -303,6 +314,8 @@ else
 fi
 
 # --- Git info (cached 30s, per-project) ---
+gitDisplay=""
+if $slShowGit; then
 gitCache="${TMPD}/claude-sl-git.json"
 branch="" gitStaged=0 gitModified=0 repoUrl="" hasGit=false gitNested=false
 needGit=true
@@ -371,6 +384,7 @@ elif $hasGit; then
 else
     gitDisplay="${cDimmer}⎇ no git${R}"
 fi
+fi  # end if $slShowGit
 
 # --- Session start detection (show limit % on first render only) ---
 sessionMarker="${TMPD}/claude-sl-session.json"
@@ -564,11 +578,12 @@ fi
 $sdShowReset && [[ -n "$sdReset" ]] && sdResetTxt=" ${cMauve}${sdReset}${R}"
 
 # --- Claude Code update check (per-session cache, refreshed hourly) ---
+hasUpdate=false updateLocal="" updateRemote=""
+needUpdateCheck=true
+if $slShowUpdate; then
 updateCacheTag="${J_SID:0:12}"
 updateCacheTag="${updateCacheTag:-nosid}"
 updateCache="${TMPD}/claude-sl-update-${updateCacheTag}.json"
-hasUpdate=false updateLocal="" updateRemote=""
-needUpdateCheck=true
 
 if [[ -f "$updateCache" ]]; then
     age=$(file_age "$updateCache")
@@ -591,6 +606,7 @@ if $needUpdateCheck; then
     jq -n --argjson h "$hasUpdate" --arg l "$updateLocal" --arg r "$updateRemote" \
         '{hasUpdate:$h,local:$l,remote:$r}' > "$updateCache" 2>/dev/null
 fi
+fi  # end if $slShowUpdate
 
 # --- Session cost (from statusline JSON) ---
 costTxt=""
@@ -642,14 +658,18 @@ if $hasUpdate; then
 fi
 
 # Line 2: git  limits  [extra]
-line2="$gitDisplay"
+line2=""
+sep=""
+[[ -n "$gitDisplay" ]] && { line2="$gitDisplay"; sep="  "; }
 if $limitsOk; then
-    line2+="  ${fhBar}${fhResetTxt}  ${sdBar}${sdResetTxt}"
+    line2+="${sep}${fhBar}${fhResetTxt}  ${sdBar}${sdResetTxt}"
+    sep="  "
     [[ -n "$peakTxt" ]] && line2+="  ${peakTxt}"
 elif $limitsFailed; then
-    line2+="  ${cDimmer}limits --${R}"
+    line2+="${sep}${cDimmer}limits --${R}"
+    sep="  "
 fi
-[[ -n "$extraTxt" ]] && line2+="  ${extraTxt}"
+[[ -n "$extraTxt" ]] && line2+="${sep}${extraTxt}"
 
 printf '%s\n' "$line1"
 printf '%s' "$line2"
