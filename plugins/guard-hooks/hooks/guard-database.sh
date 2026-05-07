@@ -22,14 +22,17 @@ EOF
   exit 2
 fi
 
-# --- Time-limited file consumption (60s TTL, one-shot) ---
+# --- Time-limited approval check (60s TTL) ---
+# Approval/ack files are NOT consumed here. The PostToolUse hook
+# (consume-approval.sh) deletes them after the tool actually runs, so a denial
+# at the standard permission layer leaves them intact for a retry within the
+# window. Expired files are removed here as cleanup.
 file_recent() {
   local f="$1"
   [ -f "$f" ] || return 1
   local age
   age=$(( $(date +%s) - $(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null || echo 0) ))
   if [ "$age" -le 60 ] 2>/dev/null; then
-    rm -f "$f"
     return 0
   fi
   rm -f "$f"

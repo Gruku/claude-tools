@@ -4,9 +4,17 @@
 # Exit 2 = block (stderr sent to Claude as feedback)
 # Exit 0 = allow
 #
-# To approve a blocked command, the USER (not the LLM) must run in another terminal:
-#   touch ~/.claude/guard-approve
-# The approval is valid for 60 seconds and consumed on use.
+# Approval flow (shared with the rest of guard-hooks):
+#   The AI calls AskUserQuestion with labels "Approve"/"Deny". On "Approve",
+#   the PostToolUse hook on AskUserQuestion creates ~/.claude/guard-approve
+#   automatically. The user can also type "approve" as a chat message
+#   (UserPromptSubmit hook).
+#
+# Lifecycle: the approval is valid for 60 seconds. PreToolUse hooks only
+# CHECK the file's freshness — they don't delete it on use. The PostToolUse
+# hook (consume-approval.sh) deletes the file after the tool actually runs,
+# so a denial at the standard permission layer leaves the approval intact
+# for a retry within the window.
 
 APPROVE_FILE="$HOME/.claude/guard-approve"
 
@@ -31,6 +39,11 @@ EOF
 fi
 
 # --- Time-limited user approval ---
+# Approval is NOT consumed here. The PostToolUse hook (consume-approval.sh)
+# deletes the file after the tool actually runs, so a denial at the standard
+# permission layer leaves the approval intact for a retry within the window.
+# Expired tokens ARE removed here (cleanup). Stale tokens we couldn't stat
+# are left in place so the user's later attempt still works.
 check_approval() {
   if [ -f "$APPROVE_FILE" ]; then
     # Check if file was modified within the last 60 seconds
@@ -41,8 +54,6 @@ check_approval() {
       FILE_AGE=$(( $(date +%s) - $(stat -c %Y "$APPROVE_FILE" 2>/dev/null || echo 0) ))
     fi
     if [ "$FILE_AGE" -le 60 ] 2>/dev/null; then
-      # Consume the approval (one-time use)
-      rm -f "$APPROVE_FILE"
       return 0
     fi
     # Expired — clean up
@@ -95,9 +106,42 @@ if [ -n "$PUSH_CMD" ]; then
   if echo "$PUSH_ARGS" | grep -qE '(-f|--force)'; then
     block "Force push detected. This can overwrite remote history."
   fi
-  if echo "$PUSH_ARGS" | grep -qE '\b(main|master)\b'; then
-    block "Pushing directly to main/master. Create a PR instead."
+
+  # Protected-branch detection.
+  # The previous implementation matched main/master ANYWHERE in PUSH_ARGS,
+  # which false-positived on `git push origin master:feature-branch` (master
+  # is the SOURCE; feature-branch is the destination). Walk the positional
+  # args, drop flags and the remote name, and check only the destination
+  # side of each refspec — `[+]<src>[:<dst>]` -> dst is right of colon, or
+  # the whole ref if no colon. Bare deletes (`:dst`) still flag if dst is
+  # protected. `+` force-prefix is stripped before checking.
+  protected_dst_hit=0
+  saw_remote=0
+  # Iterate PUSH_ARGS as space-separated tokens.
+  for token in $PUSH_ARGS; do
+    case "$token" in
+      -*) continue ;;            # flag — skip
+    esac
+    if [ "$saw_remote" = "0" ]; then
+      saw_remote=1                # first non-flag positional is the remote
+      continue
+    fi
+    refspec="${token#+}"          # strip force prefix
+    if echo "$refspec" | grep -q ':'; then
+      dst="${refspec##*:}"
+    else
+      dst="$refspec"
+    fi
+    dst="${dst#refs/heads/}"
+    if [ "$dst" = "main" ] || [ "$dst" = "master" ]; then
+      protected_dst_hit=1
+      break
+    fi
+  done
+  if [ "$protected_dst_hit" = "1" ]; then
+    block "Pushing to main/master. Create a PR instead."
   fi
+
   # Bare push (no args after "push") — check current branch
   if [ -z "$(echo "$PUSH_ARGS" | tr -d '[:space:]')" ]; then
     CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)

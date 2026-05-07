@@ -33,6 +33,9 @@ EOF
   exit 2
 fi
 
+# Approval is NOT consumed here. The PostToolUse hook (consume-approval.sh)
+# deletes the file after the tool actually runs, so a denial at the standard
+# permission layer leaves the approval intact for a retry within the window.
 check_approval() {
   if [ -f "$APPROVE_FILE" ]; then
     local mtime age
@@ -44,7 +47,6 @@ check_approval() {
     fi
     age=$(( $(date +%s) - mtime ))
     if [ "$age" -le 60 ] 2>/dev/null; then
-      rm -f "$APPROVE_FILE"
       return 0
     fi
     rm -f "$APPROVE_FILE"

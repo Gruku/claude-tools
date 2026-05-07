@@ -51,6 +51,15 @@
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/ask-question-approval.sh\""
           }
         ]
+      },
+      {
+        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/consume-approval.sh\""
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
