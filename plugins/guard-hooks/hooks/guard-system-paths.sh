@@ -122,19 +122,56 @@ REDIRECT_RE='(>|>>)'
 # --- Split command into segments by &&, ||, ;, | ---
 # Each subcommand is checked in isolation so that  `ls /bin && rm tmp.txt`  passes
 # (system path and destructive verb live in different segments).
-# Pure-bash parameter expansion: replace operators with a NUL sentinel, then
-# split on it. This avoids portability issues with sed and literal newlines.
-SENT=$'\x01'
-TMP="$COMMAND"
-TMP="${TMP//&&/$SENT}"
-TMP="${TMP//||/$SENT}"
-TMP="${TMP//;/$SENT}"
-TMP="${TMP//|/$SENT}"
-
-OLD_IFS="$IFS"
-IFS="$SENT"
-read -ra SEGMENTS_ARR <<< "$TMP"
-IFS="$OLD_IFS"
+# Quote-aware: operators inside single or double quotes do NOT split. Without
+# this, an `ssh remote "cmd1; cmd2 > /etc/foo"` payload would shred into local
+# segments and false-positive on the inner `;` and `>` even though the whole
+# thing runs remotely.
+SEGMENTS_ARR=()
+current=""
+in_single=0
+in_double=0
+i=0
+len=${#COMMAND}
+while [ "$i" -lt "$len" ]; do
+  ch="${COMMAND:$i:1}"
+  # Inside double quotes, backslash escapes the next char (notably \") — keep
+  # both verbatim and advance past them so the escaped quote doesn't toggle state.
+  if [ "$in_double" -eq 1 ] && [ "$ch" = "\\" ] && [ $((i + 1)) -lt "$len" ]; then
+    current+="${COMMAND:$i:2}"
+    i=$((i + 2))
+    continue
+  fi
+  if [ "$in_single" -eq 0 ] && [ "$ch" = '"' ]; then
+    in_double=$((1 - in_double))
+    current+="$ch"
+    i=$((i + 1))
+    continue
+  fi
+  if [ "$in_double" -eq 0 ] && [ "$ch" = "'" ]; then
+    in_single=$((1 - in_single))
+    current+="$ch"
+    i=$((i + 1))
+    continue
+  fi
+  if [ "$in_single" -eq 0 ] && [ "$in_double" -eq 0 ]; then
+    two="${COMMAND:$i:2}"
+    if [ "$two" = "&&" ] || [ "$two" = "||" ]; then
+      SEGMENTS_ARR+=("$current")
+      current=""
+      i=$((i + 2))
+      continue
+    fi
+    if [ "$ch" = ";" ] || [ "$ch" = "|" ]; then
+      SEGMENTS_ARR+=("$current")
+      current=""
+      i=$((i + 1))
+      continue
+    fi
+  fi
+  current+="$ch"
+  i=$((i + 1))
+done
+SEGMENTS_ARR+=("$current")
 
 # Destructive verbs reduced to a basename allowlist — used to detect when an
 # absolute-path invocation like `/usr/bin/rm /etc/passwd` is destructive even
