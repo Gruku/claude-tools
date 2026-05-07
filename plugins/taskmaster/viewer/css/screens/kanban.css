@@ -861,4 +861,72 @@
     min-height: 0;
     overflow: visible;
   }
+
+  /* ── Filter bar: horizontal scroll-snap row ──────────────────────────────
+     Choice: scroll-snap row (not wrap). Rationale: the phase stepper and epic
+     chips each have many items — wrapping pushes the board too far down the
+     viewport. A single-row scroll-snap strip lets users flick horizontally. */
+  .kanban-filterbar {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    gap: var(--sp-2);
+    /* Hide scrollbar track — snap feel implies swipeable */
+    scrollbar-width: none;
+  }
+  .kanban-filterbar::-webkit-scrollbar { display: none; }
+
+  .kanban-filterbar-row {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+    width: max-content;
+    min-width: 100%;        /* each "page" is at least full viewport width */
+  }
+  /* Remove the inter-row top border in horizontal layout */
+  .kanban-filterbar-row.phase + .kanban-filterbar-row.epic {
+    border-top: 0;
+    padding-top: 0;
+    border-left: 1px solid var(--border);
+    padding-left: var(--sp-3);
+  }
+
+  /* Phase stepper: allow horizontal scroll within its row */
+  .kanban-phase-stepper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    min-height: unset;
+  }
+  .kanban-phase-stepper::-webkit-scrollbar { display: none; }
+
+  /* Active card: shrink from 480px fixed to viewport-relative */
+  .kanban-phase-stepper .phs-active-card {
+    flex: 0 0 85vw;
+    max-width: 85vw;
+  }
+
+  /* Future cards: shrink from 240px fixed to viewport-relative */
+  .kanban-phase-stepper .phs-future-card {
+    flex: 0 0 72vw;
+    max-width: 72vw;
+  }
+
+  /* ── Tap targets: minimum 44px height for all filter controls ───────────── */
+  .kanban-epic-chip,
+  .kanban-pri-tog,
+  .kanban-phase-stepper .phs-util,
+  .kanban-phase-stepper .phs-chip {
+    min-height: 44px;
+  }
+
+  .kanban-select,
+  .kanban-group-btn,
+  .kanban-sort-btn {
+    min-height: 44px;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
 }
