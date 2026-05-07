@@ -13,5 +13,10 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "plugin-dev@claude-plugins-official": true,
+    "hookify@claude-plugins-official": false,
+    "mcp-server-dev@claude-plugins-official": true
   }
 }

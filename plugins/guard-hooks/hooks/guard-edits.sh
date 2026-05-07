@@ -14,6 +14,9 @@ if [ -z "$FILE_PATH" ]; then
 fi
 
 # --- Time-limited user approval (shared with guard-destructive.sh) ---
+# Approval is NOT consumed here. The PostToolUse hook (consume-approval.sh)
+# deletes the file after the tool actually runs, so a denial at the standard
+# permission layer leaves the approval intact for a retry within the window.
 check_approval() {
   if [ -f "$APPROVE_FILE" ]; then
     if [ "$(uname)" = "Linux" ] || [ "$(uname)" = "Darwin" ]; then
@@ -22,7 +25,6 @@ check_approval() {
       FILE_AGE=$(( $(date +%s) - $(stat -c %Y "$APPROVE_FILE" 2>/dev/null || echo 0) ))
     fi
     if [ "$FILE_AGE" -le 60 ] 2>/dev/null; then
-      rm -f "$APPROVE_FILE"
       return 0
     fi
     rm -f "$APPROVE_FILE"

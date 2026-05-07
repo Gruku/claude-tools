@@ -185,8 +185,14 @@ assert_blocked "/usr/bin/rm against /etc"     '/usr/bin/rm /etc/passwd'
 echo "-- approval bypass --"
 touch "$HOME/.claude/guard-approve"
 assert_allowed "approval allows blocked cmd"  "rm /usr/bin/python"
-# Approval is one-shot — the next call should block again
-assert_blocked "approval consumed (one-shot)" "rm /usr/bin/python"
+# PreToolUse does NOT consume the approval — that's the PostToolUse consumer's
+# job. So a retry within the 60s window (e.g. after a permission-layer denial)
+# is still allowed.
+assert_allowed "approval persists for retry"  "rm /usr/bin/python"
+# Simulate the PostToolUse consumer running after the tool actually executed.
+echo '{}' | bash "$SCRIPT_DIR/../hooks/consume-approval.sh" >/dev/null 2>&1
+# Now the approval is gone — next attempt blocks.
+assert_blocked "post-consume blocks again"    "rm /usr/bin/python"
 
 echo "-- denial logging --"
 # Trigger a fresh denial and verify it was logged
