@@ -7,11 +7,13 @@
 #   pwsh -File install.ps1                                                  # interactive
 #   pwsh -File install.ps1 -NoGit                                           # disable git section
 #   pwsh -File install.ps1 -NoUpdateCheck                                   # disable update banner
-#   pwsh -File install.ps1 -NoGit -NoUpdateCheck -NonInteractive            # scripted
+#   pwsh -File install.ps1 -NoLimitBars                                     # hide 5h/7d rate-limit bars
+#   pwsh -File install.ps1 -NoGit -NoUpdateCheck -NoLimitBars -NonInteractive  # scripted
 
 param(
     [switch]$NoGit,
     [switch]$NoUpdateCheck,
+    [switch]$NoLimitBars,
     [switch]$NonInteractive
 )
 
@@ -35,23 +37,26 @@ function Read-YesNo([string]$question, [bool]$default) {
 }
 
 if ($NonInteractive) {
-    $showGit    = -not $NoGit
-    $showUpdate = -not $NoUpdateCheck
+    $showGit       = -not $NoGit
+    $showUpdate    = -not $NoUpdateCheck
+    $showLimitBars = -not $NoLimitBars
 } else {
     Write-Host ""
     Write-Host "gruku-tools statusline -- installer" -ForegroundColor Cyan
     Write-Host "==================================="
     Write-Host ""
-    Write-Host "Two optional features can be disabled if you see flashing console"
+    Write-Host "Optional features can be disabled if you see flashing console"
     Write-Host "windows, hangs, or you just don't want them:"
     Write-Host ""
     Write-Host "  - Git info     : branch + dirty markers (runs 'git' per refresh,"
     Write-Host "                   may flash if a credential helper is misconfigured)"
     Write-Host "  - Update check : checks npm for a new Claude Code version"
     Write-Host "                   (runs 'claude --version' once per session/hour)"
+    Write-Host "  - Limit bars   : 5h / 7d rate-limit bars on line 2"
     Write-Host ""
-    $showGit    = Read-YesNo "Enable git info?"     $true
-    $showUpdate = Read-YesNo "Enable update check?" $true
+    $showGit       = Read-YesNo "Enable git info?"        $true
+    $showUpdate    = Read-YesNo "Enable update check?"    $true
+    $showLimitBars = Read-YesNo "Show rate-limit bars?"   $true
     Write-Host ""
 }
 
@@ -60,11 +65,13 @@ $null = New-Item -ItemType Directory -Force -Path (Split-Path $configPath) -Erro
 [ordered]@{
     showGit         = $showGit
     showUpdateCheck = $showUpdate
+    showLimitBars   = $showLimitBars
 } | ConvertTo-Json | Set-Content $configPath -Encoding UTF8
 
 Write-Host "Wrote $configPath" -ForegroundColor Green
 Write-Host "  showGit         = $showGit"
 Write-Host "  showUpdateCheck = $showUpdate"
+Write-Host "  showLimitBars   = $showLimitBars"
 
 # Ensure settings.json exists
 if (-not (Test-Path $settingsPath)) {

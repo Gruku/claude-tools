@@ -209,12 +209,15 @@ fi
 # --- Statusline config (~/.claude/statusline.config.json, written by install.sh) ---
 slShowGit=true
 slShowUpdate=true
+slShowLimitBars=true
 slConfigPath="$HOME/.claude/statusline.config.json"
 if [[ -f "$slConfigPath" ]]; then
     sg=$(jq -r '.showGit // true' "$slConfigPath" 2>/dev/null || echo "true")
     [[ "$sg" == "false" ]] && slShowGit=false
     su=$(jq -r '.showUpdateCheck // true' "$slConfigPath" 2>/dev/null || echo "true")
     [[ "$su" == "false" ]] && slShowUpdate=false
+    sb=$(jq -r '.showLimitBars // true' "$slConfigPath" 2>/dev/null || echo "true")
+    [[ "$sb" == "false" ]] && slShowLimitBars=false
 fi
 
 # --- Context percentage (adjusted for autocompact buffer) ---
@@ -661,13 +664,15 @@ fi
 line2=""
 sep=""
 [[ -n "$gitDisplay" ]] && { line2="$gitDisplay"; sep="  "; }
-if $limitsOk; then
-    line2+="${sep}${fhBar}${fhResetTxt}  ${sdBar}${sdResetTxt}"
-    sep="  "
-    [[ -n "$peakTxt" ]] && line2+="  ${peakTxt}"
-elif $limitsFailed; then
-    line2+="${sep}${cDimmer}limits --${R}"
-    sep="  "
+if $slShowLimitBars; then
+    if $limitsOk; then
+        line2+="${sep}${fhBar}${fhResetTxt}  ${sdBar}${sdResetTxt}"
+        sep="  "
+        [[ -n "$peakTxt" ]] && line2+="  ${peakTxt}"
+    elif $limitsFailed; then
+        line2+="${sep}${cDimmer}limits --${R}"
+        sep="  "
+    fi
 fi
 [[ -n "$extraTxt" ]] && line2+="${sep}${extraTxt}"
 
