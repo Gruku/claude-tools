@@ -5,10 +5,11 @@
 # - Writes ~/.claude/statusline.config.json with feature toggles
 #
 # Usage:
-#   ./install.sh                                                # interactive
-#   ./install.sh --no-git                                       # disable git section
-#   ./install.sh --no-update-check                              # disable update banner
-#   ./install.sh --no-git --no-update-check --non-interactive   # scripted
+#   ./install.sh                                                              # interactive
+#   ./install.sh --no-git                                                     # disable git section
+#   ./install.sh --no-update-check                                            # disable update banner
+#   ./install.sh --no-limit-bars                                              # hide 5h/7d rate-limit bars
+#   ./install.sh --no-git --no-update-check --no-limit-bars --non-interactive # scripted
 
 set -euo pipefail
 
@@ -18,11 +19,13 @@ SETTINGS_PATH="$HOME/.claude/settings.json"
 
 NO_GIT=false
 NO_UPDATE=false
+NO_LIMIT_BARS=false
 NON_INTERACTIVE=false
 for arg in "$@"; do
     case $arg in
         --no-git)            NO_GIT=true ;;
         --no-update-check)   NO_UPDATE=true ;;
+        --no-limit-bars)     NO_LIMIT_BARS=true ;;
         --non-interactive)   NON_INTERACTIVE=true ;;
         -h|--help)
             sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
@@ -52,33 +55,37 @@ ask_yn() {
 }
 
 if $NON_INTERACTIVE; then
-    if $NO_GIT;    then SHOW_GIT=false;    else SHOW_GIT=true;    fi
-    if $NO_UPDATE; then SHOW_UPDATE=false; else SHOW_UPDATE=true; fi
+    if $NO_GIT;        then SHOW_GIT=false;        else SHOW_GIT=true;        fi
+    if $NO_UPDATE;     then SHOW_UPDATE=false;     else SHOW_UPDATE=true;     fi
+    if $NO_LIMIT_BARS; then SHOW_LIMIT_BARS=false; else SHOW_LIMIT_BARS=true; fi
 else
     echo
     echo "gruku-tools statusline -- installer"
     echo "==================================="
     echo
-    echo "Two optional features can be disabled if you see flashing console"
+    echo "Optional features can be disabled if you see flashing console"
     echo "windows, hangs, or you just don't want them:"
     echo
     echo "  - Git info     : branch + dirty markers (runs 'git' per refresh,"
     echo "                   may flash if a credential helper is misconfigured)"
     echo "  - Update check : checks npm for a new Claude Code version"
     echo "                   (runs 'claude --version' once per session/hour)"
+    echo "  - Limit bars   : 5h / 7d rate-limit bars on line 2"
     echo
-    if ask_yn "Enable git info?"     y; then SHOW_GIT=true;    else SHOW_GIT=false;    fi
-    if ask_yn "Enable update check?" y; then SHOW_UPDATE=true; else SHOW_UPDATE=false; fi
+    if ask_yn "Enable git info?"      y; then SHOW_GIT=true;        else SHOW_GIT=false;        fi
+    if ask_yn "Enable update check?"  y; then SHOW_UPDATE=true;     else SHOW_UPDATE=false;     fi
+    if ask_yn "Show rate-limit bars?" y; then SHOW_LIMIT_BARS=true; else SHOW_LIMIT_BARS=false; fi
     echo
 fi
 
 mkdir -p "$(dirname "$CONFIG_PATH")"
-jq -n --argjson g "$SHOW_GIT" --argjson u "$SHOW_UPDATE" \
-    '{showGit: $g, showUpdateCheck: $u}' > "$CONFIG_PATH"
+jq -n --argjson g "$SHOW_GIT" --argjson u "$SHOW_UPDATE" --argjson b "$SHOW_LIMIT_BARS" \
+    '{showGit: $g, showUpdateCheck: $u, showLimitBars: $b}' > "$CONFIG_PATH"
 
 echo "Wrote $CONFIG_PATH"
 echo "  showGit         = $SHOW_GIT"
 echo "  showUpdateCheck = $SHOW_UPDATE"
+echo "  showLimitBars   = $SHOW_LIMIT_BARS"
 
 DESIRED='bash -c '"'"'latest=$(ls -1 "$HOME/.claude/plugins/cache/gruku-tools/statusline" | sort -V | tail -1); exec bash "$HOME/.claude/plugins/cache/gruku-tools/statusline/$latest/statusline.sh"'"'"''
 

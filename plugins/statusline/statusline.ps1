@@ -141,12 +141,14 @@ if (Test-Path $configPath) {
 # --- Statusline config (~/.claude/statusline.config.json, written by install.ps1) ---
 $slShowGit = $true
 $slShowUpdate = $true
+$slShowLimitBars = $true
 $slConfigPath = Join-Path ([System.Environment]::GetFolderPath('UserProfile')) ".claude\statusline.config.json"
 if (Test-Path $slConfigPath) {
     try {
         $slConfig = Get-Content $slConfigPath -Raw | ConvertFrom-Json
-        if ($slConfig.PSObject.Properties['showGit'])         { $slShowGit    = [bool]$slConfig.showGit }
-        if ($slConfig.PSObject.Properties['showUpdateCheck']) { $slShowUpdate = [bool]$slConfig.showUpdateCheck }
+        if ($slConfig.PSObject.Properties['showGit'])         { $slShowGit       = [bool]$slConfig.showGit }
+        if ($slConfig.PSObject.Properties['showUpdateCheck']) { $slShowUpdate    = [bool]$slConfig.showUpdateCheck }
+        if ($slConfig.PSObject.Properties['showLimitBars'])   { $slShowLimitBars = [bool]$slConfig.showLimitBars }
     } catch {}
 }
 
@@ -615,12 +617,14 @@ if ($hasUpdate) {
 # Line 2: git  limits  [extra]
 $line2Parts = @()
 if ($gitDisplay) { $line2Parts += $gitDisplay }
-if ($limitsOk) {
-    $line2Parts += "${fhBar}${fhResetTxt}"
-    $line2Parts += "${sdBar}${sdResetTxt}"
-    if ($peakTxt) { $line2Parts += $peakTxt }
-} elseif ($limitsFailed) {
-    $line2Parts += "${cDimmer}limits --${R}"
+if ($slShowLimitBars) {
+    if ($limitsOk) {
+        $line2Parts += "${fhBar}${fhResetTxt}"
+        $line2Parts += "${sdBar}${sdResetTxt}"
+        if ($peakTxt) { $line2Parts += $peakTxt }
+    } elseif ($limitsFailed) {
+        $line2Parts += "${cDimmer}limits --${R}"
+    }
 }
 if ($extraTxt) { $line2Parts += $extraTxt }
 $line2 = $line2Parts -join "  "

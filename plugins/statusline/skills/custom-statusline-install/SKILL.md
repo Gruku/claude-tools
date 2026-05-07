@@ -1,44 +1,79 @@
 ---
 name: custom-statusline-install
-description: Configure Claude Code to use the gruku-tools custom statusline (distinct from the native /statusline command which opens settings). Use when the user says "set up the custom statusline", "install the gruku statusline", "/statusline:custom-statusline-install", or right after installing the plugin.
+description: Configure Claude Code to use the gruku-tools custom statusline (distinct from the native /statusline command which opens settings). Use when the user says "set up the custom statusline", "install the gruku statusline", "/statusline:custom-statusline-install", or right after installing the plugin. Also handles uninstall ("remove the statusline", "/statusline:custom-statusline-uninstall").
 ---
 
-# Custom Statusline Install
+# Custom Statusline Install / Uninstall
 
-Wires the gruku-tools statusline (`statusline.sh` / `statusline.ps1`) into `~/.claude/settings.json` with a self-healing version resolver, and writes a toggle config at `~/.claude/statusline.config.json`.
+Wires the gruku-tools statusline (`statusline.sh` / `statusline.ps1`) into `~/.claude/settings.json` via a self-healing version resolver, and writes a toggle config at `~/.claude/statusline.config.json`. Also tears it back down on request.
 
 The skill name is deliberately verbose to distinguish it from Claude Code's built-in `/statusline` command, which opens a settings UI. This one is an installer.
 
-The fast path is the bundled installer — it does everything below, plus prompts for two toggles (`git info` and `update check`) that mitigate flashing console windows on Windows when a credential helper is misconfigured or `claude --version` is slow.
+## Toggles
 
-Prefer running the installer. The manual steps are a fallback for users who want to inspect or customize the wiring.
+`~/.claude/statusline.config.json` (hot-reloaded by the statusline on each refresh):
 
-## Run the installer
+| Key               | Default | Effect when `false` |
+|-------------------|---------|---------------------|
+| `showGit`         | `true`  | Skip git branch + dirty markers (mitigates flashing console windows on Windows when a credential helper is misconfigured) |
+| `showUpdateCheck` | `true`  | Skip the `↑ vX → vY` Claude Code update banner (skips `claude --version` + npm registry call) |
+| `showLimitBars`   | `true`  | Hide the 5h / 7d rate-limit bars on line 2 |
 
-- **Windows:** `pwsh -File ${CLAUDE_PLUGIN_ROOT}/install.ps1`
-- **macOS / Linux:** `bash ${CLAUDE_PLUGIN_ROOT}/install.sh`
+## Install — interactive (recommended)
 
-Args (same names on both platforms unless noted):
+When the user asks to install (or runs `/statusline:custom-statusline-install` with no args), drive the questionnaire from Claude using a **single AskUserQuestion call** with three single-select Y/N questions covering the toggles above. Defaults are all "Yes" (full statusline).
 
-| Arg | Effect |
-|---|---|
-| `--no-git` (PS: `-NoGit`)             | Skip git-info section |
-| `--no-update-check` (PS: `-NoUpdateCheck`) | Skip Claude Code update banner |
-| `--non-interactive` (PS: `-NonInteractive`) | No prompts; use defaults + flags |
+Then call the installer in non-interactive mode, passing flags for any "No" answers:
 
-The installer writes `~/.claude/statusline.config.json` (toggles, hot-reloaded) and `~/.claude/settings.json` (resolver wiring, requires Claude Code restart).
+| Toggle answer | install.ps1 flag | install.sh flag      |
+|---------------|------------------|----------------------|
+| Git = No      | `-NoGit`         | `--no-git`           |
+| Update = No   | `-NoUpdateCheck` | `--no-update-check`  |
+| Limits = No   | `-NoLimitBars`   | `--no-limit-bars`    |
 
-The slash command `/statusline:custom-statusline-install` runs the installer in `--non-interactive` mode and forwards `--nogit` / `--noupdate` flags. Use the slash command for quick reconfig; run the installer directly in a terminal if you want the y/N prompts.
+Always also pass `-NonInteractive` / `--non-interactive` to suppress the installer's own y/N prompts.
 
-## Manual fallback
+- **Windows:** `pwsh -File ${CLAUDE_PLUGIN_ROOT}/install.ps1 -NonInteractive [flags]`
+- **macOS / Linux:** `bash ${CLAUDE_PLUGIN_ROOT}/install.sh --non-interactive [flags]`
+
+After exit 0, tell the user to restart Claude Code (`/reload-plugins` doesn't re-read `statusLine`).
+
+## Install — direct script
+
+If the user wants to run the installer themselves (or we're outside Claude), the scripts have their own y/N prompts:
+
+```
+pwsh -File install.ps1               # asks: git? update? limit bars?
+bash install.sh                       # same, on macOS/Linux
+```
+
+Same flags work as above for fully-scripted runs.
+
+## Uninstall
+
+Trigger when the user says "uninstall the statusline", "remove the statusline", or runs `/statusline:custom-statusline-uninstall`.
+
+Drive a **single AskUserQuestion** call asking whether to also delete `~/.claude/statusline.config.json` (default Yes). Then run:
+
+- **Windows:** `pwsh -File ${CLAUDE_PLUGIN_ROOT}/uninstall.ps1 -NonInteractive [-KeepConfig]`
+- **macOS / Linux:** `bash ${CLAUDE_PLUGIN_ROOT}/uninstall.sh --non-interactive [--keep-config]`
+
+What it does:
+1. Removes `statusLine` from `~/.claude/settings.json` — but only if the existing command points at the gruku-tools resolver (string contains `gruku-tools/statusline` or `gruku-tools\statusline`). If it points elsewhere, the uninstaller leaves it alone unless `-Force` / `--force` is passed.
+2. Optionally deletes `~/.claude/statusline.config.json`.
+3. Leaves the plugin itself installed. Run `/plugin uninstall statusline@gruku-tools` to remove the cached plugin files.
+
+Tell the user to restart Claude Code afterward.
+
+## Why a resolver
+
+Claude Code installs marketplace plugins into `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`. The version path changes on every `/plugin update`. Claude Code does NOT expand `${CLAUDE_PLUGIN_ROOT}` inside `statusLine.command` (that token works only in hook commands). So the command has to resolve the latest version at runtime.
+
+On plugin update — nothing to do. The resolver re-globs the cache dir on every refresh and picks the highest version.
+
+## Manual fallback (no installer)
 
 If the installer can't run (permissions, missing pwsh, etc.):
-
-### Why a resolver
-
-Claude Code installs marketplace plugins into `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`. The version path changes on every `/plugin update`. Claude Code does NOT expand `${CLAUDE_PLUGIN_ROOT}` inside `statusLine.command` (that token works only in hook commands). So the command must resolve the latest version at runtime.
-
-### Steps
 
 1. Verify the plugin is installed:
    - Windows: `Test-Path "$env:USERPROFILE\.claude\plugins\cache\gruku-tools\statusline"`
@@ -83,14 +118,11 @@ To regenerate after editing the source:
 
 5. Tell the user to restart Claude Code. `/reload-plugins` alone doesn't re-read `statusLine`.
 
-## On plugin update
-
-Nothing to do — the resolver re-globs the cache dir on every refresh and picks the highest version. `/plugin update statusline@gruku-tools` keeps the statusline working.
-
 ## Troubleshooting
 
 - **Statusline blank after editing settings.json** — likely an unexpanded `${CLAUDE_PLUGIN_ROOT}` in the command. Re-run the installer.
-- **Console window flashes per refresh** — git credential helper misconfigured (e.g., WSL-style path). Run installer with `--no-git` to silence the symptom; fix `git config credential.helper` for the root cause.
+- **Console window flashes per refresh** — git credential helper misconfigured (e.g., WSL-style path). Re-run the installer and answer "No" to git, or pass `--no-git` / `-NoGit`. Fix `git config credential.helper` for the root cause.
+- **Don't want the rate-limit bars** — re-run the installer and answer "No" to limit bars (or `--no-limit-bars` / `-NoLimitBars`).
 - **`sort -V` not available on stock macOS** — ships with macOS 10.14+. On older systems fall back to lexical `sort | tail -1`.
 - **Raw escape codes visible** — terminal not interpreting ANSI. See README for tmux / terminal-specific fixes.
 - **No rate-limit bars** — requires Claude Code v2.1.80+.
