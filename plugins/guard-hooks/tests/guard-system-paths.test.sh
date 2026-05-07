@@ -155,6 +155,22 @@ assert_blocked "ssh root@localhost rm /etc"   'ssh root@localhost rm /etc/passwd
 assert_blocked "ssh 127.0.0.1 rm /usr/bin"    'ssh root@127.0.0.1 rm /usr/bin/python'
 assert_blocked "ssh ::1 rm /etc"              'ssh root@[::1] rm /etc/foo'
 
+echo "-- ssh quoted-payload quote-aware splitting --"
+# Operators (; | && ||) and redirects (>) INSIDE the ssh quoted argument must
+# not be split into local segments. The whole quoted block is remote.
+assert_allowed "ssh remote ; chain in quotes" \
+  'ssh root@host "echo a; ls /etc/nginx; ls /var/foo"'
+assert_allowed "ssh remote 2>/dev/null in quotes" \
+  'ssh root@host "ls -la /etc/nginx/ 2>/dev/null"'
+assert_allowed "ssh remote pipe in quotes" \
+  'ssh root@host "ps aux | grep -i task | grep -v grep"'
+assert_allowed "ssh.exe full repro from bug" \
+  '/c/Windows/System32/OpenSSH/ssh.exe -i ~/.ssh/key root@1.2.3.4 "echo === a ===; ls -la /var/www/foo; echo; head -100 /var/www/foo/index.html; ls -la /etc/nginx/conf.d/ 2>/dev/null; ps aux | grep -v grep"'
+# Quote-awareness must not break legitimate compound detection: an unquoted
+# destructive op chained AFTER a quoted ssh payload still has to block locally.
+assert_blocked "ssh remote then local rm /etc" \
+  'ssh root@host "ls /etc/foo" && rm /etc/passwd'
+
 echo "-- system-path executable as first token --"
 # Invoking a binary that lives in a system path is read-only — the path is the
 # program being run, not a destructive target. Only block when an *additional*
