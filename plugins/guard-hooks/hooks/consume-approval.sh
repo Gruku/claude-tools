@@ -16,11 +16,14 @@
 # unconditionally if present. This hook never blocks anything — it just
 # cleans up. Exit 0 always.
 
-APPROVE_FILE="$HOME/.claude/guard-approve"
-ACK_FILE="$HOME/.claude/guard-ack"
+# Per-session token: only delete tokens for THIS session, so concurrent
+# Claude Code sessions on the same host don't trample each other's approvals.
+INPUT=$(cat)
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
+[ -z "$SESSION_ID" ] && SESSION_ID="default"
 
-# Drain stdin so the harness doesn't see a broken pipe; we don't need it.
-cat >/dev/null
+APPROVE_FILE="$HOME/.claude/guard-approve-$SESSION_ID"
+ACK_FILE="$HOME/.claude/guard-ack-$SESSION_ID"
 
 [ -f "$APPROVE_FILE" ] && rm -f "$APPROVE_FILE"
 [ -f "$ACK_FILE" ] && rm -f "$ACK_FILE"

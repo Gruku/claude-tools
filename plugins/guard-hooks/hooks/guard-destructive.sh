@@ -16,10 +16,14 @@
 # so a denial at the standard permission layer leaves the approval intact
 # for a retry within the window.
 
-APPROVE_FILE="$HOME/.claude/guard-approve"
-
 INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+
+# Per-session approval token: keyed by harness session_id so concurrent
+# Claude Code sessions on the same host don't trample each other's approvals.
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
+[ -z "$SESSION_ID" ] && SESSION_ID="default"
+APPROVE_FILE="$HOME/.claude/guard-approve-$SESSION_ID"
 
 # Debug logging — uncomment to diagnose hook bypass issues
 # LOG_FILE="$HOME/.claude/guard-debug.log"
@@ -30,7 +34,10 @@ if [ -z "$COMMAND" ]; then
 fi
 
 # --- Block LLM from creating the approval file ---
-if echo "$COMMAND" | grep -qE 'guard-approve'; then
+# Detect actual mutations (touch / echo > / cp / mv / Set-Content / etc.)
+# whose target ends with the guard-approve token name. A bare mention of
+# the literal string in a commit message or an `ls` arg is fine.
+if echo "$COMMAND" | grep -qE '(touch|echo[^|;&]*>|cat[^|;&]*>|cp|mv|Set-Content|Add-Content|Out-File|New-Item)[^|;&]*guard-approve(-[A-Za-z0-9_-]+)?($|[[:space:]"'"'"'])'; then
   cat >&2 <<'EOF'
 ⛔ GUARD HOOK BLOCKED THIS COMMAND.
 Reason: You cannot create or manipulate the guard approval file. Only the user can do this manually.

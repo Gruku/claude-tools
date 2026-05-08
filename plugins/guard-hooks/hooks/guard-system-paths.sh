@@ -13,10 +13,6 @@
 #   user picks "Approve". The user can also type "approve" as a chat message
 #   (UserPromptSubmit hook). Approval is valid 60 seconds and consumed on use.
 
-APPROVE_FILE="$HOME/.claude/guard-approve"
-LOG_DIR="$HOME/.claude/logs"
-LOG_FILE="$LOG_DIR/guard-system-paths.log"
-
 INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 
@@ -24,8 +20,18 @@ if [ -z "$COMMAND" ]; then
   exit 0
 fi
 
+# Per-session approval token: keyed by harness session_id so concurrent
+# Claude Code sessions on the same host don't trample each other's approvals.
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
+[ -z "$SESSION_ID" ] && SESSION_ID="default"
+APPROVE_FILE="$HOME/.claude/guard-approve-$SESSION_ID"
+LOG_DIR="$HOME/.claude/logs"
+LOG_FILE="$LOG_DIR/guard-system-paths.log"
+
 # --- AI must not create the approval file ---
-if echo "$COMMAND" | grep -qE 'guard-approve'; then
+# Detect actual mutations targeting the guard-approve token; bare mentions
+# of the string (commit messages, `ls`, debug printf) are not blocked.
+if echo "$COMMAND" | grep -qE '(touch|echo[^|;&]*>|cat[^|;&]*>|cp|mv|Set-Content|Add-Content|Out-File|New-Item)[^|;&]*guard-approve(-[A-Za-z0-9_-]+)?($|[[:space:]"'"'"'])'; then
   cat >&2 <<'EOF'
 GUARD HOOK BLOCKED THIS COMMAND.
 Reason: You cannot create or manipulate the guard approval file. Only the user can do this manually.

@@ -15,11 +15,15 @@
 # Fail-open: any internal error falls through to allow — a broken guard hook
 # must not block legitimate pushes.
 
-APPROVE_FILE="$HOME/.claude/guard-approve"
-
 # --- Only run on git push commands ---
 INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
+
+# Per-session approval token: keyed by harness session_id so concurrent
+# Claude Code sessions on the same host don't trample each other's approvals.
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
+[ -z "$SESSION_ID" ] && SESSION_ID="default"
+APPROVE_FILE="$HOME/.claude/guard-approve-$SESSION_ID"
 
 if [ -z "$COMMAND" ]; then
   exit 0

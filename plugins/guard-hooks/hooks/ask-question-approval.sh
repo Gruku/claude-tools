@@ -18,6 +18,12 @@
 
 INPUT=$(cat)
 
+# Per-session token: the approval file is keyed by the harness session_id so
+# concurrent Claude Code sessions on the same host don't trample each other's
+# approvals. Falls back to "default" if session_id isn't present.
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
+[ -z "$SESSION_ID" ] && SESSION_ID="default"
+
 # Emit each answer value on its own line.
 ANSWERS=$(echo "$INPUT" | jq -r '
   (.tool_response.answers // .tool_output.answers // {}) as $a
@@ -34,7 +40,7 @@ fi
 # Any answer exactly equal to "Approve" (case-insensitive, whitespace-trimmed)
 # triggers the approval file. grep matches per line.
 if echo "$ANSWERS" | grep -qiE '^[[:space:]]*approve[[:space:]]*$'; then
-  APPROVE_FILE="$HOME/.claude/guard-approve"
+  APPROVE_FILE="$HOME/.claude/guard-approve-$SESSION_ID"
   mkdir -p "$(dirname "$APPROVE_FILE")"
   touch "$APPROVE_FILE"
 fi

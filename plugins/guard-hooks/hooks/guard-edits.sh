@@ -4,10 +4,14 @@
 # Exit 2 = block (stderr sent to Claude as feedback)
 # Exit 0 = allow
 
-APPROVE_FILE="$HOME/.claude/guard-approve"
-
 INPUT=$(cat)
 FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
+
+# Per-session approval token: keyed by harness session_id so concurrent
+# Claude Code sessions on the same host don't trample each other's approvals.
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
+[ -z "$SESSION_ID" ] && SESSION_ID="default"
+APPROVE_FILE="$HOME/.claude/guard-approve-$SESSION_ID"
 
 if [ -z "$FILE_PATH" ]; then
   exit 0

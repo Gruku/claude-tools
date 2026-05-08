@@ -3,23 +3,41 @@
 # Two-tier severity: HARD (user-approval only) and SOFT (AI may self-acknowledge).
 # Exit 2 = block (stderr to model). Exit 0 = allow.
 
-APPROVE_FILE="$HOME/.claude/guard-approve"   # user-only
-ACK_FILE="$HOME/.claude/guard-ack"           # AI-allowed
-
 INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+
+# Per-session tokens: keyed by harness session_id so concurrent Claude Code
+# sessions on the same host don't trample each other's approvals/acks.
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
+[ -z "$SESSION_ID" ] && SESSION_ID="default"
+APPROVE_FILE="$HOME/.claude/guard-approve-$SESSION_ID"   # user-only
+ACK_FILE="$HOME/.claude/guard-ack-$SESSION_ID"           # AI-allowed
 
 if [ -z "$COMMAND" ]; then
   exit 0
 fi
 
 # --- AI must not create the user-only approval file ---
-if echo "$COMMAND" | grep -qE 'guard-approve'; then
+# Detect actual mutations targeting the guard-approve token; bare mentions
+# of the string (commit messages, `ls`, debug printf) are not blocked.
+if echo "$COMMAND" | grep -qE '(touch|echo[^|;&]*>|cat[^|;&]*>|cp|mv|Set-Content|Add-Content|Out-File|New-Item)[^|;&]*guard-approve(-[A-Za-z0-9_-]+)?($|[[:space:]"'"'"'])'; then
   cat >&2 <<'EOF'
 GUARD HOOK BLOCKED THIS COMMAND.
 Reason: You cannot create or manipulate the user-only approval file. Only the user may do this manually.
 EOF
   exit 2
+fi
+
+# --- AI self-ack sentinel ---
+# The block_soft path tells the AI to acknowledge a soft warning by running
+# `: guard-ack-self` (a literal no-op colon command). We catch it here,
+# create the per-session ack file, and exit 0 so the no-op runs cleanly.
+# Per-session keying means two concurrent sessions self-acking won't
+# trample each other.
+if echo "$COMMAND" | grep -qE '^[[:space:]]*:[[:space:]]+guard-ack-self[[:space:]]*$'; then
+  mkdir -p "$(dirname "$ACK_FILE")"
+  touch "$ACK_FILE"
+  exit 0
 fi
 
 # --- Time-limited approval check (60s TTL) ---
@@ -83,10 +101,12 @@ DESTRUCTIVE DB OPERATION REMINDER:
   - If a backup matters here, take one before proceeding.
 
 This is a SOFT block. If you (Claude) have read this warning and verified the
-scope is intended, you may self-acknowledge by running:
-    touch ~/.claude/guard-ack
-yourself, then re-run the ORIGINAL command unchanged. The ack is one-shot and
-expires in 60 seconds.
+scope is intended, you may self-acknowledge by running this literal Bash
+command:
+    : guard-ack-self
+The hook recognizes the sentinel, records a per-session ack, and lets the
+no-op proceed. Then re-run the ORIGINAL command unchanged. The ack is
+one-shot and expires in 60 seconds.
 
 Do NOT ask the user to run the touch command — this ack is AI-driven by design.
 If you are uncertain whether the scope is intended, defer to the user with the
