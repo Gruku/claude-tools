@@ -91,7 +91,12 @@ if echo "$FILE_PATH" | grep -qEi '(package-lock\.json|yarn\.lock|pnpm-lock\.yaml
 fi
 
 # --- Git internals ---
-if echo "$FILE_PATH" | grep -qE '\.git/'; then
+# Allowlist: the review-gate blessing marker (.git/CLAUDE_REVIEW_GATE_OK).
+# Pairs with ~/.claude/hooks/push-review-gate-guard.py — see guard-git-internals.sh
+# for the matching Bash-side exception. Narrow to one filename, write-only.
+if echo "$FILE_PATH" | grep -qE '\.git[/\\]CLAUDE_REVIEW_GATE_OK$'; then
+  : # allowed
+elif echo "$FILE_PATH" | grep -qE '\.git/'; then
   block_hard "Cannot write to git internals."
 fi
 
