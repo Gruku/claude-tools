@@ -1,16 +1,29 @@
 #!/usr/bin/env bash
-# check-version-bump.sh — PreToolUse hook for Bash commands
-# Only acts on git push commands. Checks if any plugin files changed
-# since remote HEAD without a version bump.
-# Outputs JSON {"decision":"block","reason":"..."} to block the push.
+# check-version-bump.sh — PreToolUse hook for Bash commands.
+# Only acts on git push commands. Blocks if any plugin under plugins/* has
+# changes against the upstream branch but its plugin.json version was not
+# bumped in the same range.
+#
+# Approval flow (shared with the rest of guard-hooks):
+#   The AI calls AskUserQuestion with labels "Approve"/"Deny". On "Approve",
+#   the PostToolUse hook on AskUserQuestion creates ~/.claude/guard-approve
+#   automatically. The user can also type "approve" as a chat message
+#   (UserPromptSubmit hook). Approval is valid for 60 seconds and is consumed
+#   by consume-approval.sh after the tool actually runs.
+#
+# Exit 2 = block (stderr to model). Exit 0 = allow.
+# Fail-open: any internal error falls through to allow — a broken guard hook
+# must not block legitimate pushes.
 
-set -euo pipefail
+APPROVE_FILE="$HOME/.claude/guard-approve"
 
 # --- Only run on git push commands ---
 INPUT=$(cat)
-COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null) || exit 0
+COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
 
-# Check if this is a git push command (anywhere in the command string)
+if [ -z "$COMMAND" ]; then
+  exit 0
+fi
 if ! echo "$COMMAND" | grep -qE 'git\s+.*push'; then
   exit 0
 fi
@@ -18,26 +31,37 @@ fi
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
 # Get the remote tracking branch
-REMOTE_REF=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null) || {
-  # No upstream set — skip check
-  exit 0
-}
+REMOTE_REF=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null) || exit 0
 REMOTE_SHA=$(git -C "$REPO_ROOT" rev-parse "$REMOTE_REF" 2>/dev/null) || exit 0
 
-# Find all plugin directories that have changes since the remote
+# --- Time-limited user approval (shared with guard-hooks) ---
+check_approval() {
+  if [ -f "$APPROVE_FILE" ]; then
+    if [ "$(uname)" = "Linux" ] || [ "$(uname)" = "Darwin" ]; then
+      FILE_AGE=$(( $(date +%s) - $(stat -c %Y "$APPROVE_FILE" 2>/dev/null || stat -f %m "$APPROVE_FILE" 2>/dev/null) ))
+    else
+      FILE_AGE=$(( $(date +%s) - $(stat -c %Y "$APPROVE_FILE" 2>/dev/null || echo 0) ))
+    fi
+    if [ "$FILE_AGE" -le 60 ] 2>/dev/null; then
+      return 0
+    fi
+    rm -f "$APPROVE_FILE"
+  fi
+  return 1
+}
+
+# --- Walk plugins/* and find ones with code changes but no version bump ---
 warnings=""
-for plugin_json in "$REPO_ROOT"/plugins/*/. ; do
-  plugin_dir="$(dirname "$plugin_json")"
+for plugin_dir in "$REPO_ROOT"/plugins/*/ ; do
+  [ -d "$plugin_dir" ] || continue
   plugin_name="$(basename "$plugin_dir")"
 
-  # Skip _archive
-  [[ "$plugin_name" == _* ]] && continue
+  # Skip _archive and dotdirs
+  case "$plugin_name" in _*|.*) continue ;; esac
 
-  # Check if any files in this plugin changed
   changed=$(git -C "$REPO_ROOT" diff --name-only "$REMOTE_SHA"..HEAD -- "plugins/$plugin_name/" 2>/dev/null)
   [ -z "$changed" ] && continue
 
-  # Check if plugin.json version was bumped
   pjson="plugins/$plugin_name/.claude-plugin/plugin.json"
   version_changed=$(git -C "$REPO_ROOT" diff "$REMOTE_SHA"..HEAD -- "$pjson" 2>/dev/null | grep '"version"' || true)
   if [ -z "$version_changed" ]; then
@@ -47,15 +71,32 @@ for plugin_json in "$REPO_ROOT"/plugins/*/. ; do
   fi
 done
 
-if [ -n "$warnings" ]; then
-  cat <<EOF
-{
-  "decision": "block",
-  "reason": "Plugin version bump check: The following plugins have changes but their version in plugin.json was not bumped:\\n$warnings\\n\\nBump the version in each plugin's .claude-plugin/plugin.json before pushing. Use 'approve' to push anyway."
-}
-EOF
+if [ -z "$warnings" ]; then
   exit 0
 fi
 
-# All good — no output needed
-exit 0
+# Honor a fresh user approval, same as the other guards.
+if check_approval; then
+  exit 0
+fi
+
+# Block with the AskUserQuestion-style instruction the other guards use, so
+# the AI knows the actual approval ritual instead of guessing what "approve"
+# means.
+{
+  printf '⛔ GUARD HOOK BLOCKED THIS COMMAND.\n'
+  printf 'Reason: Plugin version bump check — the following plugins have changes but their version in plugin.json was not bumped:'
+  printf '%b\n\n' "$warnings"
+  printf 'Recommended: bump the version in each plugin'\''s .claude-plugin/plugin.json (and matching .claude-plugin/marketplace.json entry) before pushing.\n\n'
+  printf 'If a bump is genuinely not appropriate, ACTION REQUIRED: use the AskUserQuestion tool with EXACTLY this shape:\n'
+  printf '  question: one short sentence describing why the push should proceed without a version bump\n'
+  printf '  options (use these labels verbatim — do not rename, translate, or add more):\n'
+  printf '    - label: "Approve"  description: "Push without bumping versions"\n'
+  printf '    - label: "Deny"     description: "Cancel; do not push"\n\n'
+  printf 'After the user responds:\n'
+  printf '  - "Approve" → rerun the ORIGINAL push command unchanged within 60 seconds\n'
+  printf '  - "Deny" or no response → do NOT push\n\n'
+  printf 'Only the exact label "Approve" is recognized as authorization.\n'
+  printf 'Do NOT re-run automatically. Do NOT create the approval file yourself.\n'
+} >&2
+exit 2
