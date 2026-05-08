@@ -25,6 +25,10 @@ codex-dispatch/
 # Superpowers docs (local-only specs and plans)
 docs/superpowers/
 
+# Taskmaster local-only planning docs (specs + generalization plans)
+plugins/taskmaster/docs/specs/
+plugins/taskmaster/docs/generalization-plan.md
+
 # Brainstorm artifacts (local-only concept HTMLs from brainstorming skill)
 .superpowers/
 
