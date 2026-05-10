@@ -32,9 +32,37 @@ if ! echo "$COMMAND" | grep -qE 'git\s+.*push'; then
   exit 0
 fi
 
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# --- Resolve the working directory the push actually targets ---
+# Claude often issues pushes from inside a worktree but targets the main
+# checkout via `git -C <path> push`. We honor that:
+#   1. If the command contains `git -C <path>` (single token, no quotes,
+#      shell-substitution OK), use that path.
+#   2. Else fall back to $CLAUDE_PROJECT_DIR.
+TARGET_DIR=""
+if echo "$COMMAND" | grep -qE 'git[[:space:]]+-C[[:space:]]'; then
+  # Capture the first arg after `-C`. Tolerates `$VAR` substitutions —
+  # we expand via env in the user's shell context. Tokens with quoted
+  # spaces aren't supported here (rare for $REPO_ROOT-style usage).
+  RAW_DIR=$(echo "$COMMAND" | sed -nE 's/.*git[[:space:]]+-C[[:space:]]+([^[:space:]]+).*/\1/p' | head -1)
+  if [ -n "$RAW_DIR" ]; then
+    # Try to expand env vars (e.g. $MAIN, ${REPO_ROOT}). If expansion
+    # fails or yields a non-directory, fall back below.
+    EXPANDED=$(eval echo "$RAW_DIR" 2>/dev/null)
+    if [ -d "$EXPANDED" ]; then
+      TARGET_DIR="$EXPANDED"
+    fi
+  fi
+fi
 
-# Get the remote tracking branch
+if [ -z "$TARGET_DIR" ]; then
+  TARGET_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+fi
+
+# Drive both diff-walk and the upstream resolve from the SAME root, otherwise
+# we ask one repo about another's branch and silent-skip on every push.
+REPO_ROOT="$TARGET_DIR"
+
+# Get the remote tracking branch (of whatever HEAD the target dir is on)
 REMOTE_REF=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null) || exit 0
 REMOTE_SHA=$(git -C "$REPO_ROOT" rev-parse "$REMOTE_REF" 2>/dev/null) || exit 0
 
