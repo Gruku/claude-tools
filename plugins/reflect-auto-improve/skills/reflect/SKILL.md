@@ -1,6 +1,6 @@
 ---
 name: reflect
-description: Universal entry point for reflecting on past work. Invoke when the user says 'reflect on', 'do a retro', 'let's audit our work', 'how have we been working', 'what should we automate', 'find dead skills', 'review last week', 'pain-point harvest', or otherwise asks to look back and improve. Routes to the correct lens skill (retro / harvest / plugin-audit) based on intent. Do not call `reflect-auto-improve:retro`, `harvest`, or `plugin-audit` directly when the user's intent is ambiguous — route through here.
+description: Universal entry point for reflecting on past work. Invoke when the user says 'reflect on', 'do a retro', 'let's audit our work', 'how have we been working', 'what should we automate', 'find dead skills', 'review last week', 'pain-point harvest', 'how are we doing', 'process check-in', 'are we improving', 'check our process', 'team health check', or otherwise asks to look back and improve. Routes to the correct lens skill (retro / harvest / plugin-audit) based on intent.
 ---
 
 # reflect — Router
@@ -18,7 +18,7 @@ Map the user's request to one of the three lens skills. If intent is unclear, as
 
 ## Depth Hint
 
-If the user mentions speed/depth ("quick", "deep", "thorough", "fast"), pass that through as the `depth` argument to `retro` (`shallow` | `standard` | `deep`). v1 supports only `shallow` and `standard` for retro; if user asks for `deep`, tell them deep depth ships in v1.1 and offer `standard` instead.
+If the user mentions speed/depth ("quick", "deep", "thorough", "fast"), pass that through as the `depth` argument to `retro` (`shallow` | `standard` | `deep`). v1 supports `shallow` and `standard` for retro. If the user asks for `deep`, defer to the retro skill itself — it owns the unsupported-depth error message.
 
 ## Target Resolution
 
@@ -26,5 +26,6 @@ If the user names a project (e.g. "reflect on CodeMaestro"), look up its path in
 
 ## What this Skill Does NOT Do
 
+- Do not call `reflect-auto-improve:retro`, `harvest`, or `plugin-audit` directly when the user's intent is ambiguous — route through here.
 - It does not scan, analyze, or write reports itself. All real work happens in the lens skill it routes to.
 - It does not modify TARGETS.md. Adding a target is a manual edit.

@@ -1,6 +1,6 @@
 ---
 name: retro
-description: Time-windowed retrospective on a project's past work. Reads taskmaster artifacts (handovers, lessons, issues, ideas, recap) and git log to produce a markdown report plus concrete proposals routed back through taskmaster. Invoke when the user says 'retro the last week', 'how did we work in CodeMaestro', 'review our recent sessions', 'what worked and what didn't this sprint', 'look back at this project'. Accepts depth=shallow|standard (deep is v1.1) and --project <path> (defaults to cwd). Do not invoke `backlog_*_create` directly — emit proposals via this skill's pipeline so they're tagged consistently.
+description: Time-windowed retrospective on a project's past work. Reads taskmaster artifacts (handovers, lessons, issues, ideas, recap) and git log to produce a markdown report plus concrete proposals routed back through taskmaster. Invoke when the user says 'retro the last week', 'run a retrospective', 'do a post-mortem', 'what did we accomplish this week', 'wrap up the sprint', 'how did we work in CodeMaestro', 'review our recent sessions', 'what worked and what didn't this sprint', 'look back at this project'. Accepts depth=shallow|standard (deep is v1.1) and --project <path> (defaults to cwd).
 ---
 
 # retro — Time-windowed project retrospective
@@ -101,6 +101,9 @@ In main context:
 
    - `kind: issue` → invoke `taskmaster:issue` skill (do NOT call `backlog_issue_create` directly — that bypasses the gate). Pass severity from proposer; map P0/P1 → high, P2 → medium, P3 → low.
    - `kind: idea` → call `mcp__plugin_taskmaster_taskmaster__backlog_idea_create` directly with `created_by="Claude"` (the sanctioned auto-log path documented in `taskmaster:add-idea`).
+
+   *Why ideas go direct while issues/lessons go through skill gates: `taskmaster:add-idea` documents a Claude-initiated carve-out (`created_by="Claude"`) for auto-log paths like this one. `taskmaster:issue` and `taskmaster:lesson` have no such carve-out and must route through their gate skills.*
+
    - `kind: lesson` → invoke `taskmaster:lesson` skill (do NOT call `backlog_lesson_create` directly).
 
    If the target project lacks taskmaster initialization, skip routing and list proposals in the report only. Tell the user.

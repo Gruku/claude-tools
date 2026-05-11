@@ -1,6 +1,6 @@
 ---
 name: plugin-audit
-description: Self-audit of claude-tools plugins. Operates on plugin source files (not project artifacts). Finds dead skills (never invoked across transcripts), oversized skill descriptions (token cost), command pruning candidates, and recurring transcript patterns that should become new skills. Always uses an adversarial reviewer. Invoke when the user says 'audit the plugins', 'find dead skills', 'what's eating our tokens', 'prune commands', 'claude-tools self-audit', or after major plugin changes. Output is advisory — routes proposals through taskmaster:add-idea in claude-tools' own backlog.
+description: Self-audit of claude-tools plugins. Operates on plugin source files (not project artifacts). Finds dead skills (never invoked across transcripts), oversized skill descriptions (token cost), command pruning candidates, and recurring transcript patterns that should become new skills. Always uses an adversarial reviewer. Invoke when the user says 'audit the plugins', 'find dead skills', 'what's eating our tokens', 'prune commands', 'claude-tools self-audit', 'plugin health check', 'which skills are we actually using', 'are our skills still healthy', or after major plugin changes. Output is advisory — routes proposals through taskmaster:add-idea in claude-tools' own backlog.
 ---
 
 # plugin-audit — Claude-tools self-audit
@@ -13,6 +13,7 @@ Different from `retro` and `harvest` in input domain: this audits **plugin sourc
 |---|---|---|
 | `--plugin <name>` | all | Scope to one plugin under `plugins/` (e.g. `taskmaster`). |
 | `--include-transcripts` | true | Scan `~/.claude/projects/*/*.jsonl` for skill invocations to detect dead skills. Set false for a fast structural-only audit. |
+| `--window <days>` | 90 | Look-back window for transcript invocation counting. Default 90 — long enough to avoid false-positive dead-skill flagging for recently-added skills, short enough to bound cost. |
 
 ## SCAN Phase
 
@@ -29,7 +30,7 @@ Different from `retro` and `harvest` in input domain: this audits **plugin sourc
 4. **Invocation counts** (if `--include-transcripts`):
    - Enumerate `~/.claude/projects/*/*.jsonl`.
    - Grep each for skill invocation markers. The reliable patterns:
-     - `"Skill"` tool calls naming the skill (search `"<plugin>:<skill>"` or bare `"<skill>"` in tool_use blocks).
+     - `"Skill"` tool calls naming the skill in tool_use blocks. Match BOTH the qualified form (`"reflect-auto-improve:plugin-audit"`) and the bare form (`"name":"plugin-audit"`) — transcripts use both, and missing one causes false zero-invocation counts.
    - Aggregate counts per skill across all transcripts. Skills with 0 invocations across the user's full history are prime dead-skill candidates.
 
 5. **Pattern surface across plugins** (cross-plugin overlap detection):
@@ -123,9 +124,9 @@ In main context (Opus).
 
 ## EMIT Phase
 
-1. **Report**: `docs/reflect/audits/YYYY-MM-DD-<scope>.md` where `<scope>` is the `--plugin` value or `all`. Create `docs/reflect/audits/` if missing.
+1. **Report**: `docs/reflect/audits/YYYY-MM-DD-<scope>.md` where `<scope>` is the `--plugin` value or `all`. Create `docs/reflect/audits/` if missing. This path is intentionally repo-level (not per-target-project) — the audit subject IS claude-tools, so the report belongs to claude-tools itself, not to any external taskmaster project.
 
-2. **Route proposals**: into claude-tools' own taskmaster backlog (cwd should already be in claude-tools when this runs). Each finding becomes `mcp__plugin_taskmaster_taskmaster__backlog_idea_create` with `created_by="Claude"` (per `taskmaster:add-idea`'s Claude-initiated carve-out) tagged `reflect:plugin-audit` with category suffix (`reflect:plugin-audit:dead-skill`, etc.).
+2. **Route proposals**: into claude-tools' own taskmaster backlog (cwd should already be in claude-tools when this runs). Each finding becomes a direct call to `mcp__plugin_taskmaster_taskmaster__backlog_idea_create` with `created_by="Claude"`. Do NOT invoke the `taskmaster:add-idea` skill — `add-idea`'s SKILL.md documents this carve-out for Claude-initiated auto-log paths, but the carve-out IS the direct call, not skill invocation. Tag each idea `reflect:plugin-audit` with category suffix (`reflect:plugin-audit:dead-skill`, `reflect:plugin-audit:oversized-description`, etc.).
 
 3. **Final message**: one paragraph + report path + idea IDs.
 

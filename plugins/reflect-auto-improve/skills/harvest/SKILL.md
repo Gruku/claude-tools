@@ -1,6 +1,6 @@
 ---
 name: harvest
-description: Pain-point → workflow codifier. Scans a project's session history for recurring friction patterns and emits draft workflow proposals — skill stubs, command outlines, or settings tweaks — ready to become real plugin components. Always uses an adversarial reviewer to filter one-off complaints from genuine repeating pain. Invoke when the user says 'harvest pain points', 'what should we automate', 'find workflows to codify', 'this keeps happening — make it a skill', 'this keeps coming up', 'what are we doing manually that should be automatic'. Accepts --project <path>; defaults to cwd. Output is advisory — no skill files are created automatically, only proposals routed through taskmaster:add-idea.
+description: Pain-point → workflow codifier. Scans a project's session history for recurring friction patterns and emits draft workflow proposals — skill stubs, command outlines, or settings tweaks — ready to become real plugin components. Always uses an adversarial reviewer to filter one-off complaints from genuine repeating pain. Invoke when the user says 'harvest pain points', 'what should we automate', 'find workflows to codify', 'this keeps happening — make it a skill', 'this keeps coming up', 'what are we doing manually that should be automatic', 'what keeps going wrong', 'what should I turn into a skill', 'look at my session history for patterns', 'review my workflow for friction'. Accepts --project <path>; defaults to cwd. Output is advisory — no skill files are created automatically, only proposals routed through taskmaster:add-idea.
 ---
 
 # harvest — Pain → Workflow
@@ -18,7 +18,13 @@ Goal: surface things you keep doing manually and propose how to bake them into c
 
 ## SCAN Phase
 
-1. All sources from `retro:standard` SCAN.
+1. The same artifact sources retro reads at standard depth:
+   - `<project>/.taskmaster/backlog.yaml`
+   - `<project>/.taskmaster/handovers/*.md` (last 7 days)
+   - `<project>/.taskmaster/lessons/*.md`
+   - `<project>/.taskmaster/issues/*.md` (status changed in window)
+   - `<project>/.taskmaster/ideas/*.md` (created in window)
+   - `git log --since="<window> days ago" --oneline` and `--stat`
 2. **Plus**: targeted transcript grep on `~/.claude/projects/<project-slug>/*.jsonl` for the window. Use `Glob` to enumerate, then `Grep` with these signal patterns (run in parallel):
    - `"^(\\s*)(no|stop|don't|actually)\\b"` — user corrections.
    - `"(error|failed|fail)\\b.*\\b(retry|again|try)"` — repeated failures.
@@ -29,6 +35,8 @@ Goal: surface things you keep doing manually and propose how to bake them into c
 ## ANALYZE Phase (proposer sub-agent, Opus)
 
 Dispatch via `Agent` tool with `model: "opus"`. Prompt template:
+
+Before dispatching, substitute `<scan output>` in the template below with the token-capped digest produced in SCAN step 3.
 
 ```
 You are the proposer for a pain-point harvest. Given the scan digest below, identify RECURRING friction patterns (≥2 occurrences across distinct sessions) and propose concrete workflow stubs to address them.
@@ -58,6 +66,8 @@ Filter out one-off complaints — patterns must repeat. Cap at 6 proposals.
 ## ADVERSARIAL Phase (always for harvest)
 
 Dispatch a second sub-agent via `Agent` tool with `model: "opus"`. Pass ONLY the proposer's findings (not the scan digest). Prompt template:
+
+Before dispatching, substitute `<proposer output>` in the template below with the proposer sub-agent's full structured response. Do NOT include the scan digest — adversarial blindness invariant.
 
 ```
 You are an adversarial reviewer. The findings below claim to identify recurring pain patterns and propose workflow stubs. Challenge each one:
@@ -94,7 +104,7 @@ In main context (Opus):
 
 ## EMIT Phase
 
-1. **Report**: `<project>/.taskmaster/harvests/YYYY-MM-DD-harvest-<slug>.md` (or `<project>/.reflect/harvests/YYYY-MM-DD-harvest-<slug>.md` fallback). Create the directory if missing. Sections: Header → Recurring Patterns (with sessions/SHAs) → Workflow Proposals (with drafts, blast radius, confidence) → Adversarial Rejections (so the user can audit the filter) → Open Questions.
+1. **Report**: write to `<project>/.taskmaster/harvests/YYYY-MM-DD-harvest-<slug>.md` if `<project>/.taskmaster/` exists. Otherwise fall back to `<project>/.reflect/harvests/YYYY-MM-DD-harvest-<slug>.md`. Create the directory if missing. Sections: Header → Recurring Patterns (with sessions/SHAs) → Workflow Proposals (with drafts, blast radius, confidence) → Adversarial Rejections (so the user can audit the filter) → Open Questions.
 
 2. **Route proposals**: every kept proposal becomes `mcp__plugin_taskmaster_taskmaster__backlog_idea_create` tagged `reflect:harvest`. The draft outline goes in the idea body so a future task can pick it up.
 
