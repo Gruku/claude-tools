@@ -117,13 +117,15 @@ Return ONLY:
 
 ## SYNTHESIZE Phase
 
-In main context (Opus). Merge Kept + New. Cap each category at 6.
+In main context (Opus).
+- **Invariant**: do NOT dispatch the proposer sub-agent again after seeing adversarial output. If the kept set is too small, accept the smaller set. The blindness invariant is what makes the adversarial layer meaningful.
+- Merge Kept + New. Cap each category at 6.
 
 ## EMIT Phase
 
 1. **Report**: `docs/reflect/audits/YYYY-MM-DD-<scope>.md` where `<scope>` is the `--plugin` value or `all`. Create `docs/reflect/audits/` if missing.
 
-2. **Route proposals**: into claude-tools' own taskmaster backlog (cwd should already be in claude-tools when this runs). Each finding becomes `mcp__plugin_taskmaster_taskmaster__backlog_idea_create` tagged `reflect:plugin-audit` with category suffix (`reflect:plugin-audit:dead-skill`, etc.).
+2. **Route proposals**: into claude-tools' own taskmaster backlog (cwd should already be in claude-tools when this runs). Each finding becomes `mcp__plugin_taskmaster_taskmaster__backlog_idea_create` with `created_by="Claude"` (per `taskmaster:add-idea`'s Claude-initiated carve-out) tagged `reflect:plugin-audit` with category suffix (`reflect:plugin-audit:dead-skill`, etc.).
 
 3. **Final message**: one paragraph + report path + idea IDs.
 

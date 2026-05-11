@@ -7,6 +7,8 @@ description: Time-windowed retrospective on a project's past work. Reads taskmas
 
 Run the SCAN → ANALYZE → SYNTHESIZE → EMIT pipeline. v1 supports `depth=shallow` and `depth=standard`. Deep depth (adversarial + transcript grep) is fast-follow.
 
+(Note: retro intentionally skips the ADVERSARIAL phase that harvest and plugin-audit use, because retro's output is descriptive — "what happened" — not prescriptive. The proposer's self-praise risk is lower for retrospective synthesis than for forward-looking workflow design. If retro's standard depth ever produces ≥4 high-blast-radius proposals, consider promoting to deep depth in v1.1, which will include adversarial.)
+
 ## Parameters
 
 | Param | Default | Values |
@@ -25,7 +27,7 @@ Read these in parallel using Glob/Read/Bash:
 3. `<project>/.taskmaster/lessons/*.md` — all lessons; flag any reinforced in window.
 4. `<project>/.taskmaster/issues/*.md` — filter by status=open or status changed in window.
 5. `<project>/.taskmaster/ideas/*.md` — recent ideas (created in window).
-6. Recent recap via `mcp__plugin_taskmaster_taskmaster__recap_get` if available.
+6. (Skip recap_get — it requires an explicit session_id and handovers already carry equivalent context. To get recent recaps, optionally call `mcp__plugin_taskmaster_taskmaster__recap_list` and pick the most recent N entries.)
 7. `git log --since=<window> --oneline` and `git log --since=<window> --stat` (use Bash).
 
 For `depth=shallow`, just (1), last 3 of (2), and `git log -n 30 --oneline`.
@@ -95,13 +97,13 @@ In main context:
 
    Report sections: Header (date / project / window / depth) → Pain Points → Wins → Patterns → Proposals (with confidence) → Open Questions.
 
-2. **Route each proposal** via taskmaster MCP into the target project's backlog. Always include a `reflect:retro` tag/label.
+2. **Route each proposal** via the taskmaster gate skills into the target project's backlog. Always include a `reflect:retro` tag/label.
 
-   - `kind: issue` → `mcp__plugin_taskmaster_taskmaster__backlog_issue_create` (use severity from proposer; map P0/P1 → severity high, P2 → medium, P3 → low).
-   - `kind: idea` → `mcp__plugin_taskmaster_taskmaster__backlog_idea_create`.
-   - `kind: lesson` → `mcp__plugin_taskmaster_taskmaster__backlog_lesson_create`.
+   - `kind: issue` → invoke `taskmaster:issue` skill (do NOT call `backlog_issue_create` directly — that bypasses the gate). Pass severity from proposer; map P0/P1 → high, P2 → medium, P3 → low.
+   - `kind: idea` → call `mcp__plugin_taskmaster_taskmaster__backlog_idea_create` directly with `created_by="Claude"` (the sanctioned auto-log path documented in `taskmaster:add-idea`).
+   - `kind: lesson` → invoke `taskmaster:lesson` skill (do NOT call `backlog_lesson_create` directly).
 
-   If the target project lacks taskmaster initialization, skip MCP routing and list proposals in the report only. Tell the user.
+   If the target project lacks taskmaster initialization, skip routing and list proposals in the report only. Tell the user.
 
 3. **Final message to user**: one short paragraph + path to report + bulleted list of created artifacts with IDs.
 

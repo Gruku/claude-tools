@@ -1,11 +1,13 @@
 ---
 name: harvest
-description: Pain-point → workflow codifier. Scans a project's session history for recurring friction patterns and emits draft workflow proposals — skill stubs, command outlines, or settings tweaks — ready to become real plugin components. Always uses an adversarial reviewer to filter one-off complaints from genuine repeating pain. Invoke when the user says 'harvest pain points', 'what should we automate', 'find workflows to codify', 'this keeps happening — make it a skill', 'what are we doing manually that should be automatic'. Accepts --project <path>; defaults to cwd. Output is advisory — no skill files are created automatically, only proposals routed through taskmaster:add-idea.
+description: Pain-point → workflow codifier. Scans a project's session history for recurring friction patterns and emits draft workflow proposals — skill stubs, command outlines, or settings tweaks — ready to become real plugin components. Always uses an adversarial reviewer to filter one-off complaints from genuine repeating pain. Invoke when the user says 'harvest pain points', 'what should we automate', 'find workflows to codify', 'this keeps happening — make it a skill', 'this keeps coming up', 'what are we doing manually that should be automatic'. Accepts --project <path>; defaults to cwd. Output is advisory — no skill files are created automatically, only proposals routed through taskmaster:add-idea.
 ---
 
 # harvest — Pain → Workflow
 
 Goal: surface things you keep doing manually and propose how to bake them into commands or skills. Different from `retro` in that the output is **prescriptive** (here is a workflow stub) not descriptive (here is what happened).
+
+**Why harvest does transcript grep in v1 (while retro doesn't):** harvest's job is pattern detection across sessions, which requires raw session signals (user corrections, repeated failures) that don't surface in handovers. Retro is descriptive synthesis — handovers + lessons + git log are sufficient. The cost guard is the `--window <days>` cap (default 14) on transcript scan.
 
 ## Parameters
 
@@ -85,13 +87,14 @@ Return ONLY this structure:
 ## SYNTHESIZE Phase
 
 In main context (Opus):
+- **Invariant**: do NOT dispatch the proposer sub-agent again after seeing adversarial output. If the kept set is too small, accept the smaller set. The blindness invariant is what makes the adversarial layer meaningful.
 - Merge `Kept` + `New Proposals`. Drop `Rejected`.
 - Cap final list at 6.
 - Assign confidence: high if both agents endorsed, medium if proposer-only, low if adversarial-only.
 
 ## EMIT Phase
 
-1. **Report**: `<project>/.taskmaster/retros/YYYY-MM-DD-harvest-<slug>.md` (or `.reflect/retros/` fallback). Sections: Header → Recurring Patterns (with sessions/SHAs) → Workflow Proposals (with drafts, blast radius, confidence) → Adversarial Rejections (so the user can audit the filter) → Open Questions.
+1. **Report**: `<project>/.taskmaster/harvests/YYYY-MM-DD-harvest-<slug>.md` (or `<project>/.reflect/harvests/YYYY-MM-DD-harvest-<slug>.md` fallback). Create the directory if missing. Sections: Header → Recurring Patterns (with sessions/SHAs) → Workflow Proposals (with drafts, blast radius, confidence) → Adversarial Rejections (so the user can audit the filter) → Open Questions.
 
 2. **Route proposals**: every kept proposal becomes `mcp__plugin_taskmaster_taskmaster__backlog_idea_create` tagged `reflect:harvest`. The draft outline goes in the idea body so a future task can pick it up.
 
