@@ -31,6 +31,12 @@
       "source": "./plugins/statusline",
       "description": "Pastel statusline for Claude Code with rate-limit bars, git status, context usage, update notifications, and session cost. Bash + PowerShell. Self-healing resolver survives plugin updates. Run /statusline:custom-statusline-install after install. Requires: jq (Bash only).",
       "version": "1.3.1"
+    },
+    {
+      "name": "reflect-auto-improve",
+      "source": "./plugins/reflect-auto-improve",
+      "description": "Reflect on past work and propose concrete improvements. Time-windowed project retros, pain-point harvesting into workflow drafts, and claude-tools plugin self-audits. Outputs route through taskmaster as ideas, issues, and lessons.",
+      "version": "0.1.0"
     }
   ]
 }
