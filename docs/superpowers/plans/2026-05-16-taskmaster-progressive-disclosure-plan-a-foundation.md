@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a required `tldr` field to every entity (tasks, issues, lessons) and make every `_get` / `_list` MCP tool return a slim view by default, with `verbose=true` / `sections=[...]` / `expand_links=true` flags for deeper retrieval.
+**Goal:** Add a required `tldr` field to every entity (tasks, issues, lessons) and make every `_get` / `_list` MCP tool return a slim view by default, with `verbose=true` / `sections=[...]` / `expand_links=true` flags for deeper retrieval. Includes shared test infrastructure (Task 0) and `backlog_lesson_match` slim mode (Task 20, Phase 7).
 
 **Architecture:** Two-layer change. (1) Data layer in `plugins/taskmaster/taskmaster_v3.py` gains a tldr-extraction helper, slim-view extractor, and canonical-section resolver. (2) FastMCP wrapper layer in `plugins/taskmaster/backlog_server.py` exposes new params on every `_get` and `_list` tool. Backward-compatible: `verbose=true` reproduces today's output bit-for-bit.
 
@@ -22,6 +22,10 @@
 - `plugins/taskmaster/CHANGELOG.md` — entry for v3.X foundation release
 
 **Create:**
+- `plugins/taskmaster/tests/conftest.py` — `tmp_taskmaster` pytest fixture + `sys.path` setup
+- `plugins/taskmaster/tests/test_tmp_taskmaster_fixture.py` — fixture self-test
+- `plugins/__init__.py` (empty, for package invocation)
+- `plugins/taskmaster/__init__.py` (empty, for package invocation)
 - `plugins/taskmaster/tests/test_tldr_extraction.py`
 - `plugins/taskmaster/tests/test_tldr_required_on_create.py`
 - `plugins/taskmaster/tests/test_tldr_backfill.py`
@@ -29,13 +33,152 @@
 - `plugins/taskmaster/tests/test_slim_handover_get.py`
 - `plugins/taskmaster/tests/test_slim_issue_get.py`
 - `plugins/taskmaster/tests/test_slim_lesson_get.py`
-- `plugins/taskmaster/tests/test_slim_list_tools.py`
+- `plugins/taskmaster/tests/test_slim_list_tools.py` — also covers `backlog_lesson_match` slim mode (Task 20)
 - `plugins/taskmaster/tests/test_sections_parameter.py`
-- `plugins/taskmaster/tests/test_expand_links.py`
+- `plugins/taskmaster/tests/test_expand_links.py` — also covers `build_tldr_index` all-entity indexing (Task 10)
 - `plugins/taskmaster/tests/test_backlog_status_slim.py`
 - `plugins/taskmaster/tests/test_validate_tldr_warning.py`
 - `plugins/taskmaster/tests/test_foundation_smoke.py`
 - `plugins/taskmaster/scripts/backfill_tldr.py` — one-shot migration CLI
+
+---
+
+## Phase 0 — Test infrastructure
+
+### Task 0: Establish test infrastructure
+
+**Files:**
+- Create: `plugins/taskmaster/tests/conftest.py`
+- Create: `plugins/taskmaster/tests/test_tmp_taskmaster_fixture.py`
+- Create: `plugins/__init__.py` (empty)
+- Create: `plugins/taskmaster/__init__.py` (empty)
+
+**Context:** No `conftest.py` exists yet. Existing tests use the inline pattern:
+```python
+PLUGIN_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PLUGIN_ROOT))
+import backlog_server
+```
+The shared fixture centralises this, and the package markers enable `python -m plugins.taskmaster.scripts.*` invocations in Task 7 and beyond.
+
+- [ ] **Step 1: Create package markers**
+
+```bash
+# Both files are empty — just create them
+touch plugins/__init__.py
+touch plugins/taskmaster/__init__.py
+```
+
+- [ ] **Step 2: Create `conftest.py`**
+
+```python
+# plugins/taskmaster/tests/conftest.py
+"""Shared pytest fixtures for taskmaster tests."""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pytest
+import yaml
+
+# Make `import backlog_server` and `from taskmaster_v3 import ...` work
+# exactly the same way the existing hermetic tests do.
+PLUGIN_ROOT = Path(__file__).resolve().parents[1]
+if str(PLUGIN_ROOT) not in sys.path:
+    sys.path.insert(0, str(PLUGIN_ROOT))
+
+
+@pytest.fixture()
+def tmp_taskmaster(tmp_path, monkeypatch):
+    """Create a minimal .taskmaster/ layout and redirect all path resolution.
+
+    Provides:
+    - tmp_path/.taskmaster/backlog.yaml  (v3 schema, one epic "e" with zero tasks)
+    - tmp_path/.taskmaster/tasks/
+    - tmp_path/.taskmaster/handovers/
+    - tmp_path/.taskmaster/issues/
+    - tmp_path/.taskmaster/lessons/
+    - tmp_path/.taskmaster/ideas/
+
+    All backlog_server path helpers (ROOT, _backlog_path, _resolve_paths) are
+    monkeypatched to point at tmp_path so tests are fully hermetic.
+
+    Returns the tmp_path (Path).
+    """
+    # Build directory structure
+    tm_dir = tmp_path / ".taskmaster"
+    for subdir in ("tasks", "handovers", "issues", "lessons", "ideas"):
+        (tm_dir / subdir).mkdir(parents=True, exist_ok=True)
+
+    # Write a minimal v3 backlog
+    backlog = {
+        "version": 3,
+        "project": "test-project",
+        "epics": [],
+    }
+    (tm_dir / "backlog.yaml").write_text(yaml.dump(backlog), encoding="utf-8")
+
+    # Redirect path resolution in backlog_server
+    import backlog_server  # noqa: PLC0415 — imported here so sys.path is set first
+
+    monkeypatch.setattr(backlog_server, "ROOT", tmp_path, raising=False)
+
+    # _resolve_paths() uses CWD or ROOT; patch CWD as a belt-and-suspenders fallback
+    monkeypatch.chdir(tmp_path)
+
+    return tmp_path
+```
+
+- [ ] **Step 3: Write the fixture self-test**
+
+```python
+# plugins/taskmaster/tests/test_tmp_taskmaster_fixture.py
+"""Verify the tmp_taskmaster fixture creates the expected layout."""
+from pathlib import Path
+
+import yaml
+
+from plugins.taskmaster.backlog_server import backlog_add_task, backlog_get_task
+
+
+def test_fixture_creates_directory_structure(tmp_taskmaster):
+    base = Path(tmp_taskmaster) / ".taskmaster"
+    assert base.is_dir()
+    for subdir in ("tasks", "handovers", "issues", "lessons", "ideas"):
+        assert (base / subdir).is_dir(), f"Missing .taskmaster/{subdir}/"
+    bl = base / "backlog.yaml"
+    assert bl.exists()
+    data = yaml.safe_load(bl.read_text())
+    assert data["version"] == 3
+
+
+def test_fixture_allows_task_create_and_read(tmp_taskmaster):
+    """Full create→read round-trip through backlog_server using the fixture."""
+    backlog_add_task(
+        epic="test-epic",
+        task_id="T-fixture-1",
+        title="Fixture smoke task",
+        tldr="Quick fixture smoke.",
+    )
+    out = backlog_get_task("T-fixture-1")
+    assert "T-fixture-1" in out
+    assert "Quick fixture smoke" in out
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `pytest plugins/taskmaster/tests/test_tmp_taskmaster_fixture.py -v`
+Expected: 2 passed.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add plugins/__init__.py plugins/taskmaster/__init__.py \
+        plugins/taskmaster/tests/conftest.py \
+        plugins/taskmaster/tests/test_tmp_taskmaster_fixture.py
+git commit -m "test(taskmaster): shared tmp_taskmaster fixture + package markers"
+```
 
 ---
 
@@ -247,6 +390,24 @@ def test_add_task_without_tldr_or_body_uses_title(tmp_taskmaster):
     body = backlog_get_task("T-tldr-3", verbose=True)
     assert "Refactor auth" in body
     assert "tldr_autogen: true" in body
+
+
+def test_add_task_with_next_step_persists(tmp_taskmaster):
+    backlog_add_task(
+        epic="test-epic", task_id="T-tldr-4", title="Auth refactor",
+        tldr="Refactor auth.", next_step="Write failing test first.",
+    )
+    body = backlog_get_task("T-tldr-4", verbose=True)
+    assert "Write failing test first" in body
+
+
+def test_update_task_next_step(tmp_taskmaster):
+    backlog_add_task(epic="test-epic", task_id="T-tldr-5", title="Auth",
+                     tldr="Auth tldr.")
+    from plugins.taskmaster.backlog_server import backlog_update_task
+    backlog_update_task("T-tldr-5", next_step="Now do Y.")
+    body = backlog_get_task("T-tldr-5", verbose=True)
+    assert "Now do Y" in body
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -256,7 +417,7 @@ Expected: FAIL — `backlog_add_task` doesn't accept `tldr` kwarg.
 
 - [ ] **Step 3: Update `backlog_add_task` signature and body**
 
-In `plugins/taskmaster/backlog_server.py`, locate `backlog_add_task` (search for `def backlog_add_task`). Add `tldr` kwarg, autogen fallback:
+In `plugins/taskmaster/backlog_server.py`, locate `backlog_add_task` (search for `def backlog_add_task`). Add `tldr` and `next_step` kwargs, autogen fallback:
 
 ```python
 @mcp.tool()
@@ -265,6 +426,7 @@ def backlog_add_task(
     task_id: str,
     title: str,
     tldr: str = "",
+    next_step: str = "",
     # ... existing kwargs unchanged ...
     notes: str = "",
     # ...
@@ -280,21 +442,27 @@ def backlog_add_task(
     task["tldr"] = tldr
     if autogen:
         task["tldr_autogen"] = True
+    # NEW: next_step
+    if next_step:
+        task["next_step"] = next_step
     # ... rest of existing logic ...
 ```
 
-Apply the same pattern to `backlog_update_task` — when `tldr=""` (default keep-existing), leave alone; when caller passes a non-empty value, write it and remove `tldr_autogen` flag.
+Apply the same pattern to `backlog_update_task`:
+- Add `tldr: str = ""` and `next_step: str = ""` kwargs.
+- When `tldr=""` (default), leave existing tldr alone; when caller passes a non-empty value, write it and remove `tldr_autogen` flag.
+- When `next_step=""` (default), leave existing value alone; non-empty value overwrites.
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pytest plugins/taskmaster/tests/test_tldr_required_on_create.py -v`
-Expected: 3 passed.
+Expected: 5 passed (3 original + 2 next_step cases).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_tldr_required_on_create.py
-git commit -m "feat(taskmaster): require tldr on add_task/update_task, autogen with flag"
+git commit -m "feat(taskmaster): require tldr on add_task/update_task, autogen with flag; add next_step kwarg"
 ```
 
 ---
@@ -367,7 +535,7 @@ def backlog_issue_create(
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pytest plugins/taskmaster/tests/test_tldr_required_on_create.py -v`
-Expected: 5 passed total.
+Expected: 7 passed total (5 from Task 3 + 2 issue tests).
 
 - [ ] **Step 5: Commit**
 
@@ -457,7 +625,7 @@ if autogen:
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `pytest plugins/taskmaster/tests/test_tldr_required_on_create.py -v`
-Expected: 8 passed total.
+Expected: 10 passed total (7 from Tasks 3–4 + 3 lesson/idea tests).
 
 - [ ] **Step 5: Commit**
 
@@ -647,6 +815,8 @@ if __name__ == "__main__":
 
 Also create `plugins/taskmaster/scripts/__init__.py` if it doesn't exist (empty file).
 
+**Note:** `plugins/__init__.py` and `plugins/taskmaster/__init__.py` are created in Task 0. The `subprocess.run(["python", "-m", "plugins.taskmaster.scripts.backfill_tldr", ...])` invocation in the integration test relies on those package markers existing. Task 7 only needs to create `scripts/__init__.py`.
+
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pytest plugins/taskmaster/tests/test_tldr_backfill.py -v`
@@ -741,12 +911,30 @@ def test_slim_handover():
         "task_ids": ["T-001"],
         "session_kind": "context-handoff",
         "status": "open",
+        "flag_reason": "needs decision on approach",
         "_body": "## Decisions\n\n...",
     }
     slim = slim_entity(full, kind="handover")
     assert slim["next_action"] == "Run backfill on staging"
     assert slim["status"] == "open"
+    assert slim["flag_reason"] == "needs decision on approach"
     assert "_body" not in slim
+
+
+def test_slim_task_includes_open_handovers():
+    full = {
+        "id": "T-001", "title": "Refactor auth",
+        "tldr": "Refactor the middleware.",
+        "status": "in-progress",
+    }
+    slim = slim_entity(full, kind="task", open_handovers=["HND-012"])
+    assert slim["open_handovers"] == ["HND-012"]
+
+
+def test_slim_task_omits_open_handovers_when_empty():
+    full = {"id": "T-001", "title": "X", "tldr": "T.", "status": "todo"}
+    slim = slim_entity(full, kind="task", open_handovers=None)
+    assert "open_handovers" not in slim
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -766,7 +954,8 @@ SLIM_FIELDS: dict[str, tuple[str, ...]] = {
         "estimate", "phase", "epic",
         "depends_on", "related_issues", "related_lessons",
         "started", "completed", "branch", "worktree",
-        "blockers", "tldr_autogen",
+        "blockers", "open_handovers",  # open_handovers is computed, not stored
+        "tldr_autogen",
     ),
     "issue": (
         "id", "title", "tldr", "severity", "status", "components",
@@ -783,6 +972,7 @@ SLIM_FIELDS: dict[str, tuple[str, ...]] = {
         "id", "tldr", "next_action", "task_ids", "session_kind",
         "status", "status_changed", "status_reason",
         "created", "supersedes", "superseded_by", "flag_for_review",
+        "flag_reason",  # written by Plan B; surfaced here so Plan A exposes it
         "tldr_autogen",
     ),
     "idea": (
@@ -793,29 +983,66 @@ SLIM_FIELDS: dict[str, tuple[str, ...]] = {
 }
 
 
-def slim_entity(entity: dict[str, Any], kind: str) -> dict[str, Any]:
+def slim_entity(
+    entity: dict[str, Any],
+    kind: str,
+    *,
+    open_handovers: list[str] | None = None,
+) -> dict[str, Any]:
     """Return the slim view of an entity dict.
 
     Only fields in SLIM_FIELDS[kind] survive. For tasks, the `docs` dict is
     replaced with `docs_available` (a sorted list of section keys, no contents).
+
+    `open_handovers` is computed by the MCP wrapper layer (not stored on the task)
+    and injected here so it appears in the slim output. Pass a list of HND-* IDs
+    (already filtered to status=="open" and matching task_id). Omit or pass None
+    to skip (no I/O performed inside this function).
     """
     if kind not in SLIM_FIELDS:
         raise ValueError(f"Unknown entity kind: {kind!r}")
     out: dict[str, Any] = {}
     for key in SLIM_FIELDS[kind]:
+        if key == "open_handovers":
+            continue  # injected below, not read from entity dict
         if key in entity and entity[key] not in (None, "", [], {}):
             out[key] = entity[key]
     if kind == "task":
         docs = entity.get("docs") or {}
         if docs:
             out["docs_available"] = sorted(docs.keys())
+        if open_handovers:
+            out["open_handovers"] = open_handovers
     return out
+```
+
+**MCP wrapper pattern for `open_handovers`** (applied in Task 11 and anywhere `slim_entity(task, kind="task")` is called from backlog_server):
+
+```python
+def _get_open_handovers_for_task(bp: Path, task_id: str) -> list[str]:
+    """Scan handovers dir for open handovers that reference task_id."""
+    hdir = bp.parent / "handovers"
+    if not hdir.exists():
+        return []
+    result = []
+    for path in sorted(hdir.glob("*.md")):
+        fm, _ = _read_handover(bp, path.stem)
+        if fm.get("status") == "open" and task_id in (fm.get("task_ids") or []):
+            result.append(fm["id"])
+    return result
+```
+
+Call this in the MCP layer before passing to `slim_entity`, then inject via the `open_handovers=` param:
+
+```python
+oh = _get_open_handovers_for_task(bp, task_id)
+view = tm.slim_entity(task, kind="task", open_handovers=oh or None)
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pytest plugins/taskmaster/tests/test_slim_view.py -v`
-Expected: 4 passed.
+Expected: 7 passed (4 original + 3 new: flag_reason + open_handovers present/absent).
 
 - [ ] **Step 5: Commit**
 
@@ -1020,31 +1247,105 @@ def expand_link_ids(
     return [{"id": i, "tldr": tldr_index.get(i)} for i in ids]
 ```
 
-Also add a helper that builds the tldr_index from a loaded backlog:
+Also add a helper that builds the tldr_index from a loaded backlog **and** all file-based entity dirs:
 
 ```python
-def build_tldr_index(data: dict[str, Any]) -> dict[str, str]:
-    """Build {entity_id → tldr} index across tasks/issues/lessons/handovers/ideas.
+def build_tldr_index(data: dict[str, Any], project_root: Path | None = None) -> dict[str, str]:
+    """Build {entity_id → tldr} index across tasks, issues, lessons, handovers, ideas.
 
-    Reads from the in-memory backlog dict (post-load_v3). Issues/lessons/handovers/ideas
-    live in their own dirs but we only need the index for IDs the caller mentions in
-    linkage arrays — so this loads ALL of them. For very large projects, consider
-    on-demand caching in a future iteration.
+    Tasks come from the in-memory backlog dict (post-load_v3).
+    Issues/lessons/handovers/ideas are loaded from their respective dirs under
+    `<project_root>/.taskmaster/`. Pass `project_root` as the directory
+    containing the .taskmaster/ folder (not the .taskmaster/ path itself).
+
+    Does I/O when project_root is provided; safe to call once per MCP request
+    (results are not cached beyond the call). For very large projects, consider
+    memoization in a future iteration.
     """
     idx: dict[str, str] = {}
+    # Tasks from backlog dict
     for epic in data.get("epics", []):
         for task in epic.get("tasks", []):
             tid = task.get("id")
             if tid and task.get("tldr"):
                 idx[tid] = task["tldr"]
-    # External (file-based) entities — caller passes them in for now.
+    if project_root is None:
+        return idx
+    # File-based entities — read frontmatter tldr from each dir
+    tm_dir = project_root / ".taskmaster"
+    dir_readers: list[tuple[str, Any]] = [
+        ("issues",    read_issue),     # noqa: F821 — imported at top as _read_issue
+        ("lessons",   read_lesson),    # noqa: F821
+        ("handovers", read_handover),  # noqa: F821
+        ("ideas",     read_idea),      # noqa: F821
+    ]
+    for subdir, _reader in dir_readers:
+        d = tm_dir / subdir
+        if not d.exists():
+            continue
+        for path in sorted(d.glob("*.md")):
+            try:
+                fm, _ = read_task_file(path)
+                eid = fm.get("id")
+                if eid and fm.get("tldr"):
+                    idx[eid] = fm["tldr"]
+            except Exception:
+                continue  # malformed file — skip silently
     return idx
+```
+
+**Note:** `build_tldr_index` is defined in `taskmaster_v3.py` which does not import the `_read_*` aliases from `backlog_server.py`. Use `read_task_file` (already in `taskmaster_v3`) for all entity dirs — it reads raw frontmatter from any `.md` file, regardless of entity type. The `dir_readers` comment above is illustrative; implement as:
+
+```python
+    for subdir in ("issues", "lessons", "handovers", "ideas"):
+        d = tm_dir / subdir
+        if not d.exists():
+            continue
+        for path in sorted(d.glob("*.md")):
+            try:
+                fm, _ = read_task_file(path)
+                eid = fm.get("id")
+                if eid and fm.get("tldr"):
+                    idx[eid] = fm["tldr"]
+            except Exception:
+                continue
+```
+
+Update the test for `build_tldr_index` to cover all five entity types:
+
+```python
+# Add to test_expand_links.py
+
+def test_build_tldr_index_indexes_all_entity_types(tmp_path):
+    import yaml
+    from plugins.taskmaster.taskmaster_v3 import build_tldr_index, write_task_file
+
+    tm_dir = tmp_path / ".taskmaster"
+    for subdir in ("tasks", "issues", "lessons", "handovers", "ideas"):
+        (tm_dir / subdir).mkdir(parents=True)
+
+    # Write one file per entity dir
+    for subdir, eid, tldr in [
+        ("issues",    "ISS-001", "An issue tldr"),
+        ("lessons",   "L-001",   "A lesson tldr"),
+        ("handovers", "HND-001", "A handover tldr"),
+        ("ideas",     "IDEA-001","An idea tldr"),
+    ]:
+        write_task_file(tm_dir / subdir / f"{eid}.md", {"id": eid, "tldr": tldr}, "")
+
+    data = {"epics": [{"tasks": [{"id": "T-001", "tldr": "A task tldr"}]}]}
+    idx = build_tldr_index(data, project_root=tmp_path)
+    assert idx["T-001"] == "A task tldr"
+    assert idx["ISS-001"] == "An issue tldr"
+    assert idx["L-001"] == "A lesson tldr"
+    assert idx["HND-001"] == "A handover tldr"
+    assert idx["IDEA-001"] == "An idea tldr"
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pytest plugins/taskmaster/tests/test_expand_links.py -v`
-Expected: 3 passed.
+Expected: 4 passed (3 original expand_link_ids tests + 1 build_tldr_index all-entity test).
 
 - [ ] **Step 5: Commit**
 
@@ -1144,19 +1445,22 @@ def backlog_get_task(
                   spec, plan, design, analysis, roadmap). Mutually exclusive with verbose.
         expand_links: If True, replace bare linkage IDs with {id, tldr} pills.
     """
-    bp = _resolve_paths()[0]
+    bp = _backlog_path()
     data = tm.load_v3(bp)
-    task = _find_task(data, task_id)   # existing helper; rename if needed
-    if task is None:
+    result = _find_task(data, task_id)   # returns (task, epic) tuple or None
+    if result is None:
         return f"Task not found: {task_id}"
+    task, _epic = result
 
     if verbose:
         # Today's behavior: full frontmatter + body
         view = dict(task)
     else:
-        view = tm.slim_entity(task, kind="task")
+        oh = _get_open_handovers_for_task(bp, task_id)
+        view = tm.slim_entity(task, kind="task", open_handovers=oh or None)
         if expand_links:
-            tldr_index = tm.build_tldr_index(data)
+            project_root = bp.parent
+            tldr_index = tm.build_tldr_index(data, project_root=project_root)
             for fld in ("depends_on", "related_issues", "related_lessons"):
                 if fld in view:
                     view[fld] = tm.expand_link_ids(view[fld], tldr_index)
@@ -1166,7 +1470,7 @@ def backlog_get_task(
         section_map = tm.resolve_sections(
             task, kind="task", sections=sections,
             body=task.get(tm.BODY_KEY, ""),
-            project_root=bp.parent.parent,
+            project_root=bp.parent,
         )
         body_out = "\n\n".join(f"## {k}\n\n{v}" for k, v in section_map.items())
     elif verbose:
@@ -1174,6 +1478,8 @@ def backlog_get_task(
 
     return tm.render_frontmatter(view, body_out)
 ```
+
+Note: `project_root` is `bp.parent` (the dir containing `.taskmaster/`), not `bp.parent.parent`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -1250,8 +1556,8 @@ def backlog_handover_get(
     sections: list[str] | None = None,
     expand_links: bool = False,
 ) -> str:
-    bp = _resolve_paths()[0]
-    fm, body = tm.read_handover(bp, handover_id)
+    bp = _backlog_path()
+    fm, body = _read_handover(bp, handover_id)
     if not fm:
         return f"Handover not found: {handover_id}"
 
@@ -1268,7 +1574,7 @@ def backlog_handover_get(
 
     if expand_links and not verbose:
         data = tm.load_v3(bp)
-        tldr_index = tm.build_tldr_index(data)
+        tldr_index = tm.build_tldr_index(data, project_root=bp.parent)
         if "task_ids" in view:
             view["task_ids"] = tm.expand_link_ids(view["task_ids"], tldr_index)
 
@@ -1332,7 +1638,12 @@ Expected: FAIL — unknown kwargs.
 
 - [ ] **Step 3: Update `backlog_issue_get`**
 
-Mirror the pattern from Task 12, swapping `read_handover` for `tm.read_issue` and `kind="handover"` for `kind="issue"`. Expand links operate on `related_tasks` and `fixed_in_task` (single-ID — wrap in list before expand if non-empty).
+Mirror the pattern from Task 12:
+- Use `bp = _backlog_path()` (not `_resolve_paths()[0]`).
+- Use `_read_issue(bp, issue_id)` (not `tm.read_issue`).
+- Use `kind="issue"`.
+- Expand links operate on `related_tasks` and `fixed_in_task` (single-ID — wrap in list before expand if non-empty).
+- Pass `project_root=bp.parent` to `build_tldr_index`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -1391,7 +1702,12 @@ Expected: FAIL.
 
 - [ ] **Step 3: Update `backlog_lesson_get`**
 
-Mirror Task 12, `kind="lesson"`, `tm.read_lesson`. Expand links: `related_tasks`, `related_issues`.
+Mirror Task 12:
+- Use `bp = _backlog_path()`.
+- Use `_read_lesson(bp, lesson_id)` (not `tm.read_lesson`).
+- Use `kind="lesson"`.
+- Expand links: `related_tasks`, `related_issues`.
+- Pass `project_root=bp.parent` to `build_tldr_index`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -1442,7 +1758,11 @@ Expected: FAIL.
 
 - [ ] **Step 3: Update `backlog_idea_get`**
 
-Mirror Task 12, `kind="idea"`. Ideas have no canonical body sections — accept `sections=` but raise if non-empty (ideas don't carry structured headings).
+Mirror Task 12:
+- Use `bp = _backlog_path()`.
+- Use `_read_idea(bp, idea_id)` (not `tm.read_idea`; imported as `read_idea as _read_idea` at the top of backlog_server.py).
+- Use `kind="idea"`.
+- Ideas have no canonical body sections — accept `sections=` but raise if non-empty (ideas don't carry structured headings).
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -1520,7 +1840,7 @@ def backlog_status(verbose: bool = False) -> str:
     active phase, stale count. Verbose adds full epic list, archived items,
     completed history.
     """
-    bp = _resolve_paths()[0]
+    bp = _backlog_path()
     data = tm.load_v3(bp)
     if verbose:
         return _render_full_dashboard(data)        # existing implementation extracted
@@ -1704,9 +2024,114 @@ git commit -m "feat(taskmaster): backlog_issue_list + backlog_lesson_list slim e
 
 ---
 
+### Task 20: `backlog_lesson_match` slim mode
+
+**Files:**
+- Modify: `plugins/taskmaster/backlog_server.py` (search `def backlog_lesson_match`, currently at ~L2812)
+- Test: `plugins/taskmaster/tests/test_slim_list_tools.py` (extend)
+
+**Context:** `pick-task` glance (Plan D) requires `backlog_lesson_match` to return terse `{id, tldr}` pills by default so the match summary fits inside the glance context window. Current signature returns full lesson summaries (id + kind + reinforce_count + title). Add `verbose: bool = False`; slim default returns `{id, tldr}` only.
+
+- [ ] **Step 1: Write the failing test**
+
+Append to `tests/test_slim_list_tools.py`:
+
+```python
+from plugins.taskmaster.backlog_server import backlog_lesson_match
+
+
+def test_lesson_match_slim_returns_id_tldr_pills(tmp_taskmaster):
+    backlog_lesson_create(
+        title="Atomic writes",
+        kind="pattern",
+        tldr="Use atomic_write() everywhere.",
+        why="Prevents corruption.",
+        what_to_do="Call atomic_write() instead of open().",
+        files=["*.py"],
+    )
+    out = backlog_lesson_match(task_title="atomic writes")
+    # Slim default: id + tldr only, no reinforce_count or kind in the output
+    assert "L-001" in out
+    assert "Use atomic_write()" in out
+    # No verbose body fields
+    assert "Prevents corruption" not in out
+    assert "reinforce_count" not in out.lower()
+
+
+def test_lesson_match_verbose_returns_full_summary(tmp_taskmaster):
+    backlog_lesson_create(
+        title="Atomic writes",
+        kind="pattern",
+        tldr="Use atomic_write() everywhere.",
+        why="Prevents corruption.",
+        what_to_do="Call atomic_write().",
+        files=["*.py"],
+    )
+    out = backlog_lesson_match(task_title="atomic writes", verbose=True)
+    # Verbose: today's behavior — kind + reinforce_count + title
+    assert "pattern" in out
+    assert "L-001" in out
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `pytest plugins/taskmaster/tests/test_slim_list_tools.py::test_lesson_match_slim_returns_id_tldr_pills -v`
+Expected: FAIL — `verbose` kwarg unknown OR slim mode not implemented.
+
+- [ ] **Step 3: Update `backlog_lesson_match`**
+
+```python
+@mcp.tool()
+def backlog_lesson_match(
+    task_title: str = "",
+    touched_files: list[str] | None = None,
+    verbose: bool = False,
+) -> str:
+    """Find lessons matching a task by title and/or file globs.
+
+    Slim by default: returns `{id} — {tldr}` pills (~30 tokens each), up to 3 matches.
+    verbose=True: today's behavior — id, kind, reinforce_count, title summary.
+    """
+    bp = _backlog_path()
+    if not bp.exists():
+        return "No backlog found."
+    matches = _match_lessons_for_task(
+        bp,
+        {"title": task_title or ""},
+        touched_files=touched_files or [],
+    )
+    if not matches:
+        return "No matching lessons."
+    lines = []
+    for fm, _body in matches:
+        if verbose:
+            lines.append(
+                f"- {fm.get('id')} [{fm.get('kind')}] x{fm.get('reinforce_count', 0)}: {fm.get('title')}"
+            )
+        else:
+            lines.append(f"- {fm.get('id')} — {fm.get('tldr') or fm.get('title')}")
+    return "\n".join(lines)
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `pytest plugins/taskmaster/tests/test_slim_list_tools.py -v`
+Expected: 7 passed total.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_slim_list_tools.py
+git commit -m "feat(taskmaster): backlog_lesson_match slim mode returns id+tldr pills"
+```
+
+---
+
 ## Phase 8 — Validation warnings
 
-### Task 20: `backlog_validate` flags missing tldrs (warning only)
+### Task 21: `backlog_validate` flags missing tldrs (warning only)
+
+> **Renumbered from Task 20** to accommodate the new `backlog_lesson_match` slim task.
 
 **Files:**
 - Modify: `plugins/taskmaster/backlog_server.py` (search `def backlog_validate`)
@@ -1779,7 +2204,7 @@ git commit -m "feat(taskmaster): validate warns on missing tldr (grace period)"
 
 ## Phase 9 — Integration smoke + changelog
 
-### Task 21: End-to-end foundation smoke test
+### Task 22: End-to-end foundation smoke test
 
 **Files:**
 - Create: `plugins/taskmaster/tests/test_foundation_smoke.py`
@@ -1863,14 +2288,14 @@ def test_token_budget_targets_met(tmp_taskmaster):
     assert len(verbose) > 3000
 ```
 
-- [ ] **Step 2: Run the smoke test**
+- [ ] **Step 2: Run the smoke test** (Task 22)
 
 Run: `pytest plugins/taskmaster/tests/test_foundation_smoke.py -v`
 Expected: 2 passed.
 
 - [ ] **Step 3: Run the full Plan A test suite**
 
-Run: `pytest plugins/taskmaster/tests/test_tldr_extraction.py plugins/taskmaster/tests/test_canonical_sections.py plugins/taskmaster/tests/test_tldr_required_on_create.py plugins/taskmaster/tests/test_tldr_backfill.py plugins/taskmaster/tests/test_slim_view.py plugins/taskmaster/tests/test_sections_parameter.py plugins/taskmaster/tests/test_expand_links.py plugins/taskmaster/tests/test_slim_get_task.py plugins/taskmaster/tests/test_slim_handover_get.py plugins/taskmaster/tests/test_slim_issue_get.py plugins/taskmaster/tests/test_slim_lesson_get.py plugins/taskmaster/tests/test_slim_idea_get.py plugins/taskmaster/tests/test_backlog_status_slim.py plugins/taskmaster/tests/test_slim_list_tools.py plugins/taskmaster/tests/test_validate_tldr_warning.py plugins/taskmaster/tests/test_foundation_smoke.py -v`
+Run: `pytest plugins/taskmaster/tests/test_tmp_taskmaster_fixture.py plugins/taskmaster/tests/test_tldr_extraction.py plugins/taskmaster/tests/test_canonical_sections.py plugins/taskmaster/tests/test_tldr_required_on_create.py plugins/taskmaster/tests/test_tldr_backfill.py plugins/taskmaster/tests/test_slim_view.py plugins/taskmaster/tests/test_sections_parameter.py plugins/taskmaster/tests/test_expand_links.py plugins/taskmaster/tests/test_slim_get_task.py plugins/taskmaster/tests/test_slim_handover_get.py plugins/taskmaster/tests/test_slim_issue_get.py plugins/taskmaster/tests/test_slim_lesson_get.py plugins/taskmaster/tests/test_slim_idea_get.py plugins/taskmaster/tests/test_backlog_status_slim.py plugins/taskmaster/tests/test_slim_list_tools.py plugins/taskmaster/tests/test_validate_tldr_warning.py plugins/taskmaster/tests/test_foundation_smoke.py -v`
 Expected: All passing.
 
 - [ ] **Step 4: Run the full existing test suite for regressions**
@@ -1887,7 +2312,7 @@ git commit -m "test(taskmaster): foundation smoke test for slim defaults across 
 
 ---
 
-### Task 22: CHANGELOG entry
+### Task 23: CHANGELOG entry
 
 **Files:**
 - Modify: `plugins/taskmaster/CHANGELOG.md`
@@ -1901,13 +2326,18 @@ Append to `plugins/taskmaster/CHANGELOG.md` under an unreleased v3.X section:
 
 ### Added
 - Required `tldr` field on tasks, issues, lessons, ideas (handovers already had it). Auto-generated from body's first sentence when missing on create; flagged with `tldr_autogen: true`.
+- `next_step` field on `backlog_add_task` and `backlog_update_task` — persisted and exposed in slim view.
 - Slim-by-default mode on every `_get` MCP tool: `backlog_get_task`, `backlog_handover_get`, `backlog_issue_get`, `backlog_lesson_get`, `backlog_idea_get`. Returns frontmatter + tldr + extras + bare-ID linkages (~150 tokens). Use `verbose=true` for full body.
 - `sections=[...]` parameter on `_get` tools for surgical section retrieval. Canonical section names per entity defined in `taskmaster_v3.CANONICAL_SECTIONS`.
-- `expand_links=true` parameter on `_get` tools — swaps bare linkage IDs for `{id, tldr}` pills.
+- `expand_links=true` parameter on `_get` tools — swaps bare linkage IDs for `{id, tldr}` pills. `build_tldr_index` now indexes all five entity types (tasks, issues, lessons, handovers, ideas).
+- `open_handovers` computed field in task slim view — lists HND-* IDs of open handovers referencing the task.
+- `flag_reason` surfaced in handover slim view (written by Plan B; Plan A exposes it).
 - Slim-by-default on every `_list` MCP tool: `backlog_list_tasks`, `backlog_handover_list`, `backlog_issue_list`, `backlog_lesson_list`. Use `verbose=true` to restore today's output.
+- `backlog_lesson_match` slim mode: returns `{id} — {tldr}` pills by default; `verbose=True` restores today's kind + reinforce_count + title summary.
 - `backlog_status` slim by default (~400 tokens); `verbose=true` adds full epic list + archived + completed history.
 - `scripts/backfill_tldr.py` — one-shot CLI to backfill tldrs into legacy entities.
 - `backlog_validate` now warns (does not fail) on entities missing `tldr`.
+- Shared `tmp_taskmaster` pytest fixture in `conftest.py` + package markers (`plugins/__init__.py`, `plugins/taskmaster/__init__.py`).
 
 ### Migration
 1. Run `python -m plugins.taskmaster.scripts.backfill_tldr --root <project>` to backfill tldrs on existing tasks/issues/lessons/ideas.
@@ -1928,14 +2358,18 @@ git commit -m "docs(taskmaster): changelog entry for v3.X progressive disclosure
 
 ## Self-Review
 
-After implementing all 22 tasks, run this final pass:
+After implementing all 23 tasks (Task 0 through Task 23), run this final pass:
 
 - [ ] All tests in `plugins/taskmaster/tests/` pass: `pytest plugins/taskmaster/tests/ -v`
+- [ ] `test_tmp_taskmaster_fixture.py` passes (fixture self-test)
 - [ ] `backlog_validate` on a project shows zero warnings after running backfill (other than pre-existing schema warnings)
 - [ ] Manual sanity check: invoke `backlog_get_task("<some-id>")` in a real project — confirm output is ≤ 600 chars (~150 tokens)
 - [ ] Manual sanity check: invoke `backlog_get_task("<some-id>", verbose=True)` — confirm output matches the pre-change behavior
-- [ ] `git log --oneline` shows ~22 atomic commits, one per task
+- [ ] Manual sanity check: invoke `backlog_lesson_match(task_title="...")` — confirm output is `{id} — {tldr}` pills, no body content
+- [ ] `git log --oneline` shows ~23 atomic commits, one per task
 - [ ] No `TBD`, `TODO`, or `pass # implement later` markers anywhere in plugin code
+- [ ] `open_handovers` appears in `backlog_get_task` slim output when an open handover references the task
+- [ ] `flag_reason` appears in `backlog_handover_get` slim output when present in frontmatter
 
 ---
 

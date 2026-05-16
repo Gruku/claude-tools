@@ -2,15 +2,15 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Redesign `start-session` and `pick-task` so the default invocation delivers a ~800–1,000 token glance briefing, with today's full ceremony available via an explicit `--deep` flag.
+**Goal:** Redesign `start-session` and `pick-task` so the default invocation delivers a ~800–1,000 token glance briefing, with today's full ceremony available via an explicit `--deep` flag. Tasks are numbered 0–12 (Task 0 is a test-infrastructure sanity check).
 
-**Architecture:** Two-layer change. (1) Skill-content layer: both SKILL.md files are rewritten so the glance flow is the default branch; deep-ceremony content moves to `references/deep-mode.md` per skill. (2) Test layer: pytest lint tests enforce token-budget targets on skill bodies AND verify that glance MCP calls are distinct from deep calls; tests are written first (TDD). Depends on Plan A slim-default MCP tools and Plan B parallel handover `status` field — both must be merged before Plan D ships.
+**Architecture:** Two-layer change. (1) Skill-content layer: both SKILL.md files are rewritten so the glance flow is the default branch; deep-ceremony content moves to `references/deep-mode.md` per skill. (2) Test layer: pytest lint tests enforce token-budget targets on skill bodies AND verify that glance MCP calls are distinct from deep calls; content tests are the primary TDD driver (body-budget is a guardrail, not the failing signal). Depends on Plan A slim-default MCP tools and Plan B parallel handover `status` field — both must be merged before Plan D ships.
 
 **Tech Stack:** Markdown SKILL files, Python 3.11+, pytest. No new Python deps.
 
 **Spec:** `docs/superpowers/specs/2026-05-15-taskmaster-progressive-disclosure-design.md` §4
 
-**Depends on:** Plan A (slim MCP tools — `verbose`, `sections`, `expand_links` params), Plan B (parallel handovers — `backlog_handover_list(status="open")`, flagged-but-open detection)
+**Depends on:** Plan A (slim MCP tools — `verbose`, `sections`, `expand_links` params; `backlog_lesson_match` slim mode — returns IDs + tldrs ~100 tokens vs full bodies; `flag_reason` in `SLIM_FIELDS["handover"]`), Plan B (parallel handovers — `backlog_handover_list(status="open")`, flagged-but-open detection)
 
 ---
 
@@ -25,8 +25,82 @@
 **Create:**
 - `plugins/taskmaster/skills/start-session/references/deep-mode.md` — full deep ceremony (today's full-load steps 2a–2e with all tool calls)
 - `plugins/taskmaster/skills/pick-task/references/deep-mode.md` — full deep ceremony (full task body, full lesson bodies, blast radius, handover bodies)
-- `plugins/taskmaster/tests/test_start_session_skill_lint.py` — budget + structural lint tests
-- `plugins/taskmaster/tests/test_pick_task_skill_lint.py` — budget + structural lint tests
+- `plugins/taskmaster/tests/test_start_session_skill_lint.py` — content + structural lint tests (body-budget as guardrail)
+- `plugins/taskmaster/tests/test_pick_task_skill_lint.py` — content + structural lint tests (body-budget as guardrail)
+
+> **Note on Plan E coordination:** after Plan D ships, Plan E's `xfail` markers on start-session/pick-task body-budget tests in `test_skill_body_budgets.py` should be removed (those tests will pass). Plan D's per-skill lint files (`test_start_session_skill_lint.py`, `test_pick_task_skill_lint.py`) are additive and focus on content checks (glance MCP calls, deep-mode pointer, `status="open"` filter) — they do not duplicate Plan E's parametrized budget assertion. The minor naming overlap is acceptable.
+
+---
+
+## Phase 0 — Infrastructure sanity check
+
+### Task 0: Verify test infrastructure
+
+**Goal:** Confirm that `plugins/taskmaster/tests/conftest.py` and the `tmp_taskmaster` fixture from Plan A are available. If Plan A has not shipped, create the minimal fixture before proceeding.
+
+- [ ] **Step 1: Check for conftest.py and tmp_taskmaster fixture**
+
+```python
+python -c "
+from pathlib import Path
+p = Path('plugins/taskmaster/tests/conftest.py')
+if not p.exists():
+    print('MISSING: conftest.py not found — Plan A not shipped yet.')
+    raise SystemExit(1)
+text = p.read_text(encoding='utf-8')
+if 'tmp_taskmaster' not in text:
+    print('MISSING: tmp_taskmaster fixture not in conftest.py.')
+    raise SystemExit(1)
+print('OK: conftest.py + tmp_taskmaster fixture present.')
+"
+```
+
+- [ ] **Step 2: If Plan A not shipped — create minimal conftest.py**
+
+Skip this step if Step 1 reports OK.
+
+If `conftest.py` is missing or lacks `tmp_taskmaster`, create it now:
+
+```python
+# plugins/taskmaster/tests/conftest.py
+"""Shared fixtures for taskmaster plugin tests."""
+import shutil
+import tempfile
+from pathlib import Path
+
+import pytest
+
+
+@pytest.fixture
+def tmp_taskmaster(tmp_path: Path) -> Path:
+    """Return a temporary directory pre-populated with a minimal .taskmaster/ layout."""
+    tm = tmp_path / ".taskmaster"
+    tm.mkdir()
+    (tm / "backlog.yaml").write_text(
+        "schema: v3\nepics: []\ntasks: []\n", encoding="utf-8"
+    )
+    (tm / "tasks").mkdir()
+    (tm / "issues").mkdir()
+    (tm / "lessons").mkdir()
+    (tm / "ideas").mkdir()
+    (tm / "handovers").mkdir()
+    return tmp_path
+```
+
+Then commit:
+
+```
+git add plugins/taskmaster/tests/conftest.py
+git commit -m "test(taskmaster): bootstrap conftest.py with tmp_taskmaster fixture (Plan A pre-req)"
+```
+
+- [ ] **Step 3: Run existing test suite to confirm baseline**
+
+```
+pytest plugins/taskmaster/tests/ -v --co -q
+```
+
+Expected: collection succeeds with no import errors. (Tests may fail if prerequisites are unmet — that is expected; the goal is clean collection.)
 
 ---
 
@@ -37,7 +111,9 @@
 **Files:**
 - Create: `plugins/taskmaster/tests/test_start_session_skill_lint.py`
 
-The tests must fail today (skill body too large; deep ceremony inline; no `references/deep-mode.md`). They will pass after Task 4.
+**TDD baseline (measured):** Current start-session SKILL.md body is ~1,675 tokens — already below the 1,300-token target set by Plan E. The body-budget test therefore passes immediately and is a guardrail only. Content tests are the primary TDD driver: `test_deep_ceremony_not_inline_in_body` WILL fail (deep-mode calls are inline today), `test_deep_mode_reference_exists` WILL fail, `test_deep_flag_mentioned_in_body` WILL fail, `test_deep_mode_reference_linked_from_body` WILL fail. These failures drive the TDD loop.
+
+The tests must fail today (deep ceremony inline; no `references/deep-mode.md`; no `--deep` mention). They will pass after Task 4.
 
 - [ ] **Step 1: Create the test file**
 
@@ -112,7 +188,10 @@ def test_frontmatter_has_required_fields():
 def test_skill_md_body_under_token_budget():
     """Glance body (SKILL.md minus frontmatter) must be ≤1,300 tokens.
 
-    Today it is ~3,025 tokens — this test fails until the glance rewrite is done.
+    Measured baseline: ~1,675 tokens (already near target). This test is a guardrail —
+    it may pass before the glance rewrite if the body is already lean. Content tests
+    (test_deep_ceremony_not_inline_in_body, test_deep_flag_mentioned_in_body, etc.)
+    are the primary TDD signal.
     """
     body = _body_without_frontmatter(SKILL_MD)
     tokens = _token_estimate(body)
@@ -123,7 +202,7 @@ def test_skill_md_body_under_token_budget():
 
 
 def test_glance_mcp_calls_listed_in_body():
-    """Glance path must reference the three slim MCP calls from spec §4."""
+    """Glance path must reference the slim MCP calls from spec §4."""
     body = _body_without_frontmatter(SKILL_MD)
     required_calls = [
         "backlog_status",
@@ -131,6 +210,15 @@ def test_glance_mcp_calls_listed_in_body():
     ]
     missing = [c for c in required_calls if c not in body]
     assert not missing, f"Glance MCP calls missing from SKILL.md body: {missing}"
+
+
+def test_handover_list_filters_to_open():
+    """start-session glance must filter handovers to status=open (Plan B requirement)."""
+    body = _body_without_frontmatter(SKILL_MD)
+    assert 'backlog_handover_list' in body
+    assert 'status="open"' in body or "status='open'" in body, (
+        "start-session glance must call backlog_handover_list with status=open (Plan B requirement)"
+    )
 
 
 def test_deep_ceremony_not_inline_in_body():
@@ -168,13 +256,16 @@ def test_deep_mode_reference_linked_from_body():
 pytest plugins/taskmaster/tests/test_start_session_skill_lint.py -v
 ```
 
-Expected failures:
+Expected failures (content-driven — these are the TDD signal):
 - `test_deep_mode_reference_exists` — `references/deep-mode.md` does not exist yet
 - `test_deep_mode_reference_is_not_stub` — same
-- `test_skill_md_body_under_token_budget` — body is ~3,025 tokens today
 - `test_deep_ceremony_not_inline_in_body` — `backlog_recap`, `backlog_lesson_digest`, `backlog_lesson_get` are inline
 - `test_deep_flag_mentioned_in_body` — `--deep` not in body today
 - `test_deep_mode_reference_linked_from_body` — link missing
+- `test_handover_list_filters_to_open` — `status="open"` may not be present in the current body
+
+May pass already (guardrail only):
+- `test_skill_md_body_under_token_budget` — baseline ~1,675 tokens; may be ≤1,300 after frontmatter strip
 
 Do **not** fix anything yet.
 
@@ -184,6 +275,10 @@ Do **not** fix anything yet.
 
 **Files:**
 - Create: `plugins/taskmaster/tests/test_pick_task_skill_lint.py`
+
+**TDD baseline (measured):** Current pick-task SKILL.md body is ~1,300 tokens — already at the Plan E budget target. The body-budget test will therefore pass immediately and is a guardrail only. Content tests are the primary TDD driver: `test_full_lesson_body_load_not_inline` WILL fail (`backlog_lesson_get` is inline today), `test_blast_radius_not_in_glance_body` WILL fail, `test_deep_mode_reference_exists` WILL fail, `test_deep_flag_mentioned_in_body` WILL fail. The `status="open"` assertion (Plan B) also fails today (current step 5a calls `backlog_handover_list(task_id=<id>, limit=3)` without the filter). These failures drive the TDD loop.
+
+**Dependency note:** Step 5c (matched lessons) relies on `backlog_lesson_match` slim mode (Plan A). Glance path uses IDs + tldrs only (~100 tokens); full lesson bodies are `--deep` only.
 
 - [ ] **Step 1: Create the test file**
 
@@ -264,7 +359,10 @@ def test_frontmatter_has_required_fields():
 def test_skill_md_body_under_token_budget():
     """Glance body (SKILL.md minus frontmatter) must be ≤1,300 tokens.
 
-    Today it is ~2,745 tokens — this test fails until the glance rewrite is done.
+    Measured baseline: ~1,300 tokens (already at target). This test is a guardrail —
+    it may pass before the glance rewrite. Content tests (test_full_lesson_body_load_not_inline,
+    test_blast_radius_not_in_glance_body, test_deep_flag_mentioned_in_body, etc.)
+    are the primary TDD signal.
     """
     body = _body_without_frontmatter(SKILL_MD)
     tokens = _token_estimate(body)
@@ -275,7 +373,7 @@ def test_skill_md_body_under_token_budget():
 
 
 def test_glance_mcp_calls_present():
-    """Glance path must reference the six slim MCP calls from spec §4."""
+    """Glance path must reference the slim MCP calls from spec §4."""
     body = _body_without_frontmatter(SKILL_MD)
     required_calls = [
         "backlog_get_task",
@@ -286,6 +384,19 @@ def test_glance_mcp_calls_present():
     ]
     missing = [c for c in required_calls if c not in body]
     assert not missing, f"Glance MCP calls missing from SKILL.md body: {missing}"
+
+
+def test_handover_list_filters_to_open():
+    """pick-task glance must filter handovers to status=open (Plan B requirement).
+
+    Current step 5a calls backlog_handover_list(task_id=<id>, limit=3) WITHOUT
+    status="open" — this test fails today and passes after the glance rewrite.
+    """
+    body = _body_without_frontmatter(SKILL_MD)
+    assert 'backlog_handover_list' in body
+    assert 'status="open"' in body or "status='open'" in body, (
+        "pick-task glance must filter handovers to status=open (Plan B requirement)"
+    )
 
 
 def test_full_lesson_body_load_not_inline():
@@ -327,14 +438,17 @@ def test_deep_mode_reference_linked_from_body():
 pytest plugins/taskmaster/tests/test_pick_task_skill_lint.py -v
 ```
 
-Expected failures:
+Expected failures (content-driven — these are the TDD signal):
 - `test_deep_mode_reference_exists` — does not exist yet
 - `test_deep_mode_reference_is_not_stub` — same
-- `test_skill_md_body_under_token_budget` — body ~2,745 tokens
 - `test_full_lesson_body_load_not_inline` — `backlog_lesson_get` is inline today
 - `test_blast_radius_not_in_glance_body` — `backlog_blast_radius` is inline today
 - `test_deep_flag_mentioned_in_body` — `--deep` absent
 - `test_deep_mode_reference_linked_from_body` — link absent
+- `test_handover_list_filters_to_open` — current step 5a lacks `status="open"` filter
+
+May pass already (guardrail only):
+- `test_skill_md_body_under_token_budget` — baseline ~1,300 tokens; may already pass
 
 Do **not** fix anything yet.
 
@@ -1071,7 +1185,7 @@ git commit -m "docs(taskmaster): changelog entry for Plan D ceremony glance-firs
 pytest plugins/taskmaster/tests/test_start_session_skill_lint.py plugins/taskmaster/tests/test_pick_task_skill_lint.py plugins/taskmaster/tests/test_start_session_smoke.py plugins/taskmaster/tests/test_pick_task_smoke.py -v --tb=short
 ```
 
-Expected: 20 tests pass, 0 failures.
+Expected: all tests pass, 0 failures. (Count will be ~24 with the added `test_handover_list_filters_to_open` tests in each lint file.)
 
 - [ ] **Step 2: Confirm deep-mode reference files are substantive**
 
@@ -1134,13 +1248,16 @@ All of the following must be true before Plan D is considered done:
 
 | Check | Target | How verified |
 |---|---|---|
-| `start-session` SKILL.md body | ≤1,300 tokens | `test_start_session_skill_lint.py::test_skill_md_body_under_token_budget` |
-| `pick-task` SKILL.md body | ≤1,300 tokens | `test_pick_task_skill_lint.py::test_skill_md_body_under_token_budget` |
+| Test infrastructure verified | `conftest.py` + `tmp_taskmaster` present | Task 0 |
+| `start-session` SKILL.md body | ≤1,300 tokens (baseline ~1,675 — guardrail) | `test_start_session_skill_lint.py::test_skill_md_body_under_token_budget` |
+| `pick-task` SKILL.md body | ≤1,300 tokens (baseline ~1,300 — guardrail) | `test_pick_task_skill_lint.py::test_skill_md_body_under_token_budget` |
 | Glance MCP load for start-session | ≤1,000 tokens | `test_start_session_smoke.py::test_glance_mcp_payload_budget` |
 | Glance MCP load for pick-task | ≤800 tokens | `test_pick_task_smoke.py::test_glance_mcp_payload_budget` |
-| Deep-mode calls absent from glance body | `backlog_recap`, `backlog_lesson_digest`, `backlog_lesson_get`, `backlog_blast_radius` not in either SKILL.md | lint tests |
+| Deep-mode calls absent from glance body | `backlog_recap`, `backlog_lesson_digest`, `backlog_lesson_get`, `backlog_blast_radius` not in either SKILL.md | lint tests (primary TDD signal) |
+| `status="open"` filter in both glance flows | `backlog_handover_list(status="open"` in both SKILL.md files | `test_handover_list_filters_to_open` in each lint file |
 | `references/deep-mode.md` exists + substantive | ≥30 non-blank lines each | lint tests |
 | `--deep` documented in both SKILL.md files | `--deep` substring in body | lint tests |
+| `backlog_lesson_match` slim mode used (not full bodies) | `backlog_lesson_get` absent from glance body | `test_full_lesson_body_load_not_inline` (requires Plan A slim mode) |
 | Mid-session deepening table in router | `backlog_handover_get`, `verbose=True`, `sections=` in taskmaster SKILL.md | manual read |
 | All existing skill lint tests pass | zero regressions | Task 10 Step 2 |
 | CHANGELOG entry added | entry under Unreleased | Task 11 |

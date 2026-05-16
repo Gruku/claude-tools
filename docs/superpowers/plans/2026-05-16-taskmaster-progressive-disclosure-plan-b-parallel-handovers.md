@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Formalize handover status to `open | closed | superseded`, implement a smart auto-close rule that keeps context-rich handovers alive after task completion, deprecate `backlog_handover_latest`, and expose flagged-but-open surfacing to start-session.
+**Goal:** Formalize handover status to `open | closed | superseded`, implement a smart auto-close rule that keeps context-rich handovers alive after task completion, retire orphaned `mark_task_handovers_complete` and `mark_task_handovers_resumed`, deprecate `backlog_handover_latest`, and expose flagged-but-open surfacing to start-session. Total tasks: 15 (Tasks 0–14 inclusive).
 
 **Architecture:** Three-layer change. (1) Data layer in `taskmaster_v3.py` gains the new enum (`HANDOVER_STATUSES`), a `smart_auto_close_handovers()` function, a `flag_open_reason()` inspector, and a one-shot `migrate_handover_statuses()` script. (2) FastMCP wrapper layer in `backlog_server.py` wires smart-close into `backlog_complete_task` and `backlog_archive_task`, adds `flag_reason` to list output, and deprecates `backlog_handover_latest` as a thin alias. (3) Migration in `scripts/migrate_handover_statuses.py` handles the old `todo / in-progress / done` → `open / closed / superseded` rename for all on-disk files. All changes are backward-compatible: callers using the old status values get a clear error pointing to the new enum.
 
@@ -17,19 +17,118 @@
 ## File Structure
 
 **Modify:**
-- `plugins/taskmaster/taskmaster_v3.py` — replace `HANDOVER_STATUSES = ("todo", "in-progress", "done")` with `("open", "closed", "superseded")`; update `_default_handover_status()`; update `apply_supersession()` to set `superseded` (was `done`); update `backfill_handover_status()` to use new enum; update `update_handover_status()` validation; add `smart_auto_close_handovers()`, `flag_open_reason()`, `migrate_handover_statuses()`; update `mark_task_handovers_complete()` to delegate to smart-close logic.
+- `plugins/taskmaster/taskmaster_v3.py` — replace `HANDOVER_STATUSES = ("todo", "in-progress", "done")` with `("open", "closed", "superseded")`; update `_default_handover_status()`; update `apply_supersession()` to set `superseded` (was `done`); update `backfill_handover_status()` to use new enum; update `update_handover_status()` validation; add `smart_auto_close_handovers()`, `flag_open_reason()`, `migrate_handover_statuses()`; **remove** `mark_task_handovers_complete()` and `mark_task_handovers_resumed()` (both become dead code after smart-close wiring).
 - `plugins/taskmaster/backlog_server.py` — update `backlog_handover_list` status filter to accept new enum; update `backlog_complete_task` to call `smart_auto_close_handovers()`; update `backlog_archive_task` same; deprecate `backlog_handover_latest` as alias; add `flag_reason` field to list output lines.
 - `plugins/taskmaster/CHANGELOG.md` — entry for v3.X parallel-handovers release.
 
 **Create:**
 - `plugins/taskmaster/tests/test_handover_status_enum_v2.py`
+- `plugins/taskmaster/tests/test_handover_resumed_removed.py` — guard: `mark_task_handovers_resumed` absent
 - `plugins/taskmaster/tests/test_handover_smart_close.py`
 - `plugins/taskmaster/tests/test_handover_flag_open_reason.py`
+- `plugins/taskmaster/tests/test_mark_complete_removed.py` — guard: `mark_task_handovers_complete` absent
 - `plugins/taskmaster/tests/test_handover_status_migration.py`
 - `plugins/taskmaster/tests/test_handover_latest_deprecated.py`
 - `plugins/taskmaster/tests/test_handover_list_open_filter.py`
 - `plugins/taskmaster/tests/test_handover_parallel_smoke.py`
 - `plugins/taskmaster/scripts/migrate_handover_statuses.py`
+
+**Check/create (Task 0 — from Plan A Task 0):**
+- `plugins/__init__.py`
+- `plugins/taskmaster/__init__.py`
+- `plugins/taskmaster/tests/conftest.py`
+
+---
+
+## Phase 0 — Test infrastructure
+
+### Task 0: Verify test infrastructure (`conftest.py` + `tmp_taskmaster` fixture)
+
+**Files:**
+- Check (or create): `plugins/taskmaster/tests/conftest.py`
+- Check (or create): `plugins/__init__.py`, `plugins/taskmaster/__init__.py`
+- Test: `plugins/taskmaster/tests/test_infra_smoke.py` (create — delete after confirming green)
+
+Plan A Task 0 establishes this infrastructure. This task is a sanity check that it exists before Plan B proceeds. If Plan A has not yet shipped, follow the fallback steps below.
+
+- [ ] **Step 1: Check whether conftest.py exists**
+
+Run: `python -c "from pathlib import Path; p = Path('plugins/taskmaster/tests/conftest.py'); print('EXISTS' if p.exists() else 'MISSING')"`
+
+- [ ] **Step 2a (if EXISTS): Confirm the fixture is importable**
+
+```python
+# plugins/taskmaster/tests/test_infra_smoke.py
+import pytest
+
+def test_tmp_taskmaster_fixture_usable(tmp_taskmaster):
+    """Smoke: the fixture provides a valid backlog path."""
+    bp = tmp_taskmaster
+    assert bp.exists(), "tmp_taskmaster must return a path to an existing backlog.yaml"
+    import yaml
+    data = yaml.safe_load(bp.read_text())
+    assert "epics" in data
+```
+
+Run: `pytest plugins/taskmaster/tests/test_infra_smoke.py -v`
+Expected: 1 passed.
+
+- [ ] **Step 2b (if MISSING — Plan A not yet shipped): Create the conftest**
+
+Create `plugins/__init__.py` and `plugins/taskmaster/__init__.py` (both empty):
+
+```bash
+touch plugins/__init__.py
+touch plugins/taskmaster/__init__.py
+```
+
+Create `plugins/taskmaster/tests/conftest.py`:
+
+```python
+"""Shared pytest fixtures for taskmaster tests.
+
+Copied from Plan A Task 0 spec. Remove this comment once Plan A is merged.
+"""
+import sys
+from pathlib import Path
+import pytest
+import yaml
+
+PLUGIN_ROOT = Path(__file__).resolve().parents[1]
+if str(PLUGIN_ROOT) not in sys.path:
+    sys.path.insert(0, str(PLUGIN_ROOT))
+
+
+@pytest.fixture()
+def tmp_taskmaster(tmp_path: Path) -> Path:
+    """Return a Path to a freshly-created .taskmaster/backlog.yaml in a temp dir.
+
+    Sets up:
+      - backlog.yaml (minimal valid v3 structure)
+      - handovers/ directory
+    """
+    tm_root = tmp_path / ".taskmaster"
+    tm_root.mkdir()
+    bp = tm_root / "backlog.yaml"
+    bp.write_text(yaml.safe_dump({"meta": {}, "epics": [], "handovers": []}))
+    (tm_root / "handovers").mkdir()
+    return bp
+```
+
+Then re-run Step 2a.
+
+- [ ] **Step 3: Delete `test_infra_smoke.py` (it's a throwaway smoke)**
+
+```bash
+rm plugins/taskmaster/tests/test_infra_smoke.py
+```
+
+- [ ] **Step 4: No commit needed** — conftest.py is owned by Plan A. If it didn't exist and you created it here, add a commit:
+
+```bash
+git add plugins/__init__.py plugins/taskmaster/__init__.py plugins/taskmaster/tests/conftest.py
+git commit -m "test(taskmaster): bootstrap conftest.py with tmp_taskmaster fixture (Plan A Task 0 pre-flight)"
+```
 
 ---
 
@@ -145,7 +244,98 @@ git commit -m "feat(taskmaster): rename handover status enum to open/closed/supe
 
 ---
 
-### Task 2: Update `apply_supersession()` and `backfill_handover_status()` for new enum
+### Task 2: Remove `mark_task_handovers_resumed` (orphaned by enum rename)
+
+**Context:** `mark_task_handovers_resumed()` at `taskmaster_v3.py:1016-1040` reads `fm.get("status") != "todo"` and writes `fm["status"] = "in-progress"`. After Task 1 renames the enum, both values are invalid. Under the new model an `open` handover stays `open` until smart-closed — there is no "resumed" transition. The function should be removed entirely.
+
+**Files:**
+- Modify: `plugins/taskmaster/taskmaster_v3.py` — remove `mark_task_handovers_resumed`
+- Test: `plugins/taskmaster/tests/test_handover_resumed_removed.py` (create — delete after confirming green if preferred, or keep as a guard)
+
+- [ ] **Step 1: Write the failing guard test**
+
+```python
+# plugins/taskmaster/tests/test_handover_resumed_removed.py
+"""Guard: mark_task_handovers_resumed must not exist on the public surface."""
+import sys
+from pathlib import Path
+
+PLUGIN_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PLUGIN_ROOT))
+
+
+def test_mark_task_handovers_resumed_not_importable():
+    """After enum rename, the old resumed helper must be removed."""
+    import taskmaster_v3 as m
+    assert not hasattr(m, "mark_task_handovers_resumed"), (
+        "mark_task_handovers_resumed must be removed — it hard-codes 'todo'/'in-progress' "
+        "which are invalid in the new enum. Use smart_auto_close_handovers instead."
+    )
+
+
+def test_pick_task_does_not_corrupt_handover_status(tmp_path):
+    """Regression: pick-task on a task with a related open handover must not
+    write invalid status values into the handover's frontmatter."""
+    import yaml
+    from taskmaster_v3 import read_handover, write_handover, HANDOVER_STATUSES
+
+    bp = tmp_path / "backlog.yaml"
+    bp.write_text(yaml.safe_dump({"meta": {}, "epics": []}))
+    (tmp_path / "handovers").mkdir()
+
+    hid, _ = write_handover(
+        bp,
+        tldr="open track",
+        session_kind="context-handoff",
+        task_ids=["T-1"],
+    )
+
+    # Simulate what pick-task used to do: call mark_task_handovers_resumed.
+    # Since the function must not exist, any caller of it would fail.
+    # Instead, assert the handover is still 'open' with no mutation.
+    fm, _ = read_handover(bp, hid)
+    assert fm["status"] == "open"
+    assert fm["status"] in HANDOVER_STATUSES, (
+        f"status {fm['status']!r} must be in the new enum {HANDOVER_STATUSES}"
+    )
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `pytest plugins/taskmaster/tests/test_handover_resumed_removed.py::test_mark_task_handovers_resumed_not_importable -v`
+Expected: FAIL — `mark_task_handovers_resumed` still exists on the module.
+
+- [ ] **Step 3: Remove `mark_task_handovers_resumed` from `taskmaster_v3.py`**
+
+In `plugins/taskmaster/taskmaster_v3.py`, locate and delete the entire `mark_task_handovers_resumed` function (~line 1016-1040). It reads:
+
+```python
+def mark_task_handovers_resumed(
+    backlog_path: Path,
+    task_id: str,
+) -> list[str]:
+    ...  # function body that writes "todo" and "in-progress"
+```
+
+Delete the entire function definition (including any leading comment block).
+
+Also search for any call sites of `mark_task_handovers_resumed` in `backlog_server.py` and remove those call sites. (If the function was called during `pick-task` / `backlog_auto_start`, simply remove the call — open handovers stay open automatically under the new model.)
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `pytest plugins/taskmaster/tests/test_handover_resumed_removed.py -v`
+Expected: 2 passed.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add plugins/taskmaster/taskmaster_v3.py plugins/taskmaster/backlog_server.py plugins/taskmaster/tests/test_handover_resumed_removed.py
+git commit -m "feat(taskmaster): remove mark_task_handovers_resumed — orphaned by enum rename"
+```
+
+---
+
+### Task 3: Update `apply_supersession()` and `backfill_handover_status()` for new enum
 
 **Files:**
 - Modify: `plugins/taskmaster/taskmaster_v3.py`
@@ -246,10 +436,10 @@ git commit -m "feat(taskmaster): update apply_supersession and backfill to use n
 
 ## Phase 2 — Smart auto-close rule
 
-### Task 3: Add `smart_auto_close_handovers()` data-layer function
+### Task 4: Add `smart_auto_close_handovers()` data-layer function
 
 **Files:**
-- Modify: `plugins/taskmaster/taskmaster_v3.py` (add after `mark_task_handovers_complete`)
+- Modify: `plugins/taskmaster/taskmaster_v3.py` (add before the `mark_task_handovers_complete` definition, which will be removed in Task 6)
 - Test: `plugins/taskmaster/tests/test_handover_smart_close.py` (create)
 
 - [ ] **Step 1: Write the failing test**
@@ -392,6 +582,58 @@ def test_smart_close_next_action_only_references_done_tasks_closes(tmp_path):
     result = smart_auto_close_handovers(bp, triggering_task_id="T-1",
                                         done_or_archived_ids=_ALL_TERMINAL)
     assert hid in result["closed"]
+
+
+def test_smart_close_null_session_kind_is_eligible(tmp_path):
+    """A handover with null/missing session_kind satisfies the kind criterion."""
+    bp = _setup(tmp_path)
+    hid, _ = write_handover(
+        bp,
+        tldr="no kind set",
+        session_kind=None,
+        task_ids=["T-1"],
+        next_action="",
+    )
+    result = smart_auto_close_handovers(bp, triggering_task_id="T-1",
+                                        done_or_archived_ids=_ALL_TERMINAL)
+    assert hid in result["closed"], (
+        "null/absent session_kind should be treated as eligible for auto-close"
+    )
+    fm, _ = read_handover(bp, hid)
+    assert fm["status"] == "closed"
+
+
+def test_smart_close_status_user_set_blocks_auto_close(tmp_path):
+    """status_user_set=True on an otherwise-eligible handover must prevent auto-close."""
+    import yaml as _yaml
+    bp = _setup(tmp_path)
+    # Write handover directly via write_task_file so status_user_set is set
+    # in frontmatter without going through update_handover_status (which would
+    # confound the test by also writing status_user_set logic).
+    from taskmaster_v3 import handover_path, write_task_file
+    hid = "2026-01-01-user-locked"
+    fm = {
+        "id": hid,
+        "date": "2026-01-01",
+        "created": "2026-01-01T00:00:00+00:00",
+        "tldr": "user has locked status",
+        "task_ids": ["T-1"],
+        "session_kind": "task-complete",
+        "next_action": "",
+        "status": "open",
+        "status_user_set": True,  # manually set — smart-close must honour this
+        "status_changed": "2026-01-01T00:00:00+00:00",
+    }
+    write_task_file(handover_path(bp, hid), fm, "body")
+
+    result = smart_auto_close_handovers(bp, triggering_task_id="T-1",
+                                        done_or_archived_ids=_ALL_TERMINAL)
+    assert hid not in result["closed"]
+    assert hid not in result["flagged"]
+    fm_after, _ = read_handover(bp, hid)
+    assert fm_after["status"] == "open", (
+        "status_user_set=True must prevent smart-close from touching the handover"
+    )
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -499,7 +741,7 @@ def smart_auto_close_handovers(
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pytest plugins/taskmaster/tests/test_handover_smart_close.py -v`
-Expected: 7 passed.
+Expected: 9 passed (7 original + 2 edge-case tests: null session_kind and status_user_set).
 
 - [ ] **Step 5: Commit**
 
@@ -510,7 +752,7 @@ git commit -m "feat(taskmaster): add smart_auto_close_handovers() with three-cri
 
 ---
 
-### Task 4: Add `flag_open_reason()` inspector and wire into `backlog_complete_task`
+### Task 5: Add `flag_open_reason()` inspector and wire into `backlog_complete_task`
 
 **Files:**
 - Modify: `plugins/taskmaster/taskmaster_v3.py` (add `flag_open_reason()`)
@@ -663,9 +905,88 @@ git commit -m "feat(taskmaster): add flag_open_reason() and wire smart-close int
 
 ---
 
+### Task 6: Remove `mark_task_handovers_complete` (dead code after smart-close wiring)
+
+**Context:** Task 5 wired `backlog_complete_task` and `backlog_archive_task` to call `smart_auto_close_handovers` instead of `mark_task_handovers_complete`. The old function at `taskmaster_v3.py:989-1013` still contains hardcoded `status = "done"` writes — a value that is no longer in the enum. It is now dead code and must be removed.
+
+**Files:**
+- Modify: `plugins/taskmaster/taskmaster_v3.py` — delete `mark_task_handovers_complete`
+- Modify: `plugins/taskmaster/tests/test_handover_status_task_complete.py` — update to assert against `smart_auto_close_handovers` public surface
+
+- [ ] **Step 1: Write the failing guard test**
+
+```python
+# plugins/taskmaster/tests/test_mark_complete_removed.py
+"""Guard: mark_task_handovers_complete must be removed after smart-close wiring."""
+import sys
+from pathlib import Path
+
+PLUGIN_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PLUGIN_ROOT))
+
+
+def test_mark_task_handovers_complete_not_importable():
+    """The old function must be gone — its only caller now uses smart_auto_close_handovers."""
+    import taskmaster_v3 as m
+    assert not hasattr(m, "mark_task_handovers_complete"), (
+        "mark_task_handovers_complete is dead code after Task 5 wiring. "
+        "Use smart_auto_close_handovers instead."
+    )
+
+
+def test_smart_auto_close_handovers_is_importable():
+    """The replacement must be present."""
+    from taskmaster_v3 import smart_auto_close_handovers
+    assert callable(smart_auto_close_handovers)
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `pytest plugins/taskmaster/tests/test_mark_complete_removed.py -v`
+Expected: FAIL — `mark_task_handovers_complete` still exists on the module.
+
+- [ ] **Step 3: Delete `mark_task_handovers_complete` from `taskmaster_v3.py`**
+
+In `plugins/taskmaster/taskmaster_v3.py`, locate and delete the entire `mark_task_handovers_complete` function (~lines 989-1013). It writes `fm["status"] = "done"` — invalid in the new enum. Confirm no remaining callers reference it after Task 5 edits:
+
+```bash
+grep -rn "mark_task_handovers_complete" plugins/taskmaster/ --include="*.py"
+```
+
+Expected: zero results after deletion.
+
+- [ ] **Step 4: Update `test_handover_status_task_complete.py` to use `smart_auto_close_handovers`**
+
+The existing test file tests `mark_task_handovers_complete` directly. Update it:
+- Replace all imports of `mark_task_handovers_complete` with `smart_auto_close_handovers`.
+- The call signature changes: `smart_auto_close_handovers(bp, triggering_task_id=task_id, done_or_archived_ids={task_id})`.
+- Replace assertions `fm["status"] == "done"` with `fm["status"] == "closed"`.
+- Replace assertions `fm["status"] == "todo"` or `"in-progress"` with `fm["status"] == "open"`.
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run:
+```bash
+pytest plugins/taskmaster/tests/test_mark_complete_removed.py \
+       plugins/taskmaster/tests/test_handover_status_task_complete.py \
+       -v
+```
+Expected: All pass.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add plugins/taskmaster/taskmaster_v3.py \
+        plugins/taskmaster/tests/test_mark_complete_removed.py \
+        plugins/taskmaster/tests/test_handover_status_task_complete.py
+git commit -m "feat(taskmaster): remove mark_task_handovers_complete — dead code after smart-close wiring"
+```
+
+---
+
 ## Phase 3 — Migration
 
-### Task 5: Add `migrate_handover_statuses()` data-layer function
+### Task 7: Add `migrate_handover_statuses()` data-layer function
 
 **Files:**
 - Modify: `plugins/taskmaster/taskmaster_v3.py` (add after `backfill_handover_status`)
@@ -900,7 +1221,7 @@ git commit -m "feat(taskmaster): add migrate_handover_statuses() for todo/done �
 
 ---
 
-### Task 6: Write `scripts/migrate_handover_statuses.py` CLI
+### Task 8: Write `scripts/migrate_handover_statuses.py` CLI
 
 **Files:**
 - Create: `plugins/taskmaster/scripts/migrate_handover_statuses.py`
@@ -996,7 +1317,7 @@ git commit -m "feat(taskmaster): add migrate_handover_statuses.py CLI script"
 
 ## Phase 4 — MCP surface changes
 
-### Task 7: Update `backlog_handover_list` — accept new enum, add `flag_reason` in output
+### Task 9: Update `backlog_handover_list` — accept new enum, add `flag_reason` in output
 
 **Files:**
 - Modify: `plugins/taskmaster/backlog_server.py` — `backlog_handover_list`
@@ -1135,7 +1456,7 @@ Replace with:
     return "\n".join(lines)
 ```
 
-Also add `"flag_reason"` to `_HANDOVER_INDEX_FIELDS` in `taskmaster_v3.py` so it propagates into the index:
+Also add `"flag_reason"` to `_HANDOVER_INDEX_FIELDS` in `taskmaster_v3.py` so it propagates into the index. Note: `flag_reason` is included in `SLIM_FIELDS["handover"]` per Plan A Task 8 — no additional coordination needed here.
 
 Find in `taskmaster_v3.py` (~line 1084):
 ```python
@@ -1167,7 +1488,7 @@ git commit -m "feat(taskmaster): update handover list output with flag_reason an
 
 ---
 
-### Task 8: Deprecate `backlog_handover_latest` as a thin alias
+### Task 10: Deprecate `backlog_handover_latest` as a thin alias
 
 **Files:**
 - Modify: `plugins/taskmaster/backlog_server.py` — `backlog_handover_latest`
@@ -1297,7 +1618,7 @@ git commit -m "feat(taskmaster): deprecate backlog_handover_latest as alias for 
 
 ## Phase 5 — End-to-end smoke + changelog
 
-### Task 9: End-to-end smoke test — full parallel-handover lifecycle
+### Task 11: End-to-end smoke test — full parallel-handover lifecycle
 
 **Files:**
 - Create: `plugins/taskmaster/tests/test_handover_parallel_smoke.py`
@@ -1436,8 +1757,10 @@ Expected: FAIL — `smart_auto_close_handovers` and `flag_open_reason` don't exi
 Run:
 ```bash
 pytest plugins/taskmaster/tests/test_handover_status_enum_v2.py \
+       plugins/taskmaster/tests/test_handover_resumed_removed.py \
        plugins/taskmaster/tests/test_handover_smart_close.py \
        plugins/taskmaster/tests/test_handover_flag_open_reason.py \
+       plugins/taskmaster/tests/test_mark_complete_removed.py \
        plugins/taskmaster/tests/test_handover_status_migration.py \
        plugins/taskmaster/tests/test_handover_latest_deprecated.py \
        plugins/taskmaster/tests/test_handover_list_open_filter.py \
@@ -1456,7 +1779,7 @@ git commit -m "test(taskmaster): end-to-end smoke for parallel handover lifecycl
 
 ---
 
-### Task 10: Update existing status-related tests for new enum
+### Task 12: Update existing status-related tests for new enum
 
 **Files:**
 - Modify: `plugins/taskmaster/tests/test_handover_status_task_complete.py`
@@ -1534,7 +1857,7 @@ git commit -m "test(taskmaster): update existing handover status tests for open/
 
 ---
 
-### Task 11: Verify no regressions in the full test suite
+### Task 13: Verify no regressions in the full test suite
 
 **Files:** No changes — run-only step.
 
@@ -1559,7 +1882,7 @@ Expected: `X passed, 0 failed` where X ≥ the count before Plan B began.
 
 ---
 
-### Task 12: Add changelog entry
+### Task 14: Add changelog entry
 
 **Files:**
 - Modify: `plugins/taskmaster/CHANGELOG.md`
@@ -1610,12 +1933,14 @@ git commit -m "docs(taskmaster): changelog entry for Plan B parallel-handovers r
 
 ## Completion checklist
 
-Run this before declaring Plan B done:
+Run this before declaring Plan B done (Tasks 0–14 complete):
 
 ```bash
 pytest plugins/taskmaster/tests/test_handover_status_enum_v2.py \
+       plugins/taskmaster/tests/test_handover_resumed_removed.py \
        plugins/taskmaster/tests/test_handover_smart_close.py \
        plugins/taskmaster/tests/test_handover_flag_open_reason.py \
+       plugins/taskmaster/tests/test_mark_complete_removed.py \
        plugins/taskmaster/tests/test_handover_status_migration.py \
        plugins/taskmaster/tests/test_handover_latest_deprecated.py \
        plugins/taskmaster/tests/test_handover_list_open_filter.py \

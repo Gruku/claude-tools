@@ -12,6 +12,8 @@
 
 **Depends on:** Plan A optional. Plan C is architecturally independent — it can ship standalone. When both are present, Plan A's slim `_get` view incorporates the grouped `links` block defined here.
 
+**Out of scope — §6E (computed/derived suggestions):** Spec §6E (surfacing commit→issue, file→lesson suggestions at end-session) is explicitly deferred from Plan C. Auto-detection in Plan C materializes only inline ID mentions already written by the user; it does not infer links from git history, file paths, or semantic similarity. §6E is a separate feature requiring confidence-tuning and its own spec.
+
 ---
 
 ## File Structure
@@ -26,6 +28,12 @@
 - `plugins/taskmaster/viewer/js/screens/lesson-detail.js` — render `links` grouped by type.
 - `plugins/taskmaster/viewer/js/screens/issues.js` — read `links` for badge counts.
 - `plugins/taskmaster/viewer/js/screens/ideas.js` — read `links` for badge counts.
+
+**Depends on (from Plan A Task 0 — create if absent):**
+
+- `plugins/__init__.py` — package marker
+- `plugins/taskmaster/__init__.py` — package marker
+- `plugins/taskmaster/tests/conftest.py` — `sys.path` shim so bare `import backlog_server` resolves in tests
 
 **Create:**
 
@@ -48,6 +56,64 @@
 
 ---
 
+## Phase 0 — Prerequisite: Verify test infrastructure
+
+### Task 0: Verify test infrastructure from Plan A
+
+**Prerequisite:** Plan A Task 0 must have already created `plugins/taskmaster/tests/conftest.py` with the `tmp_taskmaster` fixture and the `sys.path` shim that inserts `PLUGIN_ROOT` so bare `import backlog_server` and `from taskmaster_v3 import ...` resolve correctly. It also creates `plugins/__init__.py` and `plugins/taskmaster/__init__.py`.
+
+**All Plan C test files rely on this — they use bare imports (`import backlog_server as bs`, `from taskmaster_v3 import ...`) without local `sys.path.insert` calls, trusting conftest to set up the path once.**
+
+- [ ] **Step 1: Confirm conftest exists**
+
+```bash
+ls plugins/taskmaster/tests/conftest.py
+```
+
+Expected: file exists. If missing, create it now (copy the spec from Plan A Task 0):
+
+```python
+# plugins/taskmaster/tests/conftest.py
+import sys
+from pathlib import Path
+
+# Make `backlog_server` and `taskmaster_v3` importable as bare modules.
+PLUGIN_ROOT = Path(__file__).resolve().parents[1]
+if str(PLUGIN_ROOT) not in sys.path:
+    sys.path.insert(0, str(PLUGIN_ROOT))
+```
+
+- [ ] **Step 2: Confirm package markers exist**
+
+```bash
+ls plugins/__init__.py
+ls plugins/taskmaster/__init__.py
+```
+
+Expected: both exist (Plan A Task 0 creates them). If missing, create empty marker files:
+
+```bash
+touch plugins/__init__.py
+touch plugins/taskmaster/__init__.py
+```
+
+- [ ] **Step 3: Sanity-check import resolution**
+
+```bash
+cd plugins/taskmaster/tests && python -c "import backlog_server; from taskmaster_v3 import LINK_TYPES; print('ok')"
+```
+
+Expected: `ok` (or `ImportError: cannot import name 'LINK_TYPES'` if Plan C hasn't shipped yet — either is fine, as long as the modules are *found*).
+
+- [ ] **Step 4: Commit (if you created conftest or __init__.py files)**
+
+```bash
+git add plugins/__init__.py plugins/taskmaster/__init__.py plugins/taskmaster/tests/conftest.py
+git commit -m "chore(taskmaster): test infrastructure — conftest path shim + package markers"
+```
+
+---
+
 ## Phase 1 — Link types and validation foundation
 
 ### Task 1: Add `LINK_TYPES` and `REVERSE_TYPE` registries
@@ -61,7 +127,7 @@
 
 ```python
 # plugins/taskmaster/tests/test_link_types.py
-from plugins.taskmaster.taskmaster_v3 import (
+from taskmaster_v3 import (
     LINK_TYPES,
     REVERSE_TYPE,
     ENTITY_KIND_BY_PREFIX,
@@ -261,7 +327,7 @@ git commit -m "feat(taskmaster): add typed link registry (LINK_TYPES, REVERSE_TY
 
 ```python
 # plugins/taskmaster/tests/test_link_helpers.py
-from plugins.taskmaster.taskmaster_v3 import (
+from taskmaster_v3 import (
     LINK_FIELD,
     entity_links,
     set_entity_links,
@@ -444,7 +510,7 @@ git commit -m "feat(taskmaster): add entity-link accessor helpers (add/remove/gr
 
 ```python
 # plugins/taskmaster/tests/test_link_cycle_detection.py
-from plugins.taskmaster.taskmaster_v3 import find_cycle, would_create_cycle
+from taskmaster_v3 import find_cycle, would_create_cycle
 
 
 def test_find_cycle_self_edge():
@@ -611,7 +677,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from plugins.taskmaster.taskmaster_v3 import (
+from taskmaster_v3 import (
     read_entity_anywhere,
     write_entity_anywhere,
     load_v3, save_v3,
@@ -775,7 +841,7 @@ git commit -m "feat(taskmaster): add read_entity_anywhere/write_entity_anywhere 
 Append to `plugins/taskmaster/tests/test_link_inverse_sync.py`:
 
 ```python
-from plugins.taskmaster.taskmaster_v3 import sync_inverse, entity_links
+from taskmaster_v3 import sync_inverse, entity_links
 
 
 def test_sync_inverse_writes_inverse_on_target(tm_dir):
@@ -892,7 +958,7 @@ git commit -m "feat(taskmaster): sync_inverse() writes inverse link on peer enti
 
 ```python
 # plugins/taskmaster/tests/test_inline_ref_extraction.py
-from plugins.taskmaster.taskmaster_v3 import extract_inline_refs
+from taskmaster_v3 import extract_inline_refs
 
 
 def test_extract_bare_task_id():
@@ -1019,7 +1085,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from plugins.taskmaster.taskmaster_v3 import (
+from taskmaster_v3 import (
     auto_link_on_save,
     entity_links,
     write_handover, write_issue, read_entity_anywhere,
@@ -1090,7 +1156,7 @@ def test_auto_link_does_not_overwrite_stronger_explicit_link(tm_dir):
 
     hnd = read_entity_anywhere(tm_dir / "backlog.yaml", "HND-001")
     types_to_iss = {link["type"] for link in entity_links(hnd) if link["target"] == "ISS-001"}
-    # The stronger 'relates_to' wins; no 'references' is also added.
+    # ISS-001 already has a link of any type; auto-detection skips it entirely.
     assert types_to_iss == {"relates_to"}
 
 
@@ -1153,7 +1219,8 @@ def auto_link_on_save(backlog_path: Path, entity_id: str) -> list[str]:
     added: list[str] = []
     for target_id in refs:
         if target_id in existing_targets:
-            # Stronger explicit link already exists; do not overwrite.
+            # Any link to this target already exists; auto-detection only adds new
+            # targets, never modifies existing links (regardless of type strength).
             continue
         # Confirm target exists; skip silently if not.
         target_entity = read_entity_anywhere(backlog_path, target_id)
@@ -1204,8 +1271,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from plugins.taskmaster import backlog_server as bs
-from plugins.taskmaster.taskmaster_v3 import read_entity_anywhere, entity_links
+import backlog_server as bs
+from taskmaster_v3 import read_entity_anywhere, entity_links
 
 
 @pytest.fixture
@@ -1222,7 +1289,7 @@ def tm_dir(tmp_path: Path, monkeypatch) -> Path:
     }))
     for sub in ("handovers", "issues", "lessons", "ideas", "tasks"):
         (d / sub).mkdir()
-    monkeypatch.setattr(bs, "_resolve_backlog_path", lambda: d / "backlog.yaml")
+    monkeypatch.setattr(bs, "_backlog_path", lambda: d / "backlog.yaml")
     return d
 
 
@@ -1299,13 +1366,13 @@ def backlog_link_create(source: str, target: str, type: str, note: str = "") -> 
     domain; target entity exists; depends_on writes don't create cycles.
     Idempotent.
     """
-    from .taskmaster_v3 import (
+    from taskmaster_v3 import (
         REVERSE_TYPE, LINK_TYPES, is_valid_link, entity_kind_of,
         read_entity_anywhere, write_entity_anywhere, add_link, entity_links,
         sync_inverse, would_create_cycle,
     )
 
-    backlog_path = _resolve_backlog_path()
+    backlog_path = _backlog_path()
 
     if type not in LINK_TYPES:
         return f"error: invalid link type {type!r} (valid: {sorted(LINK_TYPES)})"
@@ -1395,8 +1462,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from plugins.taskmaster import backlog_server as bs
-from plugins.taskmaster.taskmaster_v3 import read_entity_anywhere, entity_links
+import backlog_server as bs
+from taskmaster_v3 import read_entity_anywhere, entity_links
 
 
 @pytest.fixture
@@ -1412,7 +1479,7 @@ def tm_dir(tmp_path: Path, monkeypatch) -> Path:
     }))
     for sub in ("handovers", "issues", "lessons", "ideas", "tasks"):
         (d / sub).mkdir()
-    monkeypatch.setattr(bs, "_resolve_backlog_path", lambda: d / "backlog.yaml")
+    monkeypatch.setattr(bs, "_backlog_path", lambda: d / "backlog.yaml")
     bs.backlog_link_create(source="T-001", target="T-002", type="depends_on")
     bs.backlog_link_create(source="T-001", target="T-002", type="relates_to")
     return d
@@ -1459,12 +1526,12 @@ def backlog_link_remove(source: str, target: str, type: str = "") -> str:
 
     If `type` is omitted, removes all link types between the pair.
     """
-    from .taskmaster_v3 import (
+    from taskmaster_v3 import (
         LINK_TYPES, entity_kind_of, read_entity_anywhere, write_entity_anywhere,
         remove_link, entity_links, sync_inverse,
     )
 
-    backlog_path = _resolve_backlog_path()
+    backlog_path = _backlog_path()
 
     if entity_kind_of(source) is None:
         return f"error: invalid source ID {source!r}"
@@ -1531,7 +1598,7 @@ import json
 import pytest
 import yaml
 
-from plugins.taskmaster import backlog_server as bs
+import backlog_server as bs
 
 
 @pytest.fixture
@@ -1548,7 +1615,7 @@ def tm_dir(tmp_path: Path, monkeypatch) -> Path:
     }))
     for sub in ("handovers", "issues", "lessons", "ideas", "tasks"):
         (d / sub).mkdir()
-    monkeypatch.setattr(bs, "_resolve_backlog_path", lambda: d / "backlog.yaml")
+    monkeypatch.setattr(bs, "_backlog_path", lambda: d / "backlog.yaml")
     bs.backlog_link_create(source="T-001", target="T-002", type="depends_on")
     bs.backlog_link_create(source="T-002", target="T-003", type="depends_on")
     return d
@@ -1612,11 +1679,11 @@ def backlog_link_query(source: str = "", target: str = "", type: str = "",
     array of {source, target, type} entries.
     """
     import json as _json
-    from .taskmaster_v3 import (
+    from taskmaster_v3 import (
         entity_kind_of, read_entity_anywhere, entity_links, load_v3,
     )
 
-    backlog_path = _resolve_backlog_path()
+    backlog_path = _backlog_path()
 
     def edges_from(entity_id: str) -> list[dict]:
         entity = read_entity_anywhere(backlog_path, entity_id)
@@ -1712,8 +1779,8 @@ import json
 import pytest
 import yaml
 
-from plugins.taskmaster import backlog_server as bs
-from plugins.taskmaster.taskmaster_v3 import (
+import backlog_server as bs
+from taskmaster_v3 import (
     read_entity_anywhere, write_entity_anywhere, set_entity_links,
 )
 
@@ -1731,7 +1798,7 @@ def tm_dir(tmp_path: Path, monkeypatch) -> Path:
     }))
     for sub in ("handovers", "issues", "lessons", "ideas", "tasks"):
         (d / sub).mkdir()
-    monkeypatch.setattr(bs, "_resolve_backlog_path", lambda: d / "backlog.yaml")
+    monkeypatch.setattr(bs, "_backlog_path", lambda: d / "backlog.yaml")
     return d
 
 
@@ -1782,7 +1849,40 @@ def test_validate_clean_returns_empty_arrays(tm_dir):
     assert data["orphans"] == []
     assert data["asymmetric"] == []
     assert data["cycles"] == []
+
+
+def test_validate_reports_archived_target_as_warning(tm_dir):
+    # Spec §6B: if a target entity is archived/deleted, links to it are flagged
+    # in backlog_validate but NOT auto-removed.
+    from taskmaster_v3 import write_issue, read_entity_anywhere, write_entity_anywhere
+    write_issue(tm_dir / "backlog.yaml", "ISS-001",
+                {"id": "ISS-001", "tldr": "x", "severity": "P2", "status": "open"}, "Body.")
+    bs.backlog_link_create(source="T-001", target="ISS-001", type="fixes")
+
+    # Archive the issue by mutating its status field in place.
+    iss = read_entity_anywhere(tm_dir / "backlog.yaml", "ISS-001")
+    iss["status"] = "archived"
+    write_entity_anywhere(tm_dir / "backlog.yaml", iss)
+
+    out = bs.backlog_link_validate()
+    data = json.loads(out)
+
+    # The fixes link from T-001 to ISS-001 must still exist (not auto-removed).
+    t1 = read_entity_anywhere(tm_dir / "backlog.yaml", "T-001")
+    from taskmaster_v3 import entity_links
+    assert {"type": "fixes", "target": "ISS-001"} in entity_links(t1)
+
+    # The archived target must be reported as a warning — it must appear in
+    # orphans (or a dedicated "archived_targets" list if the implementation adds one).
+    # Minimum requirement: validate does NOT silently pass (no empty result).
+    flagged_targets = {o["target"] for o in data.get("orphans", [])}
+    flagged_targets |= {o["target"] for o in data.get("archived_targets", [])}
+    assert "ISS-001" in flagged_targets, (
+        "backlog_link_validate must flag links to archived entities as a warning"
+    )
 ```
+
+> **Implementation note for Task 11:** If archived issues remain in the same `.taskmaster/issues/` directory with `status: archived` in their frontmatter (the current convention), `iter_all_entities` already yields them — add an `archived_targets` check after the orphan scan, or include them in `orphans` with a `"reason": "archived"` annotation. Either is acceptable; the test above handles both shapes.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -1801,11 +1901,11 @@ def backlog_link_validate() -> str:
     Returns a JSON object {orphans: [...], asymmetric: [...], cycles: [...]}.
     """
     import json as _json
-    from .taskmaster_v3 import (
+    from taskmaster_v3 import (
         REVERSE_TYPE, read_entity_anywhere, entity_links, load_v3, find_cycle,
     )
 
-    backlog_path = _resolve_backlog_path()
+    backlog_path = _backlog_path()
 
     def iter_all_entities():
         data = load_v3(backlog_path)
@@ -1897,8 +1997,8 @@ import json
 import pytest
 import yaml
 
-from plugins.taskmaster import backlog_server as bs
-from plugins.taskmaster.taskmaster_v3 import (
+import backlog_server as bs
+from taskmaster_v3 import (
     read_entity_anywhere, write_entity_anywhere, set_entity_links, entity_links,
 )
 
@@ -1916,7 +2016,7 @@ def tm_dir(tmp_path: Path, monkeypatch) -> Path:
     }))
     for sub in ("handovers", "issues", "lessons", "ideas", "tasks"):
         (d / sub).mkdir()
-    monkeypatch.setattr(bs, "_resolve_backlog_path", lambda: d / "backlog.yaml")
+    monkeypatch.setattr(bs, "_backlog_path", lambda: d / "backlog.yaml")
     return d
 
 
@@ -1969,12 +2069,12 @@ def backlog_link_reconcile() -> str:
     Returns JSON {fixed: N, unfixable: [...]}.
     """
     import json as _json
-    from .taskmaster_v3 import sync_inverse
+    from taskmaster_v3 import sync_inverse
 
     validation = _json.loads(backlog_link_validate())
     fixed = 0
     unfixable: list[dict] = list(validation.get("orphans", []))
-    backlog_path = _resolve_backlog_path()
+    backlog_path = _backlog_path()
 
     for entry in validation.get("asymmetric", []):
         try:
@@ -2021,7 +2121,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from plugins.taskmaster import backlog_server as bs
+import backlog_server as bs
 
 
 @pytest.fixture
@@ -2037,7 +2137,7 @@ def tm_dir(tmp_path: Path, monkeypatch) -> Path:
     }))
     for sub in ("handovers", "issues", "lessons", "ideas", "tasks"):
         (d / sub).mkdir()
-    monkeypatch.setattr(bs, "_resolve_backlog_path", lambda: d / "backlog.yaml")
+    monkeypatch.setattr(bs, "_backlog_path", lambda: d / "backlog.yaml")
     bs.backlog_issue_create(title="Bug", severity="P1", tldr="Auth bug.",
                             body="repro steps")
     bs.backlog_link_create(source="T-001", target="T-002", type="depends_on")
@@ -2079,7 +2179,7 @@ Locate `backlog_get_task` (~L900 in `backlog_server.py`) and add `expand_links: 
 
 ```python
 # inside backlog_get_task, after computing slim frontmatter:
-from .taskmaster_v3 import links_grouped_by_type, read_entity_anywhere
+from taskmaster_v3 import links_grouped_by_type, read_entity_anywhere
 
 grouped = links_grouped_by_type(task)
 if grouped:
@@ -2126,8 +2226,8 @@ Append to `plugins/taskmaster/tests/test_auto_link_on_save.py`:
 
 ```python
 def test_handover_create_auto_links_on_save(tm_dir, monkeypatch):
-    from plugins.taskmaster import backlog_server as bs
-    monkeypatch.setattr(bs, "_resolve_backlog_path", lambda: tm_dir / "backlog.yaml")
+    import backlog_server as bs
+    monkeypatch.setattr(bs, "_backlog_path", lambda: tm_dir / "backlog.yaml")
 
     bs.backlog_handover_create(task_ids=["T-001"], tldr="x", next_action="",
                                body="Next: pick up T-005.")
@@ -2138,8 +2238,8 @@ def test_handover_create_auto_links_on_save(tm_dir, monkeypatch):
 
 
 def test_issue_create_auto_links_on_save(tm_dir, monkeypatch):
-    from plugins.taskmaster import backlog_server as bs
-    monkeypatch.setattr(bs, "_resolve_backlog_path", lambda: tm_dir / "backlog.yaml")
+    import backlog_server as bs
+    monkeypatch.setattr(bs, "_backlog_path", lambda: tm_dir / "backlog.yaml")
     bs.backlog_issue_create(title="Bug", severity="P1", tldr="x",
                             body="Related: T-001 and T-005.")
     iss = read_entity_anywhere(tm_dir / "backlog.yaml", "ISS-001")
@@ -2158,7 +2258,7 @@ Expected: FAIL — writers don't yet call `auto_link_on_save`.
 In each entity-creating/updating MCP tool in `backlog_server.py`, immediately after the final write helper (`write_handover` / `write_issue` / `write_lesson` / `write_idea` / `save_v3` for tasks), add:
 
 ```python
-from .taskmaster_v3 import auto_link_on_save
+from taskmaster_v3 import auto_link_on_save
 auto_link_on_save(backlog_path, new_id)   # new_id = the entity's ID
 ```
 
@@ -2211,7 +2311,7 @@ git commit -m "feat(taskmaster): hook auto_link_on_save into every entity write 
 
 ```python
 # plugins/taskmaster/tests/test_link_migration.py
-from plugins.taskmaster.taskmaster_v3 import legacy_links_to_typed
+from taskmaster_v3 import legacy_links_to_typed
 
 
 def test_task_legacy_fields_translate():
@@ -2371,6 +2471,8 @@ git commit -m "feat(taskmaster): legacy_links_to_typed() translates old linkage 
 
 ### Task 16: One-shot migration script `scripts/migrate_links.py`
 
+**Prerequisite:** Requires `plugins/__init__.py` and `plugins/taskmaster/__init__.py` package markers (created by Plan A Task 0, or manually in Task 0 of this plan). The script runs via `python -m plugins.taskmaster.scripts.migrate_links` — Python resolves `plugins` as a package, which requires these markers. If shipping Plan C before Plan A, create the markers first (Task 0 handles this).
+
 **Files:**
 
 - Create: `plugins/taskmaster/scripts/migrate_links.py`
@@ -2386,7 +2488,7 @@ import subprocess
 import sys
 import yaml
 
-from plugins.taskmaster.taskmaster_v3 import (
+from taskmaster_v3 import (
     read_entity_anywhere, entity_links, write_issue, write_handover,
 )
 
@@ -2481,6 +2583,9 @@ import json
 import sys
 from pathlib import Path
 
+# Invoked via `python -m plugins.taskmaster.scripts.migrate_links` from repo root;
+# package imports are valid here. Requires plugins/__init__.py and
+# plugins/taskmaster/__init__.py (created by Plan A Task 0).
 from plugins.taskmaster.taskmaster_v3 import (
     load_v3, save_v3,
     read_entity_anywhere, write_entity_anywhere,
@@ -2542,12 +2647,12 @@ def migrate(root: Path, *, drop_legacy: bool = True) -> dict:
     from plugins.taskmaster import backlog_server as bs
     import contextlib
 
-    original = bs._resolve_backlog_path
+    original = bs._backlog_path
     try:
-        bs._resolve_backlog_path = lambda: backlog_path  # type: ignore[assignment]
+        bs._backlog_path = lambda: backlog_path  # type: ignore[assignment]
         report = json.loads(bs.backlog_link_reconcile())
     finally:
-        bs._resolve_backlog_path = original
+        bs._backlog_path = original
 
     return {"migrated": counts, "reconcile": report}
 
@@ -2926,8 +3031,8 @@ import sys
 import pytest
 import yaml
 
-from plugins.taskmaster import backlog_server as bs
-from plugins.taskmaster.taskmaster_v3 import (
+import backlog_server as bs
+from taskmaster_v3 import (
     read_entity_anywhere, entity_links,
 )
 
@@ -2946,7 +3051,7 @@ def tm_dir(tmp_path: Path, monkeypatch) -> Path:
     }))
     for sub in ("handovers", "issues", "lessons", "ideas", "tasks"):
         (d / sub).mkdir()
-    monkeypatch.setattr(bs, "_resolve_backlog_path", lambda: d / "backlog.yaml")
+    monkeypatch.setattr(bs, "_backlog_path", lambda: d / "backlog.yaml")
     return d
 
 
@@ -3024,7 +3129,7 @@ def test_migration_from_legacy_project(tmp_path):
     }))
     for sub in ("handovers", "issues", "lessons", "ideas", "tasks"):
         (d / sub).mkdir()
-    from plugins.taskmaster.taskmaster_v3 import write_issue
+    from taskmaster_v3 import write_issue
     write_issue(d / "backlog.yaml", "ISS-001",
                 {"id": "ISS-001", "tldr": "x", "severity": "P2",
                  "status": "open", "fixed_in_task": "T-001"}, "body")
@@ -3147,16 +3252,18 @@ git commit -m "docs(taskmaster): changelog entry for v3.X programmatic linking"
 
 ## Self-Review
 
-After implementing all 24 tasks, run this final pass:
+After implementing all 25 tasks (Task 0 + Tasks 1–24), run this final pass:
 
+- [ ] Task 0 complete: `plugins/taskmaster/tests/conftest.py`, `plugins/__init__.py`, `plugins/taskmaster/__init__.py` all exist.
 - [ ] All tests pass: `pytest plugins/taskmaster/tests/ -v`
 - [ ] Smoke test passes specifically: `pytest plugins/taskmaster/tests/test_links_smoke.py -v`
+- [ ] Archived-target test passes: `pytest plugins/taskmaster/tests/test_backlog_link_validate.py::test_validate_reports_archived_target_as_warning -v`
 - [ ] Migration is idempotent: run `python -m plugins.taskmaster.scripts.migrate_links --root <real project>` twice; second run reports `migrated.tasks == 0` etc.
 - [ ] `backlog_link_validate` on a real project returns `{"orphans": [], "asymmetric": [], "cycles": []}` after running reconcile.
 - [ ] Manual sanity: open a migrated project in the viewer — `task-detail`, `issue-detail`, `lesson-detail` render the grouped link pills with correct labels. No orphan "Dependencies" or "Related" sections duplicate the same data.
 - [ ] Cycle detection: try `backlog_link_create T-001 T-001 depends_on` → rejected; try a 3-node loop → rejected.
 - [ ] Auto-detection: create a handover whose body says "Next: T-005"; confirm `references` link to T-005 appears and `referenced_by` materializes on T-005.
-- [ ] `git log --oneline` shows ~24 atomic commits, one per task.
+- [ ] `git log --oneline` shows ~25 atomic commits, one per task.
 - [ ] No `TBD`, `TODO`, or `pass # implement later` markers in plugin code added by this plan.
 
 ---

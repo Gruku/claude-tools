@@ -62,6 +62,8 @@ Per-skill `references/` content created during body-slimming tasks:
 - `plugins/taskmaster/tests/test_migrate_v3_skill_lint.py` — same
 - `plugins/taskmaster/tests/test_add_idea_skill_lint.py` — same
 
+**Plan D coordination note:** Plan D creates its own per-skill lint tests for `start-session` and `pick-task`. Plan E's `xfail`-marked parametrized tests (Tasks 32–33) cover the same body budgets. After Plan D ships, remove the `xfail` markers on `start-session` and `pick-task` body-budget tests — they will pass. Plan D's per-skill lint files are additive (focus on content structure, not just size) and do not conflict with Plan E's tests.
+
 **Modify (SKILL.md rewrites — body slim + description trim):**
 - `plugins/taskmaster/skills/taskmaster/SKILL.md`
 - `plugins/taskmaster/skills/end-session/SKILL.md`
@@ -603,7 +605,13 @@ def test_references_exist():
 
 
 def test_references_not_stubs():
+    # Only check files CREATED by this task (v3-pre-steps.md, summary-modes.md).
+    # Pre-existing files (auto-mode.md, edge-cases.md) are excluded — they are
+    # verified in Step 2a below.
+    freshly_created = {"v3-pre-steps.md", "summary-modes.md"}
     for ref in (SKILL_DIR / "references").iterdir():
+        if ref.name not in freshly_created:
+            continue
         non_blank = [ln for ln in ref.read_text(encoding="utf-8").splitlines() if ln.strip()]
         assert len(non_blank) > 20, f"reference stub: {ref}"
 
@@ -627,6 +635,10 @@ def test_skill_md_contains_canonical_sentence():
 
 Run: `pytest plugins/taskmaster/tests/test_end_session_skill_lint.py -v`
 Expected: `test_body_within_budget` FAIL (~947 tokens), `test_references_exist` FAIL, `test_description_within_word_budget` FAIL.
+
+- [ ] **Step 2a: Verify pre-existing reference files are not stubs**
+
+Read `plugins/taskmaster/skills/end-session/references/auto-mode.md` and `references/edge-cases.md`. Confirm each has >20 non-blank lines. If either is a stub, expand it using the content from the current SKILL.md body that would otherwise be extracted — do this as part of this task, before the main body slim.
 
 - [ ] **Step 3: Create `references/v3-pre-steps.md`**
 
@@ -777,11 +789,20 @@ git commit -m "refactor(skill): slim end-session to 1500-token budget"
 Run: `pytest plugins/taskmaster/tests/test_lesson_skill_lint.py::test_skill_body_within_budget -v`
 Expected: FAIL.
 
-- [ ] **Step 2: Create `references/write-flows.md`**
+- [ ] **Step 1a: Map existing references**
 
-Extract the full subflow prose for all five entry points from SKILL.md body and write here. Keep the existing `references/reinforce-flows.md`, `references/promotion-decay.md`, etc. untouched.
+Read `lesson/references/reinforce-flows.md`, `promotion-decay.md`, `session-retro.md`, `marker-format.md`, `auto-extraction.md`. For each, note in one line what it already covers. Then decide content placement:
+- "reinforce immediate" subflow → extend existing `reinforce-flows.md` if not already there (do NOT create a duplicate)
+- "promote candidate" subflow → extend existing `promotion-decay.md` if not already there
+- Anything else not covered by existing files → `write-flows.md` ONLY if needed
 
-- [ ] **Step 3: Rewrite `lesson/SKILL.md`** to ≤1,300 tokens with pointers to `references/write-flows.md` and existing reference files.
+Update the file creation step accordingly — `write-flows.md` may not need to be created if all slimmed content fits into existing reference files.
+
+- [ ] **Step 2: Create `references/write-flows.md`** (only if Step 1a confirms content not already in existing files)
+
+Extract only the subflow prose not covered by existing reference files. Keep `references/reinforce-flows.md`, `references/promotion-decay.md`, `references/session-retro.md`, `references/marker-format.md`, and `references/auto-extraction.md` untouched; extend them in-place if needed.
+
+- [ ] **Step 3: Rewrite `lesson/SKILL.md`** to ≤1,300 tokens with pointers to relevant reference files (existing and any new ones).
 
 - [ ] **Step 4: Verify `test_lesson_skill_lint.py` — all pass**
 
@@ -1626,6 +1647,8 @@ DESCRIPTION_WORD_OVERRIDES: dict[str, int] = {
 }
 ```
 
+Also export `DEFAULT_DESC_WORDS = 60` as a named constant in `skill_budget_helper.py` (alongside `DESCRIPTION_WORD_OVERRIDES`) so per-skill tests can import it.
+
 Update `test_skill_description_budgets.py` to use the override:
 
 ```python
@@ -1636,6 +1659,21 @@ def test_skill_description_within_budget(skill):
     assert count <= budget, ...
 ```
 
+- [ ] **Step 2a: Update per-skill lint test to use the override**
+
+Edit `test_issue_skill_lint.py`'s `test_description_within_word_budget()` to import and use `DESCRIPTION_WORD_OVERRIDES` rather than the hardcoded `60`:
+
+```python
+from skill_budget_helper import DESCRIPTION_WORD_OVERRIDES, DEFAULT_DESC_WORDS
+
+def test_description_within_word_budget():
+    count = description_word_count("issue")
+    budget = DESCRIPTION_WORD_OVERRIDES.get("issue", DEFAULT_DESC_WORDS)
+    assert count <= budget, f"description is {count} words (budget: {budget})"
+```
+
+Without this change, the parametrized test passes at ≤70 but `test_issue_skill_lint.py` still fails at >60.
+
 - [ ] **Step 3: Update frontmatter in `issue/SKILL.md`**
 - [ ] **Step 4: Verify existing trigger-phrase assertions still pass**
 
@@ -1645,7 +1683,7 @@ Run: `pytest plugins/taskmaster/tests/test_issue_skill_lint.py::test_description
 - [ ] **Step 6: Commit**
 
 ```
-git add plugins/taskmaster/skills/issue/SKILL.md plugins/taskmaster/tests/skill_budget_helper.py plugins/taskmaster/tests/test_skill_description_budgets.py
+git add plugins/taskmaster/skills/issue/SKILL.md plugins/taskmaster/tests/skill_budget_helper.py plugins/taskmaster/tests/test_skill_description_budgets.py plugins/taskmaster/tests/test_issue_skill_lint.py
 git commit -m "refactor(skill): trim issue description to budget (override for 14 triggers)"
 ```
 
@@ -2001,7 +2039,7 @@ All of the following must be true before Plan E is considered complete:
 
 | Phase | Tasks | Description |
 |---|---|---|
-| 1 — Lint Infrastructure | 3 | Helper, body-budget parametrized test, description-budget parametrized test, extend existing tests |
+| 1 — Lint Infrastructure | 3 | Task 1: helper + body-budget parametrized test; Task 2: description-budget parametrized test; Task 3: extend existing lint tests |
 | 2 — Body Slimming | 14 | One per skill (tasks 4–17): taskmaster, end-session, lesson, handover, issue, review-gate, spec-review, auto-epic, auto-phase, init-taskmaster, migrate-v3, check-todos, add-idea, auto-task (lint only) |
 | 3 — Description Audit | 14 | One per skill (tasks 18–31): all descriptions audited; most trimmed, some already pass |
 | 4 — Plan D Coordination | 2 | start-session + pick-task lint tests (xfail on body) |
