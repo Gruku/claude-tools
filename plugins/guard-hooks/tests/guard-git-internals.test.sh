@@ -85,6 +85,19 @@ echo "-- output redirection into .git --"
 assert_blocked "echo > .git/HEAD"             'echo "" > .git/HEAD'
 assert_blocked "echo >> .git/config"          'echo x >> .git/config'
 assert_blocked "redirect into nested"         'echo x > .git/refs/heads/main'
+assert_blocked "fd-prefixed redirect 2> path" 'cmd 2> .git/log'
+assert_blocked "bash &> path"                 'cmd &> .git/log'
+assert_blocked "no-space > .git"              'echo x >.git/HEAD'
+# Real path redirect alongside an fd-dup must still block.
+assert_blocked "mixed fd dup + path redirect" 'echo x 2>&1 > .git/HEAD'
+
+echo "-- fd duplication does NOT trigger redirect block --"
+# These all appeared as false positives in the 2026-05-19 incident.
+assert_allowed "ls .git 2>&1 | head"          'ls -la .git 2>&1 | head -10'
+assert_allowed "cat path/.git 2>&1"           'cat foo/.git 2>&1 | head -3'
+assert_allowed "find -name .git 2>&1"         'find . -maxdepth 4 -name ".git" 2>&1 | head -20'
+assert_allowed "ls .git 1>&2"                 'ls .git 1>&2'
+assert_allowed "git status 2>&1"              'git status .git 2>&1'
 
 echo "-- windows cmd verbs --"
 assert_blocked "del .git\\HEAD"               'del .git\HEAD'

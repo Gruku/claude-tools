@@ -58,7 +58,10 @@ EOF
 # In ERE, `\\\\` matches one literal backslash (single-quoted shell -> two
 # backslashes -> one in regex). Inside a bracket class, a literal backslash
 # is `\\\\` for the same reason.
-GIT_TOKEN_RE='(^|[[:space:]=/'"'"'"\\])\.git([/\\[:space:]'"'"'"]|$)'
+#
+# `>` and `<` are included as left-boundary chars so that no-space redirect
+# forms like `echo x >.git/HEAD` and `cmd <.git/log` are detected.
+GIT_TOKEN_RE='(^|[[:space:]=/<>'"'"'"\\])\.git([/\\[:space:]'"'"'"]|$)'
 
 # --- Verb patterns ---
 # Unix-style destructive verbs.
@@ -73,8 +76,20 @@ PS_VERB_RE='(Remove-Item|Move-Item|Rename-Item|Copy-Item|Set-Item|Set-ItemProper
 # `find ... -delete` / `find ... -exec rm` etc.
 FIND_DESTRUCTIVE_RE='(^|[[:space:]&|;`(])find([[:space:]]+[^|;&]*)?[[:space:]](-delete|-exec[[:space:]]+(rm|unlink|shred|chmod|chown|mv))'
 
-# Output redirection (cmd, bash, PS all use > / >>).
-REDIRECT_RE='(>|>>)'
+# Output redirection to a PATH (cmd, bash, PS all use > / >>).
+#
+# The original regex was '(>|>>)' which false-positives on file-descriptor
+# duplications like '2>&1', '1>&2', '&>&N'. These are NOT path writes — the
+# stream after the redirect points to another fd, not a filename — so a command
+# like 'ls .git 2>&1 | head' was incorrectly blocked as a .git/ write during
+# the 2026-05-19 forensic recovery.
+#
+# Path-targeted match: optional leading fd digit OR '&' (for bash '&>'), then
+# '>' or '>>', optional whitespace, then a target byte that is NOT '&', '>',
+# or whitespace. That target byte is the start of a filename. Examples:
+#   ✓ '> file', '>> file', '1> file', '2>> file', '&> file'
+#   ✗ '2>&1', '1>&2', '>&1' (target after > is '&')
+PATH_REDIRECT_RE='(^|[[:space:]])[0-9&]?>>?[[:space:]]*[^&[:space:]>]'
 
 # Allowlist: redirection into the review-gate blessing marker is permitted.
 # Pairs with ~/.claude/hooks/push-review-gate-guard.py, which requires
@@ -145,7 +160,7 @@ for SEG in "${SEGMENTS_ARR[@]}"; do
   if echo "$SEG" | grep -qiE "$FIND_DESTRUCTIVE_RE"; then
     block "Destructive find (-delete or -exec rm/unlink/shred/chmod/chown/mv) targeting .git/"
   fi
-  if echo "$SEG" | grep -qE "$REDIRECT_RE"; then
+  if echo "$SEG" | grep -qE "$PATH_REDIRECT_RE"; then
     if echo "$SEG" | grep -qE "$BLESS_REDIRECT_RE"; then
       : # allowed: writing the review-gate blessing marker
     else
