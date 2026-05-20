@@ -25,6 +25,11 @@ SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
 [ -z "$SESSION_ID" ] && SESSION_ID="default"
 APPROVE_FILE="$HOME/.claude/guard-approve-$SESSION_ID"
 
+# Hook's reported cwd of the calling shell, used to resolve relative paths
+# during the worktree-removal pre-flight (P3 in the postmortem). Optional —
+# absent in older hook payloads.
+HOOK_CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
+
 # Debug logging — uncomment to diagnose hook bypass issues
 # LOG_FILE="$HOME/.claude/guard-debug.log"
 # echo "[$(date '+%Y-%m-%d %H:%M:%S')] COMMAND: $COMMAND" >> "$LOG_FILE"
@@ -168,6 +173,64 @@ if echo "$COMMAND" | grep -qE 'git\s+clean\s+-[a-zA-Z]*f'; then
   block "'git clean -f' permanently deletes untracked files."
 fi
 
+# --- Git worktree remove --force (Windows cascade hazard) ---
+# Observed 2026-05-19 in the CodeMaestro monorepo: 'git worktree remove --force'
+# on a worktree containing submodules with paths near Windows MAX_PATH did NOT
+# just remove the worktree — it cascade-deleted top-level dot-prefixed entries
+# in the PARENT checkout (.git/, .gitignore, .gitmodules, .dockerignore, .env*,
+# .github/, .vscode/, .ai/design/, contents of .config/). All branches,
+# reflogs, stashes, and unpushed commits were lost.
+#
+# The non-force version exits cleanly with "working trees containing submodules
+# cannot be moved or removed" — that is the correct trigger to run
+# 'git submodule deinit -f <name>' inside the worktree, NOT to escalate to
+# --force. We block the --force form here so an approval is required.
+if echo "$COMMAND" | grep -qE 'git[[:space:]]+([^|;&]*[[:space:]])?worktree[[:space:]]+remove'; then
+  # Isolate the portion from 'worktree remove' to the next chain operator so a
+  # later '--force' flag in an unrelated chained command doesn't false-positive.
+  REMOVE_SEG=$(echo "$COMMAND" | grep -oE 'worktree[[:space:]]+remove[^;&|]*' | head -1)
+  # Match --force or short -f / -fq / -qf style flags. Flag-token boundary
+  # (whitespace or start) prevents matching '-f' embedded in a path like
+  # '.worktrees/desktop-app-258'.
+  if echo "$REMOVE_SEG" | grep -qE '(^|[[:space:]])(--force|-[a-zA-Z]*f[a-zA-Z]*)([[:space:]]|=|$)'; then
+    block "'git worktree remove --force' can cascade-delete top-level dotfiles in the PARENT checkout (.git/, .gitignore, .gitmodules, .env*, .github/, .vscode/, …) when the worktree contains submodules or has long paths on Windows. Confirmed in a 2026-05-19 incident. Try 'git -C <worktree> submodule deinit -f <submodule>' first, then 'git worktree remove' without --force."
+  fi
+
+  # --- Submodule pre-flight ---
+  # Even without --force, a worktree containing submodules fails partway
+  # through removal and leaves the parent in a fragile state. The recovery
+  # path is the same: deinit submodules from inside the worktree first.
+  # We approval-gate (not hard-block) — there are legitimate cases on
+  # non-Windows or after the user has already deinit'd.
+  #
+  # Extract the first non-flag positional after 'remove'. Resolve relative
+  # paths against the hook's reported cwd. If the directory exists and
+  # contains a .gitmodules file at its root, treat that as the cascade
+  # precondition.
+  TARGET=""
+  # Pull tokens after 'remove' up to chain operator, then walk them.
+  POST_REMOVE=$(echo "$REMOVE_SEG" | sed -E 's/^worktree[[:space:]]+remove[[:space:]]+//')
+  for token in $POST_REMOVE; do
+    case "$token" in
+      -*) continue ;;
+      *) TARGET="$token"; break ;;
+    esac
+  done
+  if [ -n "$TARGET" ]; then
+    # Strip surrounding quotes if any.
+    TARGET="${TARGET#\"}"; TARGET="${TARGET%\"}"
+    TARGET="${TARGET#\'}"; TARGET="${TARGET%\'}"
+    ABS_TARGET="$TARGET"
+    case "$TARGET" in
+      /*|?:[/\\]*) : ;;  # absolute (POSIX or Windows drive-letter)
+      *) [ -n "$HOOK_CWD" ] && ABS_TARGET="$HOOK_CWD/$TARGET" ;;
+    esac
+    if [ -d "$ABS_TARGET" ] && [ -e "$ABS_TARGET/.gitmodules" ]; then
+      block "Worktree '$TARGET' contains submodules ('.gitmodules' present). Even without --force, removal will fail partway and can leave the parent in a fragile state. Run 'git -C \"$TARGET\" submodule deinit -f --all' first, then retry 'git worktree remove $TARGET'."
+    fi
+  fi
+fi
+
 # --- Git branch -D (force delete) ---
 if echo "$COMMAND" | grep -qE 'git\s+branch\s+-D\s'; then
   block "'git branch -D' force-deletes a branch. Use 'git branch -d' (safe delete)."
@@ -186,6 +249,25 @@ fi
 # --- Windows destructive commands ---
 if echo "$COMMAND" | grep -qEi '(^|\s|&&|\|)(del\s+/[sfq]|rd\s+/s|format\s|diskpart)'; then
   block "Destructive Windows command detected."
+fi
+
+# --- Failure-masking pattern: destructive git op piped through tail/head/grep ---
+# Observed 2026-05-19: `git worktree remove --force A 2>&1 | tail -2 \
+#   && git worktree remove --force B 2>&1 | tail -2 \
+#   && git worktree remove --force C 2>&1 | tail -2`
+# The 'tail -2' overwrites the upstream exit code, so the `&&` chain does NOT
+# short-circuit on the first command's failure — all three run regardless, and
+# the truncated output hides the cascade in progress.
+#
+# We approval-gate any mutating git subcommand piped into a line-filter
+# (tail/head/grep/awk/sed/wc/cut). This forces the AI to either run the
+# command without the filter (so it sees the real output) or to ask the user
+# for explicit approval to mask the failure.
+DESTRUCTIVE_GIT_RE='git[[:space:]]+([^|;&]*[[:space:]])?(worktree[[:space:]]+remove|push|reset|clean|branch[[:space:]]+-D|stash[[:space:]]+(clear|drop)|rebase|merge|submodule[[:space:]]+deinit)'
+LINE_FILTER_RE='\|[[:space:]]*(tail|head|grep|awk|sed|wc|cut)([[:space:]]|$)'
+if echo "$COMMAND" | grep -qE "$DESTRUCTIVE_GIT_RE" && \
+   echo "$COMMAND" | grep -qE "$LINE_FILTER_RE"; then
+  block "Destructive git operation piped into a line filter (tail/head/grep/awk/sed/wc/cut). This masks the upstream exit code so '&&' chains do not short-circuit on failure — a partial-failure cascade can run silently. Re-run without the filter so the real output is visible."
 fi
 
 exit 0

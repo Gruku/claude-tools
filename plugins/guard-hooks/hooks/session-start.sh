@@ -1,6 +1,10 @@
 #!/bin/bash
 # session-start.sh — SessionStart hook for guard-hooks plugin
-# Checks that required dependency (jq) is available.
+#  - Checks that required dependency (jq) is available (user-facing stderr).
+#  - Emits a model-facing awareness banner via stdout describing the most
+#    catastrophic-but-easy-to-miss rules (worktree-removal cascade, .git/
+#    writes, force-push, rm -rf). Stdout from SessionStart hooks is appended
+#    to the model's context as "SessionStart hook additional context".
 
 if ! command -v jq &>/dev/null; then
   cat >&2 <<'WARN'
@@ -12,5 +16,41 @@ Install: https://jqlang.github.io/jq/download/
   - Windows:     winget install jqlang.jq
 WARN
 fi
+
+cat <<'BANNER'
+guard-hooks active. The following Bash patterns are BLOCKED (approval-gated
+unless noted), with rationale you should know BEFORE attempting them:
+
+  • `git worktree remove --force` / `-f`  — DANGEROUS ON WINDOWS.
+    Observed in a 2026-05-19 incident: with submodules or near-MAX_PATH paths,
+    --force does not just delete the worktree. It cascade-deletes top-level
+    dot-prefixed entries in the PARENT checkout: .git/, .gitignore,
+    .gitmodules, .dockerignore, .env*, .github/, .vscode/, .ai/design/, and
+    contents of .config/. All branches/reflogs/stashes go with it.
+    Recovery path when `git worktree remove <path>` fails with "working trees
+    containing submodules cannot be moved or removed":
+      git -C <worktree-path> submodule deinit -f <submodule>
+      git worktree remove <worktree-path>      # no --force
+    Never escalate to --force. Never fall back to `rm -rf`.
+
+  • `git worktree remove <path>` (no --force) is APPROVAL-GATED when <path>
+    contains a .gitmodules file. Same recovery: deinit submodules first.
+
+  • Destructive git ops piped into a line filter (| tail / | head / | grep /
+    | awk / | sed / | wc / | cut) are APPROVAL-GATED. The filter overwrites
+    the upstream exit code, so '&&' chains do not short-circuit on failure —
+    a partial-failure cascade can run silently. Re-run without the filter.
+
+  • `rm -rf` / `rmdir` / `shred` / `unlink`  (approval-gated)
+  • `git reset --hard`, `git clean -f`, `git branch -D`, `git checkout .`
+  • `git stash clear` / `git stash drop --all`
+  • `git push --force` and pushing to main/master (approval-gated)
+  • Any write/delete touching `.git/` (HARD-blocked — no approval bypass)
+  • Windows `del /s`, `rd /s`, `format`, `diskpart`
+
+When a guard fires, it prints the rationale and recovery hint. Read those
+before retrying. The approval flow is AskUserQuestion with labels exactly
+"Approve" / "Deny"; only the user can authorize.
+BANNER
 
 exit 0

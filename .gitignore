@@ -25,6 +25,9 @@ codex-dispatch/
 # Superpowers docs (local-only specs and plans)
 docs/superpowers/
 
+# Reflection / postmortem reports (local-only)
+docs/reflect/
+
 # Taskmaster local-only planning docs (specs + generalization plans)
 plugins/taskmaster/docs/specs/
 plugins/taskmaster/docs/generalization-plan.md
