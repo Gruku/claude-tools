@@ -1,6 +1,6 @@
 meta:
   project: claude-tools
-  updated: '2026-05-18'
+  updated: '2026-05-20'
   schema_version: 3
 context:
   active_epic: v3-polish
@@ -99,6 +99,15 @@ context:
       bypassed'
     epic: guard-hooks
     branch: feature/guard-hooks-003
+  - id: project-manifest-001
+    title: Implement .taskmaster/project.yaml manifest — schema + loader + 6 MCP tools
+    epic: project-manifest
+    branch: feature/project-manifest-001
+    locked_by: Volodymyr-50860-d8924c37
+  - id: project-structure-visibility-001
+    title: 'Sessions screen: use real ISO timestamps + show duration'
+    epic: project-structure-visibility
+    branch: feature/project-structure-visibility-001
   blocked: []
   recent_completed:
   - id: progressive-disclosure-003
@@ -134,21 +143,21 @@ context:
     priority: high
     epic: v3-polish
   stats:
-    total: 135
+    total: 138
     done: 75
-    in_progress: 3
-    in_review: 18
-    todo: 39
+    in_progress: 4
+    in_review: 19
+    todo: 40
     blocked: 0
     archived: 7
   active_phase:
     id: ship-v3
     name: Ship V3
     stats:
-      total: 112
-      todo: 23
+      total: 115
+      todo: 25
       in-progress: 2
-      in-review: 18
+      in-review: 19
       done: 69
       blocked: 0
       archived: 7
@@ -158,43 +167,43 @@ context:
   - id: v3-polish-002
     title: C′ tm-card retrofit audit and rollout
     last_referenced: 2026-05-02T06:30
-    days_stale: 16
+    days_stale: 18
   - id: v3-polish-003
     title: Rename or unify rail systems (.td-rail-h vs .rr-h)
     last_referenced: 2026-05-02T06:30
-    days_stale: 16
+    days_stale: 18
   - id: v3-polish-006
     title: Slim down auto-mode header — remove strip + minimize pill
     last_referenced: 2026-05-02T05:50
-    days_stale: 16
+    days_stale: 18
   - id: v3-polish-010
     title: Lessons screen — usability refresh (concept deltas validated)
     last_referenced: 2026-05-02T06:30
-    days_stale: 16
+    days_stale: 18
   - id: v3-polish-012
     title: Design tokens and color palette audit
     last_referenced: 2026-05-02T06:04
-    days_stale: 16
+    days_stale: 18
   - id: v3-polish-020
     title: Viewer-wide accessibility sweep (chips, links, headings, table ARIA)
     last_referenced: 2026-05-02T07:30
-    days_stale: 16
+    days_stale: 18
   - id: v3-teams-001
     title: taskmaster:design-team skill + position-paper-rebuttal-synthesis protocol
     last_referenced: 2026-05-02T16:30
-    days_stale: 16
+    days_stale: 18
   - id: v3-teams-002
     title: .taskmaster/team-roles/ config + role-loading helper
     last_referenced: 2026-05-02T16:30
-    days_stale: 16
+    days_stale: 18
   - id: v3-teams-003
     title: spec-review --team flag + parallel-review protocol
     last_referenced: 2026-05-02T16:30
-    days_stale: 16
+    days_stale: 18
   - id: v3-teams-004
     title: taskmaster:debug-team + hypothesis-tournament protocol
     last_referenced: 2026-05-02T16:30
-    days_stale: 16
+    days_stale: 18
 epics:
 - id: v3-polish
   name: V3 Polish
@@ -2300,16 +2309,83 @@ epics:
   tasks:
   - id: project-manifest-001
     title: Implement .taskmaster/project.yaml manifest — schema + loader + 6 MCP tools
-    status: todo
+    status: in-progress
     priority: high
     created: 2026-05-17T23:01
-    last_referenced: 2026-05-17T23:01
+    last_referenced: 2026-05-18T17:07
     estimate: M
     phase: post-v2-architecture
     anchors:
     - plugins/taskmaster/taskmaster_v3.py
     - plugins/taskmaster/project.py
     - .taskmaster/project.yaml
+    started: 2026-05-18T16:58
+    locked_by: Volodymyr-50860-d8924c37
+    branch: feature/project-manifest-001
+    worktree: .worktrees/project-manifest-001
+- id: project-structure-visibility
+  name: Project Structure Visibility
+  status: active
+  description: 'Visualize monorepo + sub-repos + submodules + worktrees + tasks +
+    handovers in the viewer, with merge-state ladder per worktree. Also fixes three
+    Sessions-screen bugs (timestamps, sort order, scroll container) bundled in. Spec:
+    docs/superpowers/specs/2026-05-19-project-structure-visibility-design.md'
+  created: 2026-05-20T12:52
+  tasks:
+  - id: project-structure-visibility-001
+    title: 'Sessions screen: use real ISO timestamps + show duration'
+    tldr: Sessions all render "2am" because list_sessions() uses handover.date (date-only
+      ISO). Switch to handover.created; flag legacy as time_resolution=date-only;
+      surface duration in rail.
+    status: in-review
+    priority: high
+    created: 2026-05-20T12:53
+    last_referenced: 2026-05-20T13:39
+    next_step: Execute plan 2026-05-19-sessions-time.md via subagent-driven-development.
+      7 plan tasks, ~4 commits.
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/taskmaster_v3.py
+    - plugins/taskmaster/viewer/js/screens/sessions.js
+    - plugins/taskmaster/viewer/js/components/timeline.js
+    - plugins/taskmaster/tests/test_sessions_time.py
+    started: 2026-05-20T12:53
+    branch: feature/project-structure-visibility-001
+    worktree: .worktrees/project-structure-visibility-001
+    patchnote: Sessions screen now shows real local timestamps and durations instead
+      of fabricating "02:00 → 02:00". Legacy date-only sessions render the date with
+      no fake time.
+  - id: project-structure-visibility-002
+    title: 'Sessions screen: newest-first + bounded scroll container'
+    tldr: clusterParallelSessions() in viewer/js/components/timeline.js re-sorts ASC
+      after server returns DESC. .sessions-page scroll wired via shell.css but .tl
+      lacks min-height:0 and bottom padding inside scroll clips last row. Two commits.
+    status: todo
+    priority: medium
+    created: 2026-05-20T12:53
+    last_referenced: 2026-05-20T12:53
+    estimate: S
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/viewer/js/components/timeline.js
+    - plugins/taskmaster/viewer/css/screens/sessions.css
+  - id: project-structure-visibility-003
+    title: 'Project Structure screen: sub-repo cards with worktree mini-trees'
+    tldr: New backlog_project_structure MCP tool + new viewer screen showing monorepo
+      → sub-repos (embedded + submodules) → worktrees → tasks/handovers with merge
+      ladder. Auto-discover, on-demand refresh, forward-compatible with project.yaml.
+    status: todo
+    priority: medium
+    created: 2026-05-20T12:53
+    last_referenced: 2026-05-20T12:53
+    estimate: L
+    phase: ship-v3
+    anchors:
+    - plugins/taskmaster/taskmaster_v3.py
+    - plugins/taskmaster/backlog_server.py
+    - plugins/taskmaster/viewer/js/api.js
+    - plugins/taskmaster/viewer/js/main.js
 phases:
 - id: ship-v3
   name: Ship V3
@@ -2327,6 +2403,33 @@ phases:
   order: 2
   created: 2026-05-08T03:31
 handovers:
+- id: 2026-05-20-plan-a-sessions-time-shipped-end-to-end
+  date: '2026-05-20'
+  created: '2026-05-20T11:39:18.698135+00:00'
+  tldr: Plan A (sessions-time) shipped end-to-end on feature/project-structure-visibility-001
+    — 8 reviewed commits fix the "2am" bug via `_handover_time` helper + `time_resolution`
+    advisory field + viewer rendering using existing `formatDurationCompact`. Awaiting
+    user manual smoke before merge.
+  next_action: 'User: open viewer Sessions screen and confirm (a) today''s session
+    shows real local HH:MM and a duration suffix, (b) legacy 2026-05-08 handovers
+    render as just a date with no time. Then merge feature/project-structure-visibility-001
+    locally and move to Plan B (sessions-sort-scroll) — plan at docs/superpowers/plans/2026-05-19-sessions-sort-scroll.md.'
+  task_ids:
+  - project-structure-visibility-001
+  session_kind: milestone
+  status: open
+- id: 2026-05-18-progressive-disclosure-epic-plans-a-e-pu
+  date: '2026-05-18'
+  created: '2026-05-18T15:34:29.317260+00:00'
+  tldr: Progressive Disclosure epic (Plans A–E) pushed to origin/master at 14c999a.
+    PD milestone now public.
+  next_action: PD epic is shipped + pushed. Optional follow-ups remain (OR-assertion
+    tighten, pick-task trigger phrase, archive PD epic, lesson on strict-xfail coordination).
+    Otherwise pivot to v3-polish or another epic.
+  task_ids:
+  - progressive-disclosure-003
+  session_kind: milestone
+  status: open
 - id: 2026-05-18-designed-taskmaster-project-yaml-project
   date: '2026-05-18'
   created: '2026-05-17T23:55:05.991008+00:00'
@@ -2340,7 +2443,7 @@ handovers:
   task_ids:
   - project-manifest-001
   session_kind: end-of-day
-  status: todo
+  status: in-progress
 - id: 2026-05-18-plan-d-shipped-progressive-disclosure-a
   date: '2026-05-18'
   created: '2026-05-17T23:53:27.228845+00:00'
@@ -2351,7 +2454,8 @@ handovers:
   task_ids:
   - progressive-disclosure-003
   session_kind: milestone
-  status: open
+  status: superseded
+  flag_reason: session_kind='milestone' preserved for context
 - id: 2026-05-17-plans-b-c-e-merged-to-master-3-merge-com
   date: '2026-05-17'
   created: '2026-05-17T19:08:27.678919+00:00'
@@ -2623,24 +2727,6 @@ handovers:
   - v3-bugs-005
   session_kind: auto-stage
   status: done
-- id: 2026-05-08-fixed-date-only-timezone-bug-in-viewer-t
-  date: '2026-05-08'
-  tldr: Fixed date-only timezone bug in viewer time helpers — handover and lesson
-    dates now display the correct calendar day
-  next_action: continue auto run — next task in v3-bugs epic
-  task_ids:
-  - v3-bugs-002
-  session_kind: auto-stage
-  status: done
-- id: 2026-05-08-fixed-date-only-timezone-bug-in-viewer-t-3
-  date: '2026-05-08'
-  tldr: Fixed date-only timezone bug in viewer time helpers — handover and lesson
-    dates now display the correct calendar day
-  next_action: continue auto run — next task in v3-bugs epic
-  task_ids:
-  - v3-bugs-002
-  session_kind: auto-stage
-  status: done
 issues:
 - id: ISS-004
   title: v3 path mismatch — handover writer uses backlog_path.parent but readers hard-code
@@ -2739,6 +2825,16 @@ issues:
   - guard-hooks
   related_tasks:
   - guard-hooks-003
+- id: ISS-015
+  title: list_sessions defaults missing handover.status to "open" but viewer expects
+    "todo"
+  status: open
+  severity: P3
+  components:
+  - taskmaster_v3
+  - viewer-sessions
+  related_tasks:
+  - project-structure-visibility-001
 lessons_meta:
 - id: L-001
   title: Use shared chipClickNext helper for chip-row filters
@@ -2749,10 +2845,15 @@ lessons_meta:
   title: Bash cwd persists across tool calls — never `cd` between worktree commands
   kind: anti-pattern
   tier: active
-  reinforce_count: 0
+  reinforce_count: 1
 - id: L-003
   title: Don't bypass `taskmaster:pick-task` even for one-line fixes
   kind: anti-pattern
+  tier: active
+  reinforce_count: 1
+- id: L-004
+  title: Worktree --force removal on Windows wipes parent dotfiles
+  kind: gotcha
   tier: active
   reinforce_count: 0
 handover_status_backfilled: true
