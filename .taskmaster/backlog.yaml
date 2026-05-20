@@ -6,7 +6,8 @@ context:
   active_epic: v3-polish
   in_progress:
   - id: v3-polish-028
-    title: Auto-mode strip shows "Auto-mode · N running" for stopped/abandoned sessions
+    title: "Auto-mode strip shows \"Auto-mode \xB7 N running\" for stopped/abandoned\
+      \ sessions"
     epic: v3-polish
     branch: feature/taskmaster-v3
   - id: v3-polish-036
@@ -14,7 +15,7 @@ context:
     epic: v3-polish
     branch: feature/v3-polish-036
   - id: v3-polish-041
-    title: Handover status field — todo/in-progress/done lifecycle
+    title: "Handover status field \u2014 todo/in-progress/done lifecycle"
     epic: v3-polish
     branch: feature/v3-polish-041
   - id: v3-polish-042
@@ -33,13 +34,13 @@ context:
     branch: feature/v3-polish-045
     locked_by: Volodymyr-57004-6594333b
   - id: v3-polish-046
-    title: 'Viewer: negate/exclude filter — filter tasks whose name does NOT contain
-      a string'
+    title: "Viewer: negate/exclude filter \u2014 filter tasks whose name does NOT\
+      \ contain a string"
     epic: v3-polish
     branch: feature/auto-tier-b
   - id: v3-polish-047
-    title: 'Viewer: Epic filter polish — phase-scoped visibility, archived hidden
-      by default, sort by phase task count'
+    title: "Viewer: Epic filter polish \u2014 phase-scoped visibility, archived hidden\
+      \ by default, sort by phase task count"
     epic: v3-polish
     branch: feature/auto-tier-b
   - id: v3-polish-053
@@ -66,23 +67,23 @@ context:
     branch: ''
     locked_by: Volodymyr-81136-4a254306
   - id: v3-skills-002
-    title: taskmaster:handover skill — write/read flow
+    title: "taskmaster:handover skill \u2014 write/read flow"
     epic: v3-skills
     branch: ''
   - id: v3-skills-003
-    title: taskmaster:lesson skill — write/reinforce/promote
+    title: "taskmaster:lesson skill \u2014 write/reinforce/promote"
     epic: v3-skills
     branch: feature/taskmaster-v3
   - id: v3-skills-004
-    title: taskmaster:issue skill — log/track/close defects
+    title: "taskmaster:issue skill \u2014 log/track/close defects"
     epic: v3-skills
     branch: ''
   - id: v3-skills-005
-    title: taskmaster:migrate-v3 skill — guided opt-in migration
+    title: "taskmaster:migrate-v3 skill \u2014 guided opt-in migration"
     epic: v3-skills
     branch: ''
   - id: jira-001
-    title: Tracker entity — schema, file format, validator integration
+    title: "Tracker entity \u2014 schema, file format, validator integration"
     epic: jira
     branch: feature/jira-001
   - id: guard-hooks-001
@@ -90,17 +91,18 @@ context:
     epic: guard-hooks
     branch: feature/guard-hooks-001
   - id: guard-hooks-002
-    title: Stop consume-approval.sh burning the token on benign intermediate Bash
-      (Fix B — armed marker)
+    title: "Stop consume-approval.sh burning the token on benign intermediate Bash\
+      \ (Fix B \u2014 armed marker)"
     epic: guard-hooks
     branch: feature/guard-hooks-002
   - id: guard-hooks-003
-    title: 'Fix ISS-012: per-guard approval scope — sibling guards no longer silently
-      bypassed'
+    title: "Fix ISS-012: per-guard approval scope \u2014 sibling guards no longer\
+      \ silently bypassed"
     epic: guard-hooks
     branch: feature/guard-hooks-003
   - id: project-manifest-001
-    title: Implement .taskmaster/project.yaml manifest — schema + loader + 6 MCP tools
+    title: "Implement .taskmaster/project.yaml manifest \u2014 schema + loader + 6\
+      \ MCP tools"
     epic: project-manifest
     branch: feature/project-manifest-001
     locked_by: Volodymyr-50860-d8924c37
@@ -111,31 +113,31 @@ context:
   blocked: []
   recent_completed:
   - id: progressive-disclosure-003
-    title: 'Plan D — Ceremonies: glance-first start-session/pick-task with --deep
-      (13 tasks)'
+    title: "Plan D \u2014 Ceremonies: glance-first start-session/pick-task with --deep\
+      \ (13 tasks)"
     completed: 2026-05-18T01:54
   - id: progressive-disclosure-005
-    title: 'Plan E — Skill slimming: bodies → references/ + description audit (36
-      tasks)'
+    title: "Plan E \u2014 Skill slimming: bodies \u2192 references/ + description\
+      \ audit (36 tasks)"
     completed: 2026-05-17T21:01
   - id: progressive-disclosure-004
-    title: 'Plan C — Programmatic linking: typed links schema + symmetric sync + MCP
-      CRUD (25 tasks)'
+    title: "Plan C \u2014 Programmatic linking: typed links schema + symmetric sync\
+      \ + MCP CRUD (25 tasks)"
     completed: 2026-05-17T20:44
   - id: progressive-disclosure-002
-    title: 'Plan B — Parallel handovers: open/closed/superseded + smart auto-close
-      (15 tasks)'
+    title: "Plan B \u2014 Parallel handovers: open/closed/superseded + smart auto-close\
+      \ (15 tasks)"
     completed: 2026-05-17T20:29
   - id: progressive-disclosure-001
-    title: 'Plan A — Foundation: tldr field + slim MCP + tldr index (24 TDD tasks)'
+    title: "Plan A \u2014 Foundation: tldr field + slim MCP + tldr index (24 TDD tasks)"
     completed: 2026-05-17T16:10
   next_up:
   - id: v3-polish-001
-    title: 'Build recap picker (was: D·5 rebuild — there is no picker)'
+    title: "Build recap picker (was: D\xB75 rebuild \u2014 there is no picker)"
     priority: high
     epic: v3-polish
   - id: v3-polish-010
-    title: Lessons screen — usability refresh (concept deltas validated)
+    title: "Lessons screen \u2014 usability refresh (concept deltas validated)"
     priority: high
     epic: v3-polish
   - id: v3-polish-020
@@ -165,7 +167,7 @@ context:
     start_date: '2026-05-02'
   stale:
   - id: v3-polish-002
-    title: C′ tm-card retrofit audit and rollout
+    title: "C\u2032 tm-card retrofit audit and rollout"
     last_referenced: 2026-05-02T06:30
     days_stale: 18
   - id: v3-polish-003
@@ -173,11 +175,11 @@ context:
     last_referenced: 2026-05-02T06:30
     days_stale: 18
   - id: v3-polish-006
-    title: Slim down auto-mode header — remove strip + minimize pill
+    title: "Slim down auto-mode header \u2014 remove strip + minimize pill"
     last_referenced: 2026-05-02T05:50
     days_stale: 18
   - id: v3-polish-010
-    title: Lessons screen — usability refresh (concept deltas validated)
+    title: "Lessons screen \u2014 usability refresh (concept deltas validated)"
     last_referenced: 2026-05-02T06:30
     days_stale: 18
   - id: v3-polish-012
@@ -208,13 +210,13 @@ epics:
 - id: v3-polish
   name: V3 Polish
   status: active
-  description: Final visual and UX passes on the v3 viewer redesign before the 1.12
-    release. Covers Pass D leftovers, Pass C′ tm-card retrofit, right-rail unification,
-    and small UX nits captured in handoff docs.
+  description: "Final visual and UX passes on the v3 viewer redesign before the 1.12\
+    \ release. Covers Pass D leftovers, Pass C\u2032 tm-card retrofit, right-rail\
+    \ unification, and small UX nits captured in handoff docs."
   created: 2026-05-02T05:46
   tasks:
   - id: v3-polish-001
-    title: 'Build recap picker (was: D·5 rebuild — there is no picker)'
+    title: "Build recap picker (was: D\xB75 rebuild \u2014 there is no picker)"
     status: todo
     priority: high
     created: 2026-05-02T05:46
@@ -223,7 +225,7 @@ epics:
     phase: ship-v3
     started: 2026-05-08T03:34
   - id: v3-polish-002
-    title: C′ tm-card retrofit audit and rollout
+    title: "C\u2032 tm-card retrofit audit and rollout"
     status: todo
     priority: low
     created: 2026-05-02T05:46
@@ -269,7 +271,7 @@ epics:
     - plugins/taskmaster/viewer/tests/dashboard.spec.js
     - plugins/taskmaster/viewer/tests/sessions.spec.js
   - id: v3-polish-006
-    title: Slim down auto-mode header — remove strip + minimize pill
+    title: "Slim down auto-mode header \u2014 remove strip + minimize pill"
     status: todo
     priority: medium
     created: 2026-05-02T05:50
@@ -281,7 +283,7 @@ epics:
     - plugins/taskmaster/viewer/js/screens/dashboard.js
     - plugins/taskmaster/viewer/css/screens/kanban.css
   - id: v3-polish-007
-    title: Tighten kanban visual gaps — reclaim wasted space
+    title: "Tighten kanban visual gaps \u2014 reclaim wasted space"
     status: todo
     priority: low
     created: 2026-05-02T05:56
@@ -293,7 +295,7 @@ epics:
     - plugins/taskmaster/viewer/js/screens/kanban.js
     - plugins/taskmaster/viewer/css/components/kanban-card.css
   - id: v3-polish-008
-    title: Auto-mode page — fix data-state empty render (spine works)
+    title: "Auto-mode page \u2014 fix data-state empty render (spine works)"
     status: done
     priority: medium
     created: 2026-05-02T05:59
@@ -306,7 +308,8 @@ epics:
     - plugins/taskmaster/viewer/js/components/auto-mode-stepper.js
     - plugins/taskmaster/viewer/css/screens/auto.css
   - id: v3-polish-009
-    title: Issues screen — align with design concept (concept deltas + 3 real bugs)
+    title: "Issues screen \u2014 align with design concept (concept deltas + 3 real\
+      \ bugs)"
     status: done
     priority: high
     created: 2026-05-02T05:59
@@ -329,7 +332,7 @@ epics:
       spec_path: plugins/taskmaster/docs/v3-polish-013/issues.md
     completed: 2026-05-12T23:00
   - id: v3-polish-010
-    title: Lessons screen — usability refresh (concept deltas validated)
+    title: "Lessons screen \u2014 usability refresh (concept deltas validated)"
     status: todo
     priority: high
     created: 2026-05-02T05:59
@@ -341,7 +344,7 @@ epics:
     - plugins/taskmaster/viewer/js/components/lesson-card.js
     - plugins/taskmaster/viewer/css/screens/lessons.css
   - id: v3-polish-011
-    title: Dashboard — second-pass design review
+    title: "Dashboard \u2014 second-pass design review"
     status: done
     priority: medium
     created: 2026-05-02T06:04
@@ -514,7 +517,7 @@ epics:
     - plugins/taskmaster/viewer/js/components/task-detail-graph.js
     - plugins/taskmaster/viewer/js/router.js
   - id: v3-polish-025
-    title: Fix spine-active-pulse — replace transform scale with opacity/stroke
+    title: "Fix spine-active-pulse \u2014 replace transform scale with opacity/stroke"
     status: done
     priority: medium
     created: 2026-05-02T07:30
@@ -526,7 +529,7 @@ epics:
     - plugins/taskmaster/viewer/css/screens/auto.css
     - plugins/taskmaster/viewer/js/components/quest-spine.js
   - id: v3-polish-026
-    title: Recap snapshot/diff plumbing — receipts contradict narrative
+    title: "Recap snapshot/diff plumbing \u2014 receipts contradict narrative"
     status: done
     priority: high
     created: 2026-05-02T07:30
@@ -553,7 +556,8 @@ epics:
     branch: feature/taskmaster-v3
     completed: 2026-05-14T03:55
   - id: v3-polish-028
-    title: Auto-mode strip shows "Auto-mode · N running" for stopped/abandoned sessions
+    title: "Auto-mode strip shows \"Auto-mode \xB7 N running\" for stopped/abandoned\
+      \ sessions"
     status: in-review
     priority: high
     created: 2026-05-03T17:29
@@ -565,8 +569,8 @@ epics:
     started: 2026-05-03T18:00
     branch: feature/taskmaster-v3
   - id: v3-polish-029
-    title: v3 viewer reads empty task list — `/api/backlog` doesn't expose flat top-level
-      `tasks`
+    title: "v3 viewer reads empty task list \u2014 `/api/backlog` doesn't expose flat\
+      \ top-level `tasks`"
     status: done
     priority: high
     created: 2026-05-04T14:31
@@ -614,8 +618,8 @@ epics:
     - plugins/taskmaster/viewer/css/screens/task-detail.css
     archived_reason: superseded
   - id: v3-polish-033
-    title: Task transitions don't capture `started`/`completed` timestamps — Task
-      Detail dates row shows "—"
+    title: "Task transitions don't capture `started`/`completed` timestamps \u2014\
+      \ Task Detail dates row shows \"\u2014\""
     status: done
     priority: high
     created: 2026-05-04T14:54
@@ -630,7 +634,8 @@ epics:
     - v3-edit-009
     completed: 2026-05-05T05:55
   - id: v3-polish-034
-    title: Edit-components demo page renders only header — demo sections never mount
+    title: "Edit-components demo page renders only header \u2014 demo sections never\
+      \ mount"
     status: archived
     priority: low
     created: 2026-05-05T05:28
@@ -678,7 +683,7 @@ epics:
     - plugins/taskmaster/viewer/**
     archived_reason: superseded
   - id: v3-polish-038
-    title: Search input — add a clear-button (×) that empties the field
+    title: "Search input \u2014 add a clear-button (\xD7) that empties the field"
     status: archived
     priority: low
     created: 2026-05-07T06:06
@@ -689,7 +694,8 @@ epics:
     - plugins/taskmaster/viewer/**
     archived_reason: superseded
   - id: v3-polish-039
-    title: Timestamp display broken across viewer — handovers are the visible symptom
+    title: "Timestamp display broken across viewer \u2014 handovers are the visible\
+      \ symptom"
     status: done
     priority: high
     created: 2026-05-07T06:06
@@ -714,7 +720,7 @@ epics:
     - plugins/taskmaster/viewer/**
     archived_reason: superseded
   - id: v3-polish-041
-    title: Handover status field — todo/in-progress/done lifecycle
+    title: "Handover status field \u2014 todo/in-progress/done lifecycle"
     status: in-review
     priority: high
     created: 2026-05-09T18:51
@@ -804,8 +810,8 @@ epics:
     branch: feature/v3-polish-045
     worktree: .worktrees/v3-polish-045
   - id: v3-polish-046
-    title: 'Viewer: negate/exclude filter — filter tasks whose name does NOT contain
-      a string'
+    title: "Viewer: negate/exclude filter \u2014 filter tasks whose name does NOT\
+      \ contain a string"
     status: in-review
     priority: medium
     created: 2026-05-14T03:51
@@ -820,8 +826,8 @@ epics:
     patchnote: 'New: type ! before your search term to exclude matching tasks (e.g.
       !Asset Studio shows everything except Asset Studio tasks).'
   - id: v3-polish-047
-    title: 'Viewer: Epic filter polish — phase-scoped visibility, archived hidden
-      by default, sort by phase task count'
+    title: "Viewer: Epic filter polish \u2014 phase-scoped visibility, archived hidden\
+      \ by default, sort by phase task count"
     status: in-review
     priority: medium
     created: 2026-05-14T03:51
@@ -852,8 +858,8 @@ epics:
     - plugins/taskmaster/taskmaster_v3.py
     - plugins/taskmaster/viewer/
   - id: v3-polish-049
-    title: 'Viewer: per-project color themes via design tokens — differentiate Kanbans
-      across projects'
+    title: "Viewer: per-project color themes via design tokens \u2014 differentiate\
+      \ Kanbans across projects"
     status: todo
     priority: medium
     created: 2026-05-14T03:54
@@ -956,10 +962,10 @@ epics:
 - id: v3-release
   name: V3 Release (2.0)
   status: planned
-  description: Package and ship taskmaster 2.0.0 — major version bump reflecting the
-    v3 schema (handovers/lessons/issues/recap/auto-mode) and redesigned viewer. Schema
-    break justifies major bump from 1.x. Covers MCP tool exposure, version bump, release
-    notes, marketplace sync, and merge to master.
+  description: "Package and ship taskmaster 2.0.0 \u2014 major version bump reflecting\
+    \ the v3 schema (handovers/lessons/issues/recap/auto-mode) and redesigned viewer.\
+    \ Schema break justifies major bump from 1.x. Covers MCP tool exposure, version\
+    \ bump, release notes, marketplace sync, and merge to master."
   created: 2026-05-02T05:46
   tasks:
   - id: v3-release-001
@@ -1084,14 +1090,14 @@ epics:
 - id: v3-skills
   name: V3 Skills
   status: active
-  description: Author the user-facing skill layer for v3 — the connective tissue between
-    conversation and the new v3 entities (handovers, lessons, issues, recap, auto-loop).
-    Backend Python is built; viewer screens are built; the skills that let a user
-    actually create and consume these artifacts from a chat are missing. Covers the
-    three entity skills (handover/lesson/issue), retrofits to start-session/pick-task/end-session
-    so they surface v3 data, a quality pass on the auto-task/epic/phase loop skills,
-    the migration skill, and a dogfood walkthrough. Authored against real-world patterns
-    mined from CodeMaestro's 457-task v1 backlog (see v3-skills-001).
+  description: "Author the user-facing skill layer for v3 \u2014 the connective tissue\
+    \ between conversation and the new v3 entities (handovers, lessons, issues, recap,\
+    \ auto-loop). Backend Python is built; viewer screens are built; the skills that\
+    \ let a user actually create and consume these artifacts from a chat are missing.\
+    \ Covers the three entity skills (handover/lesson/issue), retrofits to start-session/pick-task/end-session\
+    \ so they surface v3 data, a quality pass on the auto-task/epic/phase loop skills,\
+    \ the migration skill, and a dogfood walkthrough. Authored against real-world\
+    \ patterns mined from CodeMaestro's 457-task v1 backlog (see v3-skills-001)."
   created: 2026-05-02T16:30
   tasks:
   - id: v3-skills-001
@@ -1111,7 +1117,7 @@ epics:
     worktree: .worktrees/taskmaster-v3
     completed: 2026-05-03T18:02
   - id: v3-skills-002
-    title: taskmaster:handover skill — write/read flow
+    title: "taskmaster:handover skill \u2014 write/read flow"
     status: in-review
     priority: critical
     created: 2026-05-02T16:30
@@ -1124,7 +1130,7 @@ epics:
     - plugins/taskmaster/skills/handover/SKILL.md
     - plugins/taskmaster/taskmaster_v3.py
   - id: v3-skills-003
-    title: taskmaster:lesson skill — write/reinforce/promote
+    title: "taskmaster:lesson skill \u2014 write/reinforce/promote"
     status: in-review
     priority: critical
     created: 2026-05-02T16:30
@@ -1139,12 +1145,12 @@ epics:
     started: 2026-05-03T19:33
     branch: feature/taskmaster-v3
     worktree: .worktrees/taskmaster-v3
-    patchnote: New taskmaster:lesson skill captures, reinforces, and promotes lessons
-      learned from sessions — with auto-extraction from transcripts, three-tier loading
-      discipline, and handover review-flag wiring.
+    patchnote: "New taskmaster:lesson skill captures, reinforces, and promotes lessons\
+      \ learned from sessions \u2014 with auto-extraction from transcripts, three-tier\
+      \ loading discipline, and handover review-flag wiring."
     release: 2.0.0
   - id: v3-skills-004
-    title: taskmaster:issue skill — log/track/close defects
+    title: "taskmaster:issue skill \u2014 log/track/close defects"
     status: in-review
     priority: critical
     created: 2026-05-02T16:30
@@ -1158,7 +1164,7 @@ epics:
     - plugins/taskmaster/taskmaster_v3.py
     started: 2026-05-05T15:29
   - id: v3-skills-005
-    title: taskmaster:migrate-v3 skill — guided opt-in migration
+    title: "taskmaster:migrate-v3 skill \u2014 guided opt-in migration"
     status: in-review
     priority: high
     created: 2026-05-02T16:30
@@ -1184,7 +1190,7 @@ epics:
     started: 2026-05-05T15:47
     completed: 2026-05-05T16:02
   - id: v3-skills-007
-    title: Retrofit start-session — surface v3 data plane
+    title: "Retrofit start-session \u2014 surface v3 data plane"
     status: done
     priority: high
     created: 2026-05-02T16:30
@@ -1202,7 +1208,7 @@ epics:
     started: 2026-05-05T16:33
     completed: 2026-05-05T16:36
   - id: v3-skills-008
-    title: Retrofit pick-task — "continue this task" trigger + v3 surfaces
+    title: "Retrofit pick-task \u2014 \"continue this task\" trigger + v3 surfaces"
     status: done
     priority: high
     created: 2026-05-02T16:30
@@ -1219,7 +1225,7 @@ epics:
     started: 2026-05-05T16:30
     completed: 2026-05-05T16:33
   - id: v3-skills-009
-    title: Retrofit end-session — auto-offer handover + snapshot
+    title: "Retrofit end-session \u2014 auto-offer handover + snapshot"
     status: done
     priority: high
     created: 2026-05-02T16:30
@@ -1233,7 +1239,7 @@ epics:
     started: 2026-05-05T16:27
     completed: 2026-05-05T16:30
   - id: v3-skills-010
-    title: Quality pass — auto-task skill (wire to real handover/lesson tools)
+    title: "Quality pass \u2014 auto-task skill (wire to real handover/lesson tools)"
     status: done
     priority: high
     created: 2026-05-02T16:30
@@ -1250,7 +1256,7 @@ epics:
     started: 2026-05-05T16:36
     completed: 2026-05-05T16:40
   - id: v3-skills-011
-    title: Quality pass — auto-epic + auto-phase orchestrator skills
+    title: "Quality pass \u2014 auto-epic + auto-phase orchestrator skills"
     status: done
     priority: medium
     created: 2026-05-02T16:30
@@ -1291,7 +1297,7 @@ epics:
     anchors:
     - plugins/taskmaster/tests/
   - id: v3-skills-014
-    title: End-to-end skill walkthrough — fresh-project dogfood
+    title: "End-to-end skill walkthrough \u2014 fresh-project dogfood"
     status: todo
     priority: high
     created: 2026-05-02T16:30
@@ -1318,7 +1324,7 @@ epics:
     started: 2026-05-05T16:02
     completed: 2026-05-05T16:15
   - id: v3-skills-016
-    title: Dogfood lesson skill — sync plugin install + run end-to-end
+    title: "Dogfood lesson skill \u2014 sync plugin install + run end-to-end"
     status: todo
     priority: high
     created: 2026-05-04T05:15
@@ -1330,8 +1336,8 @@ epics:
     anchors:
     - plugins/taskmaster/skills/lesson/**
   - id: v3-skills-017
-    title: Lesson firing cadence — broaden creation heuristic + add mid-session resurfacing
-      surfaces
+    title: "Lesson firing cadence \u2014 broaden creation heuristic + add mid-session\
+      \ resurfacing surfaces"
     status: todo
     priority: high
     created: 2026-05-09T06:02
@@ -1348,11 +1354,11 @@ epics:
 - id: v3-teams
   name: V3 Agent Teams (Optional)
   status: planned
-  description: Sibling capability layer to v3-skills — opt-in agent-teams skills proposed
-    in design-v3-agent-teams.md. Not a sixth pillar; adopt independently or skip entirely
-    from 2.0. Each skill enforces a cost-justification gate ("what would a solo Opus
-    miss?") to prevent reflex team formation. Cross-cutting refactor teams deferred
-    to v3.5+.
+  description: "Sibling capability layer to v3-skills \u2014 opt-in agent-teams skills\
+    \ proposed in design-v3-agent-teams.md. Not a sixth pillar; adopt independently\
+    \ or skip entirely from 2.0. Each skill enforces a cost-justification gate (\"\
+    what would a solo Opus miss?\") to prevent reflex team formation. Cross-cutting\
+    \ refactor teams deferred to v3.5+."
   created: 2026-05-02T16:30
   tasks:
   - id: v3-teams-001
@@ -1404,7 +1410,7 @@ epics:
     anchors:
     - plugins/taskmaster/skills/debug-team/SKILL.md
   - id: v3-teams-005
-    title: Stretch — pair-then-merge and open-debate protocols
+    title: "Stretch \u2014 pair-then-merge and open-debate protocols"
     status: todo
     priority: low
     created: 2026-05-02T16:30
@@ -1603,7 +1609,7 @@ epics:
     started: 2026-05-05T06:07
     completed: 2026-05-05T06:13
   - id: v3-edit-013
-    title: Wire `+ Task` / `✎ Edit` buttons to entity modal
+    title: "Wire `+ Task` / `\u270E Edit` buttons to entity modal"
     status: done
     priority: high
     created: 2026-05-05T04:24
@@ -1649,7 +1655,7 @@ epics:
     started: 2026-05-05T06:30
     completed: 2026-05-05T06:40
   - id: v3-edit-016
-    title: Add Playwright E2E coverage for + Task / ✎ Edit modal flow
+    title: "Add Playwright E2E coverage for + Task / \u270E Edit modal flow"
     status: todo
     priority: low
     created: 2026-05-05T06:22
@@ -1659,7 +1665,7 @@ epics:
     anchors:
     - plugins/taskmaster/viewer/tests/edit-task.spec.js
 - id: jira
-  name: Jira ↔ Taskmaster Integration
+  name: "Jira \u2194 Taskmaster Integration"
   status: active
   description: 'V1 of the Jira integration: tracker entity (read-only mirror of an
     external issue), per-project multi-instance Jira config with env-var token, asymmetric
@@ -1675,7 +1681,7 @@ epics:
   created: 2026-05-07T02:09
   tasks:
   - id: jira-001
-    title: Tracker entity — schema, file format, validator integration
+    title: "Tracker entity \u2014 schema, file format, validator integration"
     status: in-progress
     priority: high
     created: 2026-05-07T02:09
@@ -1703,7 +1709,7 @@ epics:
     - plugins/taskmaster/.taskmaster/jira.local.yaml
     - '**/.gitignore'
   - id: jira-003
-    title: ADF → markdown reader + markdown → Wiki Markup writer
+    title: "ADF \u2192 markdown reader + markdown \u2192 Wiki Markup writer"
     status: todo
     priority: medium
     created: 2026-05-07T02:09
@@ -1725,7 +1731,7 @@ epics:
     anchors:
     - plugins/taskmaster/lib/**
   - id: jira-005
-    title: backlog_jira_pull MCP tool — JQL → tracker upsert with hash-skip
+    title: "backlog_jira_pull MCP tool \u2014 JQL \u2192 tracker upsert with hash-skip"
     status: todo
     priority: high
     created: 2026-05-07T02:10
@@ -1782,7 +1788,7 @@ epics:
     - plugins/taskmaster/backlog_server.py
     - plugins/taskmaster/lib/**
   - id: jira-009
-    title: backlog_jira_decompose MCP tool — sub-agent task proposer
+    title: "backlog_jira_decompose MCP tool \u2014 sub-agent task proposer"
     status: todo
     priority: medium
     created: 2026-05-07T02:10
@@ -1825,7 +1831,7 @@ epics:
     - plugins/taskmaster/skills/end-session/**
     - plugins/taskmaster/skills/pick-task/**
   - id: jira-012
-    title: End-to-end smoke against real Jira instance — V1 DoD validation
+    title: "End-to-end smoke against real Jira instance \u2014 V1 DoD validation"
     status: todo
     priority: high
     created: 2026-05-07T02:11
@@ -1838,7 +1844,7 @@ epics:
     - plugins/taskmaster/docs/specs/jira-integration-design.md
     - plugins/taskmaster/tests/**
   - id: jira-013
-    title: Jira credentials store — keyring backend + resolver fallback chain
+    title: "Jira credentials store \u2014 keyring backend + resolver fallback chain"
     status: todo
     priority: medium
     created: 2026-05-07T05:53
@@ -1852,7 +1858,8 @@ epics:
     - plugins/taskmaster/backlog_server.py
     - plugins/taskmaster/lib/jira_credentials.py
   - id: jira-014
-    title: Viewer settings screen — Jira credentials UI (endpoints + CSRF + form)
+    title: "Viewer settings screen \u2014 Jira credentials UI (endpoints + CSRF +\
+      \ form)"
     status: todo
     priority: medium
     created: 2026-05-07T05:53
@@ -1867,17 +1874,17 @@ epics:
 - id: mobile-dash
   name: Mobile-Adaptive Dashboard
   status: active
-  description: 'Make the Taskmaster viewer dashboard usable on mobile devices. Headline
-    change: the 5-column kanban stacks vertically (one column per row, posts-like)
-    below a mobile breakpoint. All other dashboard surfaces — topbar, filter chips,
-    dropdowns, search, task cards, auto-mode strip, modals — also adapt: full-width
-    controls, larger touch targets, full-screen modals, no horizontal scroll. Desktop
-    layout unchanged at >=md breakpoint.'
+  description: "Make the Taskmaster viewer dashboard usable on mobile devices. Headline\
+    \ change: the 5-column kanban stacks vertically (one column per row, posts-like)\
+    \ below a mobile breakpoint. All other dashboard surfaces \u2014 topbar, filter\
+    \ chips, dropdowns, search, task cards, auto-mode strip, modals \u2014 also adapt:\
+    \ full-width controls, larger touch targets, full-screen modals, no horizontal\
+    \ scroll. Desktop layout unchanged at >=md breakpoint."
   created: 2026-05-07T22:34
   tasks:
   - id: mobile-dash-001
-    title: Responsive scaffolding — viewport meta, breakpoint tokens, mobile smoke
-      pass
+    title: "Responsive scaffolding \u2014 viewport meta, breakpoint tokens, mobile\
+      \ smoke pass"
     status: done
     priority: high
     created: 2026-05-07T22:35
@@ -1952,7 +1959,7 @@ epics:
       auto-mode strip compacts to a single tappable row, and all dashboard widget
       grids stack to a single column.'
   - id: mobile-dash-005
-    title: Mobile-optimize modals — task detail, entity modal, conflict banner
+    title: "Mobile-optimize modals \u2014 task detail, entity modal, conflict banner"
     status: done
     priority: medium
     created: 2026-05-07T22:35
@@ -1977,10 +1984,10 @@ epics:
 - id: v3-bugs
   name: V3 Bugs and Mechanical Polish
   status: active
-  description: Well-defined bugs and mechanical polish items split out from V3 Polish
-    so they can run unattended via auto-epic. Tasks here have specific repro, anchors,
-    and known fix paths — no design ambiguity. Design-heavy items (pickers, screen
-    redesigns, audits) remain in V3 Polish.
+  description: "Well-defined bugs and mechanical polish items split out from V3 Polish\
+    \ so they can run unattended via auto-epic. Tasks here have specific repro, anchors,\
+    \ and known fix paths \u2014 no design ambiguity. Design-heavy items (pickers,\
+    \ screen redesigns, audits) remain in V3 Polish."
   created: 2026-05-08T03:41
   tasks:
   - id: v3-bugs-001
@@ -1997,11 +2004,13 @@ epics:
     - plugins/taskmaster/viewer/**
     started: 2026-05-08T03:48
     completed: 2026-05-08T04:02
-    patchnote: Phase stepper and swimlane grouping now correctly order phases with
-      non-integer IDs (e.g. 1, 1.5, 2) regardless of YAML insertion order — phase
-      "2" no longer incorrectly appears as completed when "1.5" is the active phase.
+    patchnote: "Phase stepper and swimlane grouping now correctly order phases with\
+      \ non-integer IDs (e.g. 1, 1.5, 2) regardless of YAML insertion order \u2014\
+      \ phase \"2\" no longer incorrectly appears as completed when \"1.5\" is the\
+      \ active phase."
   - id: v3-bugs-002
-    title: Timestamp display broken across viewer — handovers are the visible symptom
+    title: "Timestamp display broken across viewer \u2014 handovers are the visible\
+      \ symptom"
     status: done
     priority: high
     created: 2026-05-08T03:41
@@ -2027,8 +2036,8 @@ epics:
     - plugins/taskmaster/viewer/js/screens/issues.js
     started: 2026-05-08T04:11
     completed: 2026-05-08T04:23
-    patchnote: Filter chips on Lessons and Issues now display a hit count suffix (e.g.
-      "ui · 3") so you can predict results before clicking.
+    patchnote: "Filter chips on Lessons and Issues now display a hit count suffix\
+      \ (e.g. \"ui \xB7 3\") so you can predict results before clicking."
     release: alpha-1.0
   - id: v3-bugs-004
     title: Task Detail right rail visually disappears when all 6 panels are empty
@@ -2045,7 +2054,8 @@ epics:
     patchnote: Fixed right rail disappearing when opening tasks with no docs, lessons,
       handovers, issues, or dependencies.
   - id: v3-bugs-005
-    title: Edit-components demo page renders only header — demo sections never mount
+    title: "Edit-components demo page renders only header \u2014 demo sections never\
+      \ mount"
     status: done
     priority: low
     created: 2026-05-08T03:42
@@ -2073,7 +2083,7 @@ epics:
     started: 2026-05-08T04:38
     completed: 2026-05-08T04:55
   - id: v3-bugs-007
-    title: Search input — add a clear-button (×) that empties the field
+    title: "Search input \u2014 add a clear-button (\xD7) that empties the field"
     status: done
     priority: low
     created: 2026-05-08T03:42
@@ -2084,9 +2094,9 @@ epics:
     - plugins/taskmaster/viewer/**
     started: 2026-05-08T04:55
     completed: 2026-05-08T05:03
-    patchnote: Search inputs across all viewer screens now show a × clear button when
-      the field has content; clicking it (or pressing Escape) empties the field and
-      re-focuses it.
+    patchnote: "Search inputs across all viewer screens now show a \xD7 clear button\
+      \ when the field has content; clicking it (or pressing Escape) empties the field\
+      \ and re-focuses it."
   - id: v3-bugs-008
     title: Viewer empty state shows count of filtered-out tasks instead of generic
       "No tasks match your filters"
@@ -2106,11 +2116,11 @@ epics:
 - id: auto-brainstorm-goal
   name: Auto-Brainstorm + /goal
   status: planned
-  description: Opinionated unsupervised spec authoring (auto-brainstorm), autonomous-from-zero
-    entry point (/goal), and the plugin's first dedicated subagent (taskmaster:goal-judge
-    — LLM-judged completion gate). Folds Codex /goal + Hermes judge-loop + alignment-interview
-    patterns into taskmaster's auto-mode. See docs/superpowers/specs/2026-05-10-auto-brainstorm-goal-design.md
-    and docs/superpowers/plans/2026-05-10-auto-brainstorm-goal.md.
+  description: "Opinionated unsupervised spec authoring (auto-brainstorm), autonomous-from-zero\
+    \ entry point (/goal), and the plugin's first dedicated subagent (taskmaster:goal-judge\
+    \ \u2014 LLM-judged completion gate). Folds Codex /goal + Hermes judge-loop +\
+    \ alignment-interview patterns into taskmaster's auto-mode. See docs/superpowers/specs/2026-05-10-auto-brainstorm-goal-design.md\
+    \ and docs/superpowers/plans/2026-05-10-auto-brainstorm-goal.md."
   created: 2026-05-10T06:10
   tasks:
   - id: auto-brainstorm-goal-001
@@ -2125,9 +2135,9 @@ epics:
 - id: agentic-os
   name: Agentic OS Transition
   status: planned
-  description: Transition Taskmaster into the broader Agentic OS vision — rename,
-    rebrand, resurface docs, consolidate all projects into a single dashboard, LLMWiki
-    integration, and architectural evolution toward a full agentic operating system.
+  description: "Transition Taskmaster into the broader Agentic OS vision \u2014 rename,\
+    \ rebrand, resurface docs, consolidate all projects into a single dashboard, LLMWiki\
+    \ integration, and architectural evolution toward a full agentic operating system."
   created: 2026-05-14T03:59
   tasks:
   - id: agentic-os-001
@@ -2146,13 +2156,13 @@ epics:
 - id: progressive-disclosure
   name: Progressive Disclosure (token-load reduction)
   status: active
-  description: 'Reduce taskmaster''s token cost via slim-default MCP reads, parallel
-    handovers, typed links schema, glance-first ceremonies, and skill body slimming.
-    Five plans (A–E) ship independently. Spec: docs/superpowers/specs/2026-05-15-taskmaster-progressive-disclosure-design.md'
+  description: "Reduce taskmaster's token cost via slim-default MCP reads, parallel\
+    \ handovers, typed links schema, glance-first ceremonies, and skill body slimming.\
+    \ Five plans (A\u2013E) ship independently. Spec: docs/superpowers/specs/2026-05-15-taskmaster-progressive-disclosure-design.md"
   created: 2026-05-17T04:59
   tasks:
   - id: progressive-disclosure-001
-    title: 'Plan A — Foundation: tldr field + slim MCP + tldr index (24 TDD tasks)'
+    title: "Plan A \u2014 Foundation: tldr field + slim MCP + tldr index (24 TDD tasks)"
     status: done
     priority: high
     created: 2026-05-17T04:59
@@ -2167,8 +2177,8 @@ epics:
     worktree: .worktrees/progressive-disclosure-001
     completed: 2026-05-17T16:10
   - id: progressive-disclosure-002
-    title: 'Plan B — Parallel handovers: open/closed/superseded + smart auto-close
-      (15 tasks)'
+    title: "Plan B \u2014 Parallel handovers: open/closed/superseded + smart auto-close\
+      \ (15 tasks)"
     status: done
     priority: medium
     created: 2026-05-17T04:59
@@ -2184,8 +2194,8 @@ epics:
     started: 2026-05-17T16:19
     completed: 2026-05-17T20:29
   - id: progressive-disclosure-003
-    title: 'Plan D — Ceremonies: glance-first start-session/pick-task with --deep
-      (13 tasks)'
+    title: "Plan D \u2014 Ceremonies: glance-first start-session/pick-task with --deep\
+      \ (13 tasks)"
     status: done
     priority: medium
     created: 2026-05-17T04:59
@@ -2201,13 +2211,13 @@ epics:
     branch: feature/progressive-disclosure-003
     worktree: .worktrees/progressive-disclosure-003
     completed: 2026-05-18T01:54
-    patchnote: Plan D ships glance-first ceremonies — `start-session` and `pick-task`
-      default to ~800–1000 token briefings, with `--deep` for the full ceremony. Heavy
-      content moved to per-skill `references/deep-mode.md`. Mid-session deepening
-      table in router. Completes Progressive Disclosure epic (A–E).
+    patchnote: "Plan D ships glance-first ceremonies \u2014 `start-session` and `pick-task`\
+      \ default to ~800\u20131000 token briefings, with `--deep` for the full ceremony.\
+      \ Heavy content moved to per-skill `references/deep-mode.md`. Mid-session deepening\
+      \ table in router. Completes Progressive Disclosure epic (A\u2013E)."
   - id: progressive-disclosure-004
-    title: 'Plan C — Programmatic linking: typed links schema + symmetric sync + MCP
-      CRUD (25 tasks)'
+    title: "Plan C \u2014 Programmatic linking: typed links schema + symmetric sync\
+      \ + MCP CRUD (25 tasks)"
     status: done
     priority: medium
     created: 2026-05-17T05:00
@@ -2222,8 +2232,8 @@ epics:
     started: 2026-05-17T16:29
     completed: 2026-05-17T20:44
   - id: progressive-disclosure-005
-    title: 'Plan E — Skill slimming: bodies → references/ + description audit (36
-      tasks)'
+    title: "Plan E \u2014 Skill slimming: bodies \u2192 references/ + description\
+      \ audit (36 tasks)"
     status: done
     priority: medium
     created: 2026-05-17T05:00
@@ -2238,9 +2248,9 @@ epics:
 - id: guard-hooks
   name: Guard Hooks Token-Efficiency
   status: active
-  description: Reduce token waste from guard-hooks plugin's block-then-retry approval
-    cycles. Driven by reflect-auto-improve audit + harvest 2026-05-17 — found ~120k
-    tokens wasted in 14d across 356 block events. See docs/reflect/audits/2026-05-17-guard-hooks.md.
+  description: "Reduce token waste from guard-hooks plugin's block-then-retry approval\
+    \ cycles. Driven by reflect-auto-improve audit + harvest 2026-05-17 \u2014 found\
+    \ ~120k tokens wasted in 14d across 356 block events. See docs/reflect/audits/2026-05-17-guard-hooks.md."
   created: 2026-05-17T07:04
   tasks:
   - id: guard-hooks-001
@@ -2257,8 +2267,8 @@ epics:
     branch: feature/guard-hooks-001
     worktree: .worktrees/guard-hooks-001
   - id: guard-hooks-002
-    title: Stop consume-approval.sh burning the token on benign intermediate Bash
-      (Fix B — armed marker)
+    title: "Stop consume-approval.sh burning the token on benign intermediate Bash\
+      \ (Fix B \u2014 armed marker)"
     status: in-review
     priority: high
     created: 2026-05-17T07:05
@@ -2277,8 +2287,8 @@ epics:
     branch: feature/guard-hooks-002
     worktree: .worktrees/guard-hooks-002
   - id: guard-hooks-003
-    title: 'Fix ISS-012: per-guard approval scope — sibling guards no longer silently
-      bypassed'
+    title: "Fix ISS-012: per-guard approval scope \u2014 sibling guards no longer\
+      \ silently bypassed"
     tldr: Scope-tag the ~/.claude/guard-approve-$SESSION_ID token so approving one
       guard (e.g. push-to-master) doesn't silently authorize sibling guards (e.g.
       check-version-bump).
@@ -2297,18 +2307,19 @@ epics:
     branch: feature/guard-hooks-003
     worktree: .worktrees/guard-hooks-003
 - id: project-manifest
-  name: .taskmaster/project.yaml — Project Manifest
+  name: ".taskmaster/project.yaml \u2014 Project Manifest"
   status: active
-  description: 'Introduce .taskmaster/project.yaml as taskmaster''s Project manifest
-    — structured truth for repos, submodules, branch protocols, error-trace ladders,
-    deploy targets, and conventions. Pairs with backlog.yaml. Forward-compatible with
-    Agentic OS where Projects become first-class. Foundation for harvest proposals
-    IDEA-004 (Multi-Repo-Choreographer), IDEA-006 (Diagnose-Auth-Or-Not), and IDEA-008
-    (Submodule-Drift-Check). Spec: docs/superpowers/specs/2026-05-17-taskmaster-project-yaml-design.md'
+  description: "Introduce .taskmaster/project.yaml as taskmaster's Project manifest\
+    \ \u2014 structured truth for repos, submodules, branch protocols, error-trace\
+    \ ladders, deploy targets, and conventions. Pairs with backlog.yaml. Forward-compatible\
+    \ with Agentic OS where Projects become first-class. Foundation for harvest proposals\
+    \ IDEA-004 (Multi-Repo-Choreographer), IDEA-006 (Diagnose-Auth-Or-Not), and IDEA-008\
+    \ (Submodule-Drift-Check). Spec: docs/superpowers/specs/2026-05-17-taskmaster-project-yaml-design.md"
   created: 2026-05-17T22:55
   tasks:
   - id: project-manifest-001
-    title: Implement .taskmaster/project.yaml manifest — schema + loader + 6 MCP tools
+    title: "Implement .taskmaster/project.yaml manifest \u2014 schema + loader + 6\
+      \ MCP tools"
     status: in-progress
     priority: high
     created: 2026-05-17T23:01
@@ -2353,9 +2364,9 @@ epics:
     started: 2026-05-20T12:53
     branch: feature/project-structure-visibility-001
     worktree: .worktrees/project-structure-visibility-001
-    patchnote: Sessions screen now shows real local timestamps and durations instead
-      of fabricating "02:00 → 02:00". Legacy date-only sessions render the date with
-      no fake time.
+    patchnote: "Sessions screen now shows real local timestamps and durations instead\
+      \ of fabricating \"02:00 \u2192 02:00\". Legacy date-only sessions render the\
+      \ date with no fake time."
   - id: project-structure-visibility-002
     title: 'Sessions screen: newest-first + bounded scroll container'
     tldr: clusterParallelSessions() in viewer/js/components/timeline.js re-sorts ASC
@@ -2372,9 +2383,10 @@ epics:
     - plugins/taskmaster/viewer/css/screens/sessions.css
   - id: project-structure-visibility-003
     title: 'Project Structure screen: sub-repo cards with worktree mini-trees'
-    tldr: New backlog_project_structure MCP tool + new viewer screen showing monorepo
-      → sub-repos (embedded + submodules) → worktrees → tasks/handovers with merge
-      ladder. Auto-discover, on-demand refresh, forward-compatible with project.yaml.
+    tldr: "New backlog_project_structure MCP tool + new viewer screen showing monorepo\
+      \ \u2192 sub-repos (embedded + submodules) \u2192 worktrees \u2192 tasks/handovers\
+      \ with merge ladder. Auto-discover, on-demand refresh, forward-compatible with\
+      \ project.yaml."
     status: todo
     priority: medium
     created: 2026-05-20T12:53
@@ -2398,22 +2410,22 @@ phases:
 - id: post-v2-architecture
   name: Post-2.0 Architecture
   status: planned
-  description: Forward-looking architecture rework after 2.0 ships — single-app daemon,
-    project registry, project-switcher UX, cross-project visibility.
+  description: "Forward-looking architecture rework after 2.0 ships \u2014 single-app\
+    \ daemon, project registry, project-switcher UX, cross-project visibility."
   order: 2
   created: 2026-05-08T03:31
 handovers:
 - id: 2026-05-20-plan-a-sessions-time-shipped-end-to-end
   date: '2026-05-20'
   created: '2026-05-20T11:39:18.698135+00:00'
-  tldr: Plan A (sessions-time) shipped end-to-end on feature/project-structure-visibility-001
-    — 8 reviewed commits fix the "2am" bug via `_handover_time` helper + `time_resolution`
-    advisory field + viewer rendering using existing `formatDurationCompact`. Awaiting
-    user manual smoke before merge.
-  next_action: 'User: open viewer Sessions screen and confirm (a) today''s session
-    shows real local HH:MM and a duration suffix, (b) legacy 2026-05-08 handovers
-    render as just a date with no time. Then merge feature/project-structure-visibility-001
-    locally and move to Plan B (sessions-sort-scroll) — plan at docs/superpowers/plans/2026-05-19-sessions-sort-scroll.md.'
+  tldr: "Plan A (sessions-time) shipped end-to-end on feature/project-structure-visibility-001\
+    \ \u2014 8 reviewed commits fix the \"2am\" bug via `_handover_time` helper +\
+    \ `time_resolution` advisory field + viewer rendering using existing `formatDurationCompact`.\
+    \ Awaiting user manual smoke before merge."
+  next_action: "User: open viewer Sessions screen and confirm (a) today's session\
+    \ shows real local HH:MM and a duration suffix, (b) legacy 2026-05-08 handovers\
+    \ render as just a date with no time. Then merge feature/project-structure-visibility-001\
+    \ locally and move to Plan B (sessions-sort-scroll) \u2014 plan at docs/superpowers/plans/2026-05-19-sessions-sort-scroll.md."
   task_ids:
   - project-structure-visibility-001
   session_kind: milestone
@@ -2421,8 +2433,8 @@ handovers:
 - id: 2026-05-18-progressive-disclosure-epic-plans-a-e-pu
   date: '2026-05-18'
   created: '2026-05-18T15:34:29.317260+00:00'
-  tldr: Progressive Disclosure epic (Plans A–E) pushed to origin/master at 14c999a.
-    PD milestone now public.
+  tldr: "Progressive Disclosure epic (Plans A\u2013E) pushed to origin/master at 14c999a.\
+    \ PD milestone now public."
   next_action: PD epic is shipped + pushed. Optional follow-ups remain (OR-assertion
     tighten, pick-task trigger phrase, archive PD epic, lesson on strict-xfail coordination).
     Otherwise pivot to v3-polish or another epic.
@@ -2433,13 +2445,13 @@ handovers:
 - id: 2026-05-18-designed-taskmaster-project-yaml-project
   date: '2026-05-18'
   created: '2026-05-17T23:55:05.991008+00:00'
-  tldr: Designed .taskmaster/project.yaml (Project manifest) — full schema + 9-task
-    TDD implementation plan ready; foundation for harvest consumers IDEA-004/006/008;
-    awaiting user review of spec+plan, then execution choice on project-manifest-001.
-  next_action: 'User reviews docs/superpowers/specs/2026-05-17-taskmaster-project-yaml-design.md
-    and plan 2026-05-17-taskmaster-project-yaml.md. Then choose execution mode for
-    project-manifest-001 — recommended: subagent-driven (fresh subagent per task,
-    2-stage review).'
+  tldr: "Designed .taskmaster/project.yaml (Project manifest) \u2014 full schema +\
+    \ 9-task TDD implementation plan ready; foundation for harvest consumers IDEA-004/006/008;\
+    \ awaiting user review of spec+plan, then execution choice on project-manifest-001."
+  next_action: "User reviews docs/superpowers/specs/2026-05-17-taskmaster-project-yaml-design.md\
+    \ and plan 2026-05-17-taskmaster-project-yaml.md. Then choose execution mode for\
+    \ project-manifest-001 \u2014 recommended: subagent-driven (fresh subagent per\
+    \ task, 2-stage review)."
   task_ids:
   - project-manifest-001
   session_kind: end-of-day
@@ -2447,8 +2459,8 @@ handovers:
 - id: 2026-05-18-plan-d-shipped-progressive-disclosure-a
   date: '2026-05-18'
   created: '2026-05-17T23:53:27.228845+00:00'
-  tldr: Plan D shipped → Progressive Disclosure (A-E) complete at 3.6.1; 5 unpushed
-    merges on master await push.
+  tldr: "Plan D shipped \u2192 Progressive Disclosure (A-E) complete at 3.6.1; 5 unpushed\
+    \ merges on master await push."
   next_action: Push master (A,B,C,E,D merges) when ready; PD-003 worktree removed
     during end-session.
   task_ids:
@@ -2504,8 +2516,8 @@ handovers:
 - id: 2026-05-16-auto-tier-b-batch-4-viewer-backend-tasks
   date: '2026-05-16'
   created: '2026-05-15T22:47:45.316903+00:00'
-  tldr: Auto Tier B batch — 4 viewer/backend tasks shipped to in-review on shared
-    worktree, awaiting user review + merge.
+  tldr: "Auto Tier B batch \u2014 4 viewer/backend tasks shipped to in-review on shared\
+    \ worktree, awaiting user review + merge."
   next_action: Review 8 commits on feature/auto-tier-b (.worktrees/auto-tier-b), merge
     to master when satisfied. Eyeball viewer (kanban filters, status columns) before
     merging -054 since it touches CSS class names.
@@ -2519,9 +2531,10 @@ handovers:
 - id: 2026-05-15-auto-tier-b-batch-complete-4-4-tasks-don
   date: '2026-05-15'
   created: '2026-05-15T21:42:16.024582+00:00'
-  tldr: 'Auto Tier-B batch complete: 4/4 tasks done — ISS-005 aging fix, ISS-006 status
-    key drift, negate filter, epic filter polish'
-  next_action: User review and merge feature/auto-tier-b — 8 commits total on .worktrees/auto-tier-b
+  tldr: "Auto Tier-B batch complete: 4/4 tasks done \u2014 ISS-005 aging fix, ISS-006\
+    \ status key drift, negate filter, epic filter polish"
+  next_action: "User review and merge feature/auto-tier-b \u2014 8 commits total on\
+    \ .worktrees/auto-tier-b"
   task_ids:
   - v3-polish-053
   - v3-polish-054
@@ -2532,9 +2545,9 @@ handovers:
 - id: 2026-05-15-v3-polish-047-complete-epic-filter-polis
   date: '2026-05-15'
   created: '2026-05-15T21:41:40.265763+00:00'
-  tldr: 'v3-polish-047 complete: epic filter polish — phase-scoped visibility, archived
-    hidden by default, phase-scoped ranking'
-  next_action: batch complete — all 4 tasks done, call backlog_auto_finish
+  tldr: "v3-polish-047 complete: epic filter polish \u2014 phase-scoped visibility,\
+    \ archived hidden by default, phase-scoped ranking"
+  next_action: "batch complete \u2014 all 4 tasks done, call backlog_auto_finish"
   task_ids:
   - v3-polish-047
   session_kind: auto-stage
@@ -2542,9 +2555,9 @@ handovers:
 - id: 2026-05-15-v3-polish-046-complete-negate-exclude-fi
   date: '2026-05-15'
   created: '2026-05-15T21:34:57.164014+00:00'
-  tldr: 'v3-polish-046 complete: negate/exclude filter — ! prefix inverts search in
-    kanban and table screens'
-  next_action: continue auto run — next task v3-polish-047
+  tldr: "v3-polish-046 complete: negate/exclude filter \u2014 ! prefix inverts search\
+    \ in kanban and table screens"
+  next_action: "continue auto run \u2014 next task v3-polish-047"
   task_ids:
   - v3-polish-046
   session_kind: auto-stage
@@ -2552,9 +2565,9 @@ handovers:
 - id: 2026-05-15-v3-polish-054-complete-iss-006-status-ke
   date: '2026-05-15'
   created: '2026-05-15T21:30:02.571641+00:00'
-  tldr: 'v3-polish-054 complete: ISS-006 status key drift — Option A hyphenated convergence
-    across all viewer files'
-  next_action: continue auto run — next task v3-polish-046
+  tldr: "v3-polish-054 complete: ISS-006 status key drift \u2014 Option A hyphenated\
+    \ convergence across all viewer files"
+  next_action: "continue auto run \u2014 next task v3-polish-046"
   task_ids:
   - v3-polish-054
   session_kind: auto-stage
@@ -2562,9 +2575,9 @@ handovers:
 - id: 2026-05-15-v3-polish-053-complete-iss-005-date-only
   date: '2026-05-15'
   created: '2026-05-15T21:21:31.068378+00:00'
-  tldr: 'v3-polish-053 complete: ISS-005 date-only discovered crash — tests + missing
-    MCP defensive wrapper'
-  next_action: continue auto run — next task v3-polish-054
+  tldr: "v3-polish-053 complete: ISS-005 date-only discovered crash \u2014 tests +\
+    \ missing MCP defensive wrapper"
+  next_action: "continue auto run \u2014 next task v3-polish-054"
   task_ids:
   - v3-polish-053
   session_kind: auto-stage
@@ -2572,8 +2585,8 @@ handovers:
 - id: 2026-05-11-drafted-pages-spec-visual-html-companion
   date: '2026-05-11'
   created: '2026-05-11T21:27:27.145747+00:00'
-  tldr: Drafted Pages spec — visual HTML companions for taskmaster surfaces, blocked
-    on RR token completion.
+  tldr: "Drafted Pages spec \u2014 visual HTML companions for taskmaster surfaces,\
+    \ blocked on RR token completion."
   next_action: Wait for RR token bundle, then adversarial self-review the Pages spec
     before drafting implementation plan.
   task_ids: []
@@ -2582,8 +2595,8 @@ handovers:
 - id: 2026-05-11-shipped-reflect-auto-improve-plugin-4-sk
   date: '2026-05-11'
   created: '2026-05-11T20:10:40.476651+00:00'
-  tldr: 'Shipped reflect-auto-improve plugin — 4 skills + 3 commands — via PR #13
-    squash-merged.'
+  tldr: "Shipped reflect-auto-improve plugin \u2014 4 skills + 3 commands \u2014 via\
+    \ PR #13 squash-merged."
   next_action: Smoke-test the 4 skill triggers in a fresh session; fill TBD Playable
     Ad path in TARGETS.md.
   task_ids: []
@@ -2627,10 +2640,10 @@ handovers:
 - id: 2026-05-10-brainstormed-taskmaster-aware-statusline
   date: '2026-05-10'
   created: '2026-05-09T23:22:44.643758+00:00'
-  tldr: Brainstormed Taskmaster-aware statusline 3rd row; landed on à-la-carte palette
-    UX, vibe still unsettled.
-  next_action: Re-enter palette mockup with less-administrative framing — try ambient-awareness
-    over fact-list.
+  tldr: "Brainstormed Taskmaster-aware statusline 3rd row; landed on \xE0-la-carte\
+    \ palette UX, vibe still unsettled."
+  next_action: "Re-enter palette mockup with less-administrative framing \u2014 try\
+    \ ambient-awareness over fact-list."
   task_ids: []
   session_kind: exploration
   status: done
@@ -2665,8 +2678,8 @@ handovers:
   status: done
 - id: 2026-05-08-v3-polish-001-halted-at-spec-review-brai
   date: '2026-05-08'
-  tldr: v3-polish-001 halted at SPEC_REVIEW — brainstorming gate required before picker
-    shape can be locked
+  tldr: "v3-polish-001 halted at SPEC_REVIEW \u2014 brainstorming gate required before\
+    \ picker shape can be locked"
   next_action: Run superpowers:brainstorming with the user to pick between calendar
     grid / timeline spine / flat searchable list, then approve spec via SPEC_REVIEW
     gate, then implement
@@ -2676,7 +2689,8 @@ handovers:
   status: done
 - id: 2026-05-08-v3-bugs-008-complete-empty-state-now-sho
   date: '2026-05-08'
-  tldr: v3-bugs-008 complete — empty state now shows filtered count in table and kanban
+  tldr: "v3-bugs-008 complete \u2014 empty state now shows filtered count in table\
+    \ and kanban"
   next_action: continue auto run
   task_ids:
   - v3-bugs-008
@@ -2684,26 +2698,26 @@ handovers:
   status: done
 - id: 2026-05-08-v3-bugs-007-complete-clear-button-added
   date: '2026-05-08'
-  tldr: v3-bugs-007 complete — × clear button added to all tmSearch inputs via shared
-    factory
-  next_action: continue auto run — next task is v3-bugs-008
+  tldr: "v3-bugs-007 complete \u2014 \xD7 clear button added to all tmSearch inputs\
+    \ via shared factory"
+  next_action: "continue auto run \u2014 next task is v3-bugs-008"
   task_ids:
   - v3-bugs-007
   session_kind: auto-stage
   status: done
 - id: 2026-05-08-v3-bugs-004-fixed-right-rail-disappearin
   date: '2026-05-08'
-  tldr: 'v3-bugs-004: fixed right rail disappearing for all-empty tasks — synchronous
-    mount, italic empty-state, 5 new tests'
-  next_action: continue auto run — next task is v3-bugs-005
+  tldr: "v3-bugs-004: fixed right rail disappearing for all-empty tasks \u2014 synchronous\
+    \ mount, italic empty-state, 5 new tests"
+  next_action: "continue auto run \u2014 next task is v3-bugs-005"
   task_ids:
   - v3-bugs-004
   session_kind: auto-stage
   status: done
 - id: 2026-05-08-v3-bugs-003-complete-filter-chips-now-sh
   date: '2026-05-08'
-  tldr: v3-bugs-003 complete — filter chips now show per-chip hit counts on Lessons
-    and Issues screens
+  tldr: "v3-bugs-003 complete \u2014 filter chips now show per-chip hit counts on\
+    \ Lessons and Issues screens"
   next_action: 'continue auto run (next task: v3-bugs-004)'
   task_ids:
   - v3-bugs-003
@@ -2713,7 +2727,7 @@ handovers:
   date: '2026-05-08'
   tldr: Fixed phase ordering and phaseNum display for non-integer phase IDs (e.g.
     1, 1.5, 2)
-  next_action: continue auto run — next task is v3-bugs-002
+  next_action: "continue auto run \u2014 next task is v3-bugs-002"
   task_ids:
   - v3-bugs-001
   session_kind: auto-stage
@@ -2729,8 +2743,8 @@ handovers:
   status: done
 issues:
 - id: ISS-004
-  title: v3 path mismatch — handover writer uses backlog_path.parent but readers hard-code
-    .taskmaster/
+  title: "v3 path mismatch \u2014 handover writer uses backlog_path.parent but readers\
+    \ hard-code .taskmaster/"
   status: investigating
   severity: P1
   components:
@@ -2739,102 +2753,6 @@ issues:
   - v3
   related_tasks:
   - v3-release-010
-- id: ISS-005
-  title: compute_issue_aging crashes on date-only `discovered` field (only parses
-    ISO datetime)
-  status: fixed
-  severity: P2
-  components:
-  - taskmaster
-  - viewer
-  - v3
-  related_tasks:
-  - v3-release-010
-- id: ISS-006
-  title: Kanban + table grouping silently drops in-progress/in-review cards (status
-    key underscore vs API hyphen)
-  status: fixed
-  severity: P2
-  components:
-  - viewer
-  related_tasks:
-  - v3-release-010
-- id: ISS-007
-  title: Test issue
-  status: open
-  severity: P2
-  components: []
-  related_tasks: []
-- id: ISS-008
-  title: guard-destructive Approve grant is per-command, not per-action
-  status: open
-  severity: P2
-  components:
-  - guard-hooks
-  related_tasks: []
-- id: ISS-009
-  title: guard-destructive blocks compound commands that establish review-gate marker
-  status: open
-  severity: P2
-  components:
-  - guard-hooks
-  related_tasks: []
-- id: ISS-010
-  title: list_handover_ids same-second sort falls back to alphabetical, breaking newest-first
-    ordering
-  status: fixed
-  severity: P2
-  components:
-  - taskmaster
-  - handovers
-  related_tasks:
-  - v3-polish-041
-- id: ISS-012
-  title: Guard hooks share one approval token — sibling guards silently bypassed
-  status: investigating
-  severity: P2
-  components:
-  - guard-hooks
-  related_tasks:
-  - v3-polish-055
-  - guard-hooks-003
-- id: ISS-011
-  title: parse_frontmatter / render_frontmatter trailing-newline asymmetry on body
-  status: open
-  severity: P3
-  components:
-  - taskmaster
-  - v3
-  related_tasks:
-  - taskmaster-ideas-task-3
-- id: ISS-013
-  title: guard-destructive approval-creation detector false-positives on commit messages
-    containing both "touch" and "guard-approve"
-  status: open
-  severity: P3
-  components:
-  - guard-hooks
-  related_tasks:
-  - guard-hooks-003
-- id: ISS-014
-  title: guard-pending file has no freshness check — stale pending can be attributed
-    to a later unrelated Approve
-  status: open
-  severity: P3
-  components:
-  - guard-hooks
-  related_tasks:
-  - guard-hooks-003
-- id: ISS-015
-  title: list_sessions defaults missing handover.status to "open" but viewer expects
-    "todo"
-  status: open
-  severity: P3
-  components:
-  - taskmaster_v3
-  - viewer-sessions
-  related_tasks:
-  - project-structure-visibility-001
 lessons_meta:
 - id: L-001
   title: Use shared chipClickNext helper for chip-row filters
@@ -2842,7 +2760,7 @@ lessons_meta:
   tier: active
   reinforce_count: 0
 - id: L-002
-  title: Bash cwd persists across tool calls — never `cd` between worktree commands
+  title: "Bash cwd persists across tool calls \u2014 never `cd` between worktree commands"
   kind: anti-pattern
   tier: active
   reinforce_count: 1
@@ -2857,3 +2775,91 @@ lessons_meta:
   tier: active
   reinforce_count: 0
 handover_status_backfilled: true
+bugs:
+- id: B-003
+  title: Test issue
+  status: open
+  severity: P2
+  components: []
+  discovered: '2026-05-20T23:31:00Z'
+- id: B-004
+  title: guard-destructive Approve grant is per-command, not per-action
+  status: open
+  severity: P2
+  components:
+  - guard-hooks
+  discovered: '2026-05-20T23:31:00Z'
+- id: B-005
+  title: guard-destructive blocks compound commands that establish review-gate marker
+  status: open
+  severity: P2
+  components:
+  - guard-hooks
+  discovered: '2026-05-20T23:31:00Z'
+- id: B-007
+  title: parse_frontmatter / render_frontmatter trailing-newline asymmetry on body
+  status: open
+  severity: P3
+  components:
+  - taskmaster
+  - v3
+  discovered: '2026-05-20T23:31:00Z'
+- id: B-008
+  title: "Guard hooks share one approval token \u2014 sibling guards silently bypassed"
+  status: open
+  severity: P2
+  components:
+  - guard-hooks
+  discovered: '2026-05-20T23:31:00Z'
+- id: B-009
+  title: guard-destructive approval-creation detector false-positives on commit messages
+    containing both "touch" and "guard-approve"
+  status: open
+  severity: P3
+  components:
+  - guard-hooks
+  discovered: '2026-05-20T23:31:00Z'
+- id: B-010
+  title: "guard-pending file has no freshness check \u2014 stale pending can be attributed\
+    \ to a later unrelated Approve"
+  status: open
+  severity: P3
+  components:
+  - guard-hooks
+  discovered: '2026-05-20T23:31:00Z'
+- id: B-011
+  title: list_sessions defaults missing handover.status to "open" but viewer expects
+    "todo"
+  status: open
+  severity: P3
+  components:
+  - taskmaster_v3
+  - viewer-sessions
+  discovered: '2026-05-20T23:31:00Z'
+- id: B-001
+  title: compute_issue_aging crashes on date-only `discovered` field (only parses
+    ISO datetime)
+  status: fixed
+  severity: P2
+  components:
+  - taskmaster
+  - viewer
+  - v3
+  discovered: '2026-05-20T23:31:00Z'
+- id: B-002
+  title: Kanban + table grouping silently drops in-progress/in-review cards (status
+    key underscore vs API hyphen)
+  status: fixed
+  severity: P2
+  components:
+  - viewer
+  discovered: '2026-05-20T23:31:00Z'
+- id: B-006
+  title: list_handover_ids same-second sort falls back to alphabetical, breaking newest-first
+    ordering
+  status: fixed
+  severity: P2
+  components:
+  - taskmaster
+  - handovers
+  discovered: '2026-05-20T23:31:00Z'

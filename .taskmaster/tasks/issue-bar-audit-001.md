@@ -1,7 +1,7 @@
 ---
 id: issue-bar-audit-001
 title: "Audit existing ISS-* against new bug-tier bar; convert non-qualifiers to Bugs"
-status: todo
+status: done
 priority: high
 epic: taskmaster-quality
 docs:
