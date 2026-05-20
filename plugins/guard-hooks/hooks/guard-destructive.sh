@@ -251,4 +251,23 @@ if echo "$COMMAND" | grep -qEi '(^|\s|&&|\|)(del\s+/[sfq]|rd\s+/s|format\s|diskp
   block "Destructive Windows command detected."
 fi
 
+# --- Failure-masking pattern: destructive git op piped through tail/head/grep ---
+# Observed 2026-05-19: `git worktree remove --force A 2>&1 | tail -2 \
+#   && git worktree remove --force B 2>&1 | tail -2 \
+#   && git worktree remove --force C 2>&1 | tail -2`
+# The 'tail -2' overwrites the upstream exit code, so the `&&` chain does NOT
+# short-circuit on the first command's failure — all three run regardless, and
+# the truncated output hides the cascade in progress.
+#
+# We approval-gate any mutating git subcommand piped into a line-filter
+# (tail/head/grep/awk/sed/wc/cut). This forces the AI to either run the
+# command without the filter (so it sees the real output) or to ask the user
+# for explicit approval to mask the failure.
+DESTRUCTIVE_GIT_RE='git[[:space:]]+([^|;&]*[[:space:]])?(worktree[[:space:]]+remove|push|reset|clean|branch[[:space:]]+-D|stash[[:space:]]+(clear|drop)|rebase|merge|submodule[[:space:]]+deinit)'
+LINE_FILTER_RE='\|[[:space:]]*(tail|head|grep|awk|sed|wc|cut)([[:space:]]|$)'
+if echo "$COMMAND" | grep -qE "$DESTRUCTIVE_GIT_RE" && \
+   echo "$COMMAND" | grep -qE "$LINE_FILTER_RE"; then
+  block "Destructive git operation piped into a line filter (tail/head/grep/awk/sed/wc/cut). This masks the upstream exit code so '&&' chains do not short-circuit on failure — a partial-failure cascade can run silently. Re-run without the filter so the real output is visible."
+fi
+
 exit 0

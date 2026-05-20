@@ -154,6 +154,25 @@ assert_allowed_cwd "non-existent target" \
 assert_allowed_cwd "worktree list with cwd"    "git worktree list" "$FIXTURE_REPO"
 assert_allowed_cwd "worktree prune with cwd"   "git worktree prune" "$FIXTURE_REPO"
 
+echo "-- destructive git ops piped through line filters (failure-masking) --"
+# These all mask the upstream exit code so '&&' chains run regardless of failure.
+assert_blocked "worktree remove | tail"        "git worktree remove .worktrees/foo 2>&1 | tail -2"
+assert_blocked "worktree remove | head"        "git worktree remove .worktrees/foo 2>&1 | head -3"
+assert_blocked "worktree remove | grep"        "git worktree remove .worktrees/foo 2>&1 | grep fatal"
+assert_blocked "git push | tail"               "git push origin feature 2>&1 | tail -5"
+assert_blocked "git reset | head"              "git reset HEAD~3 2>&1 | head"
+assert_blocked "git clean | wc -l"             "git clean -fd 2>&1 | wc -l"
+assert_blocked "chained worktree remove | tail" "git worktree remove A 2>&1 | tail -2 && git worktree remove B 2>&1 | tail -2"
+# Read-only git commands piped through filters stay allowed.
+assert_allowed "git log | head"                "git log --oneline | head -10"
+assert_allowed "git status | grep"             "git status -s | grep modified"
+assert_allowed "git branch | head"             "git branch | head"
+assert_allowed "git diff | wc -l"              "git diff --stat | wc -l"
+# Destructive git WITHOUT a filter remains as governed by the other rules.
+assert_allowed "git push feature (no filter)"  "git push origin feature"
+# Destructive command, filter is BEFORE git (different segment) — not the masking pattern.
+assert_allowed "echo x | tee && git push"      "echo x | tee log.txt && git push origin feature"
+
 echo "-- approval lifecycle (PostToolUse consumer) --"
 # A fresh approval lets a blocked command through but the PreToolUse hook
 # does NOT delete the file — only the PostToolUse consumer does.
