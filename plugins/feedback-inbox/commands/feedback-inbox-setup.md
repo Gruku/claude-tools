@@ -62,7 +62,7 @@ Run the feedback-inbox setup.
 6. **Verify.** Run `python -c "import sys; sys.path.insert(0, r'${CLAUDE_PLUGIN_ROOT}'); from scripts.resolve_target import resolve_target; r = resolve_target(); print('ok' if r.enabled else f'fail: {r.reason}')"`. If it prints `ok`, emit:
 
    ```
-   feedback-inbox set up. Inbox: <resolved path>. Use /feedback to log a message, /inbox to triage.
+   feedback-inbox set up. Inbox: <resolved path>. Use /inbox-feedback to log a message, /inbox to triage.
    ```
 
    Otherwise emit the failure reason.

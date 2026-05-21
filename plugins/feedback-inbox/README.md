@@ -14,7 +14,7 @@ This writes `~/.claude/inbox-target.json` and creates the inbox directory.
 
 ## Use
 
-- `/feedback <text>` — log a message explicitly.
+- `/inbox-feedback <text>` — log a message explicitly. (Named `/inbox-feedback` rather than `/feedback` to avoid colliding with Claude Code's built-in `/feedback`.)
 - Claude may also invoke the `feedback` skill silently when it hits friction with a claude-tools-shipped component (no confirmation needed; the user can review during triage).
 - `/inbox` — in this repo: list pending messages and walk them, promoting useful ones to `taskmaster:add-idea` or `taskmaster:bug`.
 

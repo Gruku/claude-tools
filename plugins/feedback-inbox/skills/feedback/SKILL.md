@@ -1,6 +1,6 @@
 ---
 name: feedback
-description: Drop a feedback message into the claude-tools feedback inbox. Use when the user explicitly requests it ('/feedback', 'log this as feedback', 'send this to claude-tools', 'report this back', 'feedback to the toolmaker') AND proactively, on your own initiative, when you observe friction with a claude-tools-shipped component during a session — a taskmaster skill that errored, a guard-hook that blocked the wrong command, an MCP tool that returned a confusing shape, a skill description that didn't match its behaviour, a slash command that did the wrong thing. Do not fire for generic project friction or external-tool friction; only for claude-tools components (taskmaster, reflect-auto-improve, guard-hooks, statusline, feedback-inbox itself, ue5-materials, etc.). Silent on success — no user confirmation needed; the user reviews during /inbox triage.
+description: Drop a feedback message into the claude-tools feedback inbox. Use when the user explicitly requests it ('/inbox-feedback', 'log this as feedback', 'send this to claude-tools', 'report this back', 'feedback to the toolmaker') AND proactively, on your own initiative, when you observe friction with a claude-tools-shipped component during a session — a taskmaster skill that errored, a guard-hook that blocked the wrong command, an MCP tool that returned a confusing shape, a skill description that didn't match its behaviour, a slash command that did the wrong thing. Do not fire for generic project friction or external-tool friction; only for claude-tools components (taskmaster, reflect-auto-improve, guard-hooks, statusline, feedback-inbox itself, ue5-materials, etc.). Silent on success — no user confirmation needed; the user reviews during /inbox triage.
 ---
 
 # feedback — Producer
@@ -22,7 +22,7 @@ DO NOT fire for:
 - Friction with external tools (git, pytest, Node, language servers).
 - General confusion that isn't tied to a specific claude-tools component.
 
-If in doubt, don't fire. The user can always invoke `/feedback` explicitly.
+If in doubt, don't fire. The user can always invoke `/inbox-feedback` explicitly.
 
 ## Procedure
 
