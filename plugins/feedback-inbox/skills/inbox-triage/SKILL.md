@@ -51,7 +51,9 @@ You walk pending feedback messages in the configured inbox, present each one, an
       - **Drop** — noise. Archive with status `dropped`.
    3. Perform the chosen action.
 
-4. **Archive via the script:**
+4. **Archive via the script.** Two shapes — pick the one matching the chosen action.
+
+   For **Archive** and **Drop** (no promotion), omit `promoted_to` entirely:
 
    ```bash
    python -c "
@@ -59,10 +61,25 @@ You walk pending feedback messages in the configured inbox, present each one, an
    from pathlib import Path
    sys.path.insert(0, r'${CLAUDE_PLUGIN_ROOT}')
    from scripts.archive_message import archive
-   new_path = archive(Path(r'<message path>'), status='<processed|promoted|dropped>', promoted_to='<id or None>')
+   new_path = archive(Path(r'<message path>'), status='<processed|dropped>')
    print(f'archived → {new_path}')
    "
    ```
+
+   For **Promote → idea** or **Promote → bug**, pass the taskmaster id as a string:
+
+   ```bash
+   python -c "
+   import sys
+   from pathlib import Path
+   sys.path.insert(0, r'${CLAUDE_PLUGIN_ROOT}')
+   from scripts.archive_message import archive
+   new_path = archive(Path(r'<message path>'), status='promoted', promoted_to='<IDEA-NNN or B-NNN>')
+   print(f'archived → {new_path}')
+   "
+   ```
+
+   Never pass `promoted_to='None'` (string) — it will land in the YAML frontmatter as the literal string `'None'`. Omit the kwarg entirely instead.
 
 5. **Summarize.** After the walk, emit one line:
 
