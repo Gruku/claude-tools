@@ -1,0 +1,8 @@
+{
+  "name": "feedback-inbox",
+  "description": "Live feedback channel from any Claude instance back to the claude-tools toolmaker. Producer writes tagged messages to a configurable inbox; triage routes them into the taskmaster backlog.",
+  "version": "0.1.0",
+  "author": {
+    "name": "gruku"
+  }
+}
