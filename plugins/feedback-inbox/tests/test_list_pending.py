@@ -57,3 +57,11 @@ def test_missing_inbox_directory(tmp_path):
     r = list_pending(tmp_path / "does-not-exist")
     assert r.messages == []
     assert r.counts == {}
+
+
+def test_non_dict_frontmatter_is_skipped_with_warning(tmp_path):
+    write_message(tmp_path, _payload("friction", "good"))
+    (tmp_path / "list.md").write_text("---\n- a\n- b\n---\nbody\n", encoding="utf-8")
+    r = list_pending(tmp_path)
+    assert len(r.messages) == 1
+    assert any("list.md" in w for w in r.warnings)

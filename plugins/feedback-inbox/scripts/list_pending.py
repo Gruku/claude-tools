@@ -32,7 +32,12 @@ def _parse_frontmatter(text: str) -> dict:
     end = text.find("\n---\n", 4)
     if end == -1:
         raise ValueError("unterminated frontmatter")
-    return yaml.safe_load(text[4:end]) or {}
+    data = yaml.safe_load(text[4:end])
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        raise ValueError(f"frontmatter is not a mapping: {type(data).__name__}")
+    return data
 
 
 def list_pending(inbox: Path) -> ListResult:
