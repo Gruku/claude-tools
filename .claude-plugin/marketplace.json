@@ -37,6 +37,12 @@
       "source": "./plugins/reflect-auto-improve",
       "description": "Reflect on past work and propose concrete improvements. Time-windowed project retros, pain-point harvesting into workflow drafts, and claude-tools plugin self-audits. Outputs route through taskmaster as ideas, issues, and lessons.",
       "version": "0.1.0"
+    },
+    {
+      "name": "feedback-inbox",
+      "source": "./plugins/feedback-inbox",
+      "description": "Live feedback channel from any Claude instance back to the claude-tools toolmaker. Producer skill writes tagged messages to a configurable inbox; /inbox triage walks pending messages and routes accepted ones to taskmaster:add-idea or taskmaster:bug. Run /feedback-inbox-setup once per machine.",
+      "version": "0.1.0"
     }
   ]
 }
