@@ -30,8 +30,11 @@ def archive(path: Path, status: str, promoted_to: str | None = None) -> Path:
             f"invalid archive status: {status!r} (expected one of {sorted(VALID_ARCHIVE_STATUS)})"
         )
 
-    # Idempotency: if path is already under processed/, just update frontmatter in place.
-    if "processed" in path.parts:
+    # Idempotency: if path is already under processed/<year>/, just update frontmatter in place.
+    # Check grandparent name so an inbox directory literally named "processed" does not
+    # trigger a false-positive (a file at <inbox>/processed/<file>.md has parent.parent == tmp,
+    # whereas a genuinely archived file at <inbox>/processed/<year>/<file>.md has parent.parent.name == "processed").
+    if path.parent.parent.name == "processed":
         target = path
     else:
         # Pick year from the file's frontmatter `created` field; fall back to current year.

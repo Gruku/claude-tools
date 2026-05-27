@@ -67,3 +67,37 @@ def test_archive_invalid_status_rejected(tmp_path):
     src = _write(tmp_path)
     with pytest.raises(ValueError):
         archive(src, status="bogus")
+
+
+# --- B-013: idempotency guard must not false-positive when an ancestor dir is named "processed" ---
+
+def test_archive_pending_in_dir_named_processed_is_not_treated_as_already_archived(tmp_path):
+    # Inbox directory is literally named "processed" -- simulates an ancestor named "processed".
+    # The pending file lives directly inside it (NOT under processed/<year>/),
+    # so the archive call should MOVE it, not update in-place.
+    inbox = tmp_path / "processed"
+    inbox.mkdir()
+    src = _write(inbox)
+    assert src.parent.name == "processed"  # confirm setup: parent is "processed"
+
+    result = archive(src, status="processed")
+
+    # The result must be inside a <year> subdirectory whose parent is named "processed".
+    assert result.parent.parent.name == "processed", (
+        "archived file should land in processed/<year>/, not stay in the inbox dir"
+    )
+    assert result.parent.name.isdigit(), "year directory name should be numeric"
+    # The original pending file must have been moved (not still at src).
+    assert not src.exists(), "pending file should have been moved away from the inbox dir"
+
+
+def test_archive_idempotent_for_file_genuinely_in_processed_year_dir(tmp_path):
+    # Write a message normally, archive it once to get it into processed/<year>/.
+    src = _write(tmp_path)
+    once = archive(src, status="processed")
+    assert once.parent.parent.name == "processed"
+
+    # Archiving the already-archived file again must be idempotent: same path returned.
+    twice = archive(once, status="processed")
+    assert once == twice
+    assert once.exists()

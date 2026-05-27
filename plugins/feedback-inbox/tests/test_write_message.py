@@ -68,3 +68,40 @@ def test_creates_parent_directory_if_missing(tmp_path):
     path = write_message(nested, _payload())
     assert path.exists()
     assert path.parent == nested
+
+
+# --- B-014: naive datetime must be rejected loudly ---
+
+def test_write_message_rejects_naive_datetime(tmp_path):
+    """A naive datetime (no tzinfo) must raise ValueError mentioning timezone-aware."""
+    naive_payload = _payload(created=datetime(2026, 5, 1, 12, 30))  # no tzinfo
+    with pytest.raises(ValueError, match="timezone-aware"):
+        write_message(tmp_path, naive_payload)
+
+
+def test_write_message_with_aware_datetime_has_consistent_filename_and_frontmatter(tmp_path):
+    """Filename stem time and frontmatter created must reflect the same instant (no offset drift)."""
+    from datetime import timezone as tz, timedelta
+
+    # Use UTC+2 aware datetime to expose the offset-drift bug if the fix is absent.
+    utc_plus_2 = tz(timedelta(hours=2))
+    aware_dt = datetime(2026, 5, 1, 14, 30, tzinfo=utc_plus_2)  # 14:30+02:00 == 12:30 UTC
+
+    path = write_message(tmp_path, _payload(created=aware_dt))
+    assert path.exists()
+
+    # Filename must use UTC: 12:30 UTC
+    assert "2026-05-01-1230" in path.stem, (
+        f"filename stem should use UTC time (12:30), got: {path.stem}"
+    )
+
+    # Frontmatter created must store the original tz-aware value (with offset).
+    text = path.read_text(encoding="utf-8")
+    fm_end = text.index("\n---\n", 4)
+    import yaml as _yaml
+    fm = _yaml.safe_load(text[4:fm_end])
+    created_str = fm["created"]
+    # The stored value must contain offset info so it is unambiguous.
+    assert "+02:00" in created_str or "Z" not in created_str and "+" in created_str, (
+        f"frontmatter created should preserve timezone offset, got: {created_str!r}"
+    )

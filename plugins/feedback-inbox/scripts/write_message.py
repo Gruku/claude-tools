@@ -42,6 +42,8 @@ def _validate(p: MessagePayload) -> None:
         raise ValueError(f"invalid category: {p.category!r} (expected one of {sorted(VALID_CATEGORIES)})")
     if not p.summary.strip():
         raise ValueError("summary must not be empty")
+    if p.created.tzinfo is None or p.created.utcoffset() is None:
+        raise ValueError("created must be timezone-aware (naive datetime is ambiguous)")
 
 
 def _pick_filename(inbox: Path, stem: str) -> Path:
