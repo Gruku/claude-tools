@@ -18,6 +18,25 @@ Most work in this repo touches `plugins/taskmaster/`. When adding or modifying a
 
 This is non-negotiable for agents and skills specifically — those have subtle frontmatter rules (e.g. `description` field is the trigger surface; getting it wrong means the component never fires) that the skill content addresses directly.
 
+## Plugin versioning protocol
+
+A plugin only registers as a new version downstream when **all relevant parts move together**. Bumping one and forgetting the others means the marketplace silently serves a stale or mismatched version. For every PR that changes a plugin's source, bump that plugin's version in all of these:
+
+| # | Where | What |
+|---|---|---|
+| 1 | `plugins/<name>/.claude-plugin/plugin.json` | `"version"` |
+| 2 | `.claude-plugin/marketplace.json` | the plugin's `version` entry (must equal #1) |
+| 3 | `plugins/<name>/CHANGELOG.md` *(if the plugin ships one — taskmaster does)* | a new `## <version>` section describing the delta |
+
+**SemVer rules** (the CHANGELOG header says it too): bug-fix-only delta → patch; any additive surface (new MCP tool, new field, new skill) → minor; schema break or removed surface → major. When a PR bundles bugfixes *and* features, the feature wins — bump minor.
+
+**Enforcement (three layers, no CI in this repo):**
+- **Pre-PR check** — run `python scripts/check_plugin_version_bump.py --base origin/master` before opening a PR. It verifies parts #1/#2 are in sync and that any plugin whose source changed since `<base>` was bumped and has a matching CHANGELOG entry. Exit 1 = fix before pushing.
+- **Push-time guard hook** — `.claude/hooks/check-version-bump.sh` (wired in `.claude/settings.json`) fires on `git push` and blocks if a changed plugin wasn't bumped or its plugin.json/marketplace.json versions disagree. Override only via the AskUserQuestion Approve/Deny ritual.
+- **This convention** — the durable record of why the three parts exist.
+
+When creating a PR that touched plugin source, treat "bump the three parts + run the check script" as a required step, not an afterthought.
+
 ## Taskmaster architecture (quick orientation)
 
 - **MCP server**: `plugins/taskmaster/taskmaster_v3.py` (FastMCP). Surface is the `backlog_*` family of tools. Read this before adding new tools.

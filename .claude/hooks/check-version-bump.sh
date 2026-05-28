@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # check-version-bump.sh — PreToolUse hook for Bash commands.
 # Only acts on git push commands. Blocks if any plugin under plugins/* has
-# changes against the upstream branch but its plugin.json version was not
-# bumped in the same range.
+# changes against the upstream branch but EITHER:
+#   (a) its plugin.json version was not bumped in the same range, or
+#   (b) its plugin.json version disagrees with its marketplace.json entry
+#       (i.e. one of the two "relevant parts" was bumped but not the other).
 #
 # Approval flow (shared with the rest of guard-hooks):
 #   The AI calls AskUserQuestion with labels "Approve"/"Deny". On "Approve",
@@ -82,8 +84,10 @@ check_approval() {
   return 1
 }
 
-# --- Walk plugins/* and find ones with code changes but no version bump ---
+# --- Walk plugins/* and find ones with code changes but no version bump,
+#     or with plugin.json / marketplace.json versions out of sync ---
 warnings=""
+MARKETPLACE="$REPO_ROOT/.claude-plugin/marketplace.json"
 for plugin_dir in "$REPO_ROOT"/plugins/*/ ; do
   [ -d "$plugin_dir" ] || continue
   plugin_name="$(basename "$plugin_dir")"
@@ -95,11 +99,15 @@ for plugin_dir in "$REPO_ROOT"/plugins/*/ ; do
   [ -z "$changed" ] && continue
 
   pjson="plugins/$plugin_name/.claude-plugin/plugin.json"
+  pj_ver=$(jq -r '.version // empty' "$REPO_ROOT/$pjson" 2>/dev/null)
+  mp_ver=$(jq -r --arg n "$plugin_name" '.plugins[] | select(.name==$n) | .version // empty' "$MARKETPLACE" 2>/dev/null)
   version_changed=$(git -C "$REPO_ROOT" diff "$REMOTE_SHA"..HEAD -- "$pjson" 2>/dev/null | grep '"version"' || true)
+  file_count=$(echo "$changed" | wc -l | tr -d ' ')
+
   if [ -z "$version_changed" ]; then
-    current_ver=$(grep '"version"' "$REPO_ROOT/$pjson" 2>/dev/null | head -1 | sed 's/.*"version".*"\(.*\)".*/\1/')
-    file_count=$(echo "$changed" | wc -l | tr -d ' ')
-    warnings="$warnings\n  - $plugin_name (v$current_ver) — $file_count files changed, version NOT bumped"
+    warnings="$warnings\n  - $plugin_name (v${pj_ver:-?}) — $file_count files changed, version NOT bumped in plugin.json"
+  elif [ -n "$mp_ver" ] && [ "$pj_ver" != "$mp_ver" ]; then
+    warnings="$warnings\n  - $plugin_name — version OUT OF SYNC: plugin.json v$pj_ver vs marketplace.json v$mp_ver"
   fi
 done
 
