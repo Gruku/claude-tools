@@ -73,6 +73,19 @@ mount<Entity>Detail(container, { <entity>, related?, prefs, store, api, onNaviga
 
 The route screens and the modal host are both just **"fetch → mount component → return cleanup."** No rendering logic lives in either; it lives only in the component. This is what guarantees modal and full can never diverge.
 
+#### Embedded-chrome mode (REQUIRED — spec-review finding)
+
+The detail components are **not** context-agnostic as written: `task-detail-document.js:54` calls `claimTopbar()` to render its action bar (A/B variant toggle, Edit, Archive) into the *page-level* topbar, and the route's `onToggleVariant` does `location.reload()`. Mounted verbatim in a modal this would hijack the board's topbar behind the overlay and reload the whole page (destroying the modal). So the contract gains a chrome parameter:
+
+```
+mount<Entity>Detail(container, { …, chrome: 'page' | 'embedded', actionsHost? })
+```
+
+- `chrome: 'page'` (default) — current behavior: `claimTopbar()`, actions in the page topbar. Used by the `/task/<id>` and `/epic/<id>` route screens.
+- `chrome: 'embedded'` — actions render into the caller-supplied `actionsHost` (the modal header), **never** `claimTopbar()`. The modal passes an `onToggleVariant` that swaps the modal body in place (no `location.reload()`), and **omits the Edit action in v1** (edit-modal-over-detail-modal is out of scope — see open questions).
+
+`mountEpicDetail` (C1b) is authored embedded-aware from day one. The existing task component gets a small refactor to parameterize its actions host. This refactor is an **early task with no C1b dependency** and de-risks the whole feature.
+
 ### Detail modal host (`detail-modal.js`)
 
 `openDetailModal({kind, id, deps})`:
@@ -96,13 +109,24 @@ Mechanics mirror `entity-modal.js`: scrim-click closes, Escape closes, `✕` clo
 - middle-click / ⌘/Ctrl-click / "open in new tab" → browser follows the href → **full route** (no interception of modified clicks).
 - refresh / paste URL / external link → loads the **full route** (fresh load is never a modal; the modal is only ever opened by an in-app action).
 
-This makes "modal everywhere" work for *every* existing detail link (issue-detail link pills, epics-list rows, task-detail relations) with **zero per-link changes** — only programmatic navigators (the kanban card click) switch to `openDetail()`.
+This makes "modal everywhere" work for *every* existing detail link rendered as an `<a>` (issue-detail link pills, epics-list rows) with **zero per-link changes**.
+
+**Programmatic navigators (spec-review finding).** Code that sets `location.hash` directly is NOT caught by the click interceptor and must be handled explicitly. Known in-app navigators to route through `openDetail()`:
+
+- `card.js` kanban card primary-open (was `location.hash = '#/task/'+id`).
+- `task-detail-document.js` `onNavigate` (related-task jumps) — when invoked from the **modal**, `onNavigate` swaps modal content in place; when invoked from the **route**, it stays hash-nav.
+- `epic-chips.js` `↗` open glyph.
+
+Explicitly left as full-page (not intercepted, by design): the `task-detail.js` `last_task_id` redirect (sidebar "Task" with no id) and `onToggleVariant`'s reload path on the route screen. **In-modal navigation** (peeking a linked task from inside an open modal) swaps the modal body and does **not** push an extra history entry — Back still closes the modal to the board, rather than walking back through peeked items.
 
 ### Close paths & history consistency
 
-- **Browser Back** (`popstate`): opening pushed exactly one entry; Back pops it. The modal listens for `popstate` and closes — returning to the board with no route change.
+- **Browser Back** (`popstate`): opening pushed exactly one entry; Back pops it. The modal listens for `popstate` and closes — returning to the board with no route change. **No router collision:** `router.js:24` listens *only* to `hashchange`, never `popstate`, so the modal owns `popstate` exclusively and a modal-close Back never re-dispatches a screen.
 - **Esc / scrim / ✕**: call `history.back()` (which triggers the same `popstate` close), keeping the history stack clean.
+- **hashchange while open** (e.g. clicking a sidebar entry): the modal also listens for `hashchange` and closes itself, so it never lingers over a freshly-routed screen.
 - **Open full** (button in modal header): `history.replaceState(null,'')` then `location.hash = route` — replaces the dangling modal entry with the real route instead of leaving an orphan in the stack.
+
+**Not deep-linkable (accepted):** the modal is ephemeral overlay state with no hash, so refresh / paste-URL always yields the board or the full route, never a re-opened modal. This is intentional — deep-linking a detail is exactly what `detail_view_mode: 'full'` (or the open-full button) is for.
 
 ---
 
@@ -154,7 +178,9 @@ The modal fetches on open (no extra caching beyond the store's existing behavior
 | Plan | Scope | Depends on |
 |---|---|---|
 | **C1b — Epic detail** (separate spec/plan) | `GET /api/epic/<id>`; `mountEpicDetail` component; `/epic/<id>` screen; `/epics` list; sidebar Epics entry; `epic-format.js` | — |
-| **Entity Detail Modals + Settings** (this spec) | `detail-modal.js`; `open-detail.js` + interceptor + history; `#/settings` + `detail_view_mode` pref + sidebar Settings entry; kanban epic `↗`; card-click switch | C1b (epic side); existing task detail |
+| **Entity Detail Modals + Settings** (this spec) | embedded-chrome refactor of task detail; `detail-modal.js`; `open-detail.js` + interceptor + history; `#/settings` + `detail_view_mode` pref + sidebar Settings entry; kanban epic `↗`; card-click switch | C1b (epic side only); existing task detail |
+
+**Internal phasing (spec-review resequencing):** the **task half has no C1b dependency**. Build the modal plan as: (1) embedded-chrome refactor of the task detail component → (2) `detail-modal.js` + `open-detail.js` + interceptor + history, wired for **tasks only** → (3) `#/settings` + pref + card-click switch (fully shippable + testable with tasks alone) → (4) once C1b has landed `mountEpicDetail`, add the epic kind to the modal + the kanban epic `↗`. This lets the modal foundation proceed in parallel with C1b and only converges at step 4.
 
 Each plan ends with a **taskmaster version bump** (plugin.json + marketplace.json + CHANGELOG) per the repo's plugin-versioning protocol, since both touch `plugins/taskmaster/` source.
 
@@ -163,3 +189,9 @@ Each plan ends with a **taskmaster version bump** (plugin.json + marketplace.jso
 - **Modal for other entities** (issues/bugs/lessons): the host is generic; adopting it elsewhere is a later, additive step.
 - **Per-entity view-mode** (separate task vs epic defaults): v1 uses one global toggle (opinionated default). Split only if a real need appears.
 - **Focus trap / a11y polish** inside the detail modal: mirror `entity-modal.js`'s focus-first behavior in v1; a full focus-trap is a follow-up if needed.
+- **Edit-from-modal** (spec-review): v1 omits the Edit action in `chrome: 'embedded'` mode (no edit-modal stacked over detail-modal). Revisit if inline editing while peeking is wanted.
+- **Shared overlay primitive** (spec-review): `entity-modal.js` (edit) and `detail-modal.js` (read) duplicate scrim/Esc/`body.*-open` scaffolding. Extracting a shared `overlay.js` is an optional DRY follow-up — accepted as duplication for v1 to avoid refactoring the working edit modal.
+
+## Spec-review record (2026-05-28)
+
+Gate A PASS · Gate B FAIL→amended (2 Important folded in: embedded-chrome mode; programmatic-navigator routing) · Gate C SKIP · Gate D WARN (advisory). Amendments applied: embedded-chrome contract, programmatic-navigator enumeration, hashchange-close + popstate-no-collision note, non-deep-linkable statement, edit-from-modal + shared-overlay deferred.
