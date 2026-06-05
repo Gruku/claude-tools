@@ -12,13 +12,13 @@
       "name": "taskmaster",
       "source": "./plugins/taskmaster",
       "description": "Universal AI-powered task and backlog management with v3 narrative continuity: handovers, lessons, issues, recap, snapshot/PreCompact hook, auto-task / auto-epic / auto-phase state machines. Redesigned kanban viewer with inline edit-in-UI. Per-task files (.taskmaster/tasks/<id>.md) with slim YAML index. v2 backlogs keep working unchanged; opt into v3 via taskmaster:migrate-v3 skill or backlog_init schema_version=3. Requires: uv (https://docs.astral.sh/uv/)",
-      "version": "3.13.0"
+      "version": "3.13.1"
     },
     {
       "name": "guard-hooks",
       "source": "./plugins/guard-hooks",
-      "description": "Safety guard hooks that block destructive CLI commands and sensitive file edits, with user-approval override flow via AskUserQuestion. Requires: jq (https://jqlang.github.io/jq/)",
-      "version": "2.7.0"
+      "description": "Safety guard hooks that block destructive CLI commands and sensitive file edits, with user-approval override flow via AskUserQuestion. Pure-Python hooks (3.9+), no jq required.",
+      "version": "2.7.1"
     },
     {
       "name": "ue5-materials",

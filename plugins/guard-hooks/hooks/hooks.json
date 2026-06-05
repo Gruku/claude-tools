@@ -16,19 +16,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/guard-destructive.sh\""
-          },
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/guard-database.sh\""
-          },
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/guard-system-paths.sh\""
-          },
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/guard-git-internals.sh\""
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/guard_bash.py\"",
+            "timeout": 10
           }
         ]
       },
@@ -37,7 +26,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/guard-edits.sh\""
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/guard_edits.py\"",
+            "timeout": 10
           }
         ]
       }
@@ -48,7 +38,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/ask-question-approval.sh\""
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/ask_question_approval.py\"",
+            "timeout": 10
           }
         ]
       },
@@ -57,7 +48,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/consume-approval.sh\""
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/consume_approval.py\"",
+            "timeout": 10
           }
         ]
       }
@@ -67,7 +59,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/guard-approve.sh\""
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/guard_approve.py\"",
+            "timeout": 10
           }
         ]
       }
