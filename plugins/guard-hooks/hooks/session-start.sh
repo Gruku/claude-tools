@@ -1,19 +1,20 @@
 #!/bin/bash
 # session-start.sh — SessionStart hook for guard-hooks plugin
-#  - Checks that required dependency (jq) is available (user-facing stderr).
+#  - Checks that required dependency (python) is available (user-facing stderr).
 #  - Emits a model-facing awareness banner via stdout describing the most
 #    catastrophic-but-easy-to-miss rules (worktree-removal cascade, .git/
 #    writes, force-push, rm -rf). Stdout from SessionStart hooks is appended
 #    to the model's context as "SessionStart hook additional context".
 
-if ! command -v jq &>/dev/null; then
+if ! command -v python &>/dev/null && ! command -v python3 &>/dev/null; then
   cat >&2 <<'WARN'
-⚠️ guard-hooks plugin: 'jq' is not installed or not in PATH.
-All guard hooks will fail silently without it (they use jq to parse hook input).
-Install: https://jqlang.github.io/jq/download/
-  - macOS:       brew install jq
-  - Linux (apt): sudo apt install jq
-  - Windows:     winget install jqlang.jq
+⚠️ guard-hooks plugin: 'python' is not installed or not in PATH.
+All guard hooks will fail silently without it (the hooks are Python scripts
+as of v2.7.1 — jq is no longer required).
+Install: https://www.python.org/downloads/ (3.9+)
+  - macOS:       brew install python
+  - Linux (apt): sudo apt install python3
+  - Windows:     winget install Python.Python.3.12
 WARN
 fi
 
