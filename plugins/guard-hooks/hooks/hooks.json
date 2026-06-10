@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/guard_bash.py\"",
+            "command": "CLAUDE_HOOK_SCRIPT=guard_bash.py . \"${CLAUDE_PLUGIN_ROOT}/hooks/run_hook.sh\"",
             "timeout": 10
           }
         ]
@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/guard_edits.py\"",
+            "command": "CLAUDE_HOOK_SCRIPT=guard_edits.py . \"${CLAUDE_PLUGIN_ROOT}/hooks/run_hook.sh\"",
             "timeout": 10
           }
         ]
@@ -38,7 +38,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/ask_question_approval.py\"",
+            "command": "CLAUDE_HOOK_SCRIPT=ask_question_approval.py . \"${CLAUDE_PLUGIN_ROOT}/hooks/run_hook.sh\"",
             "timeout": 10
           }
         ]
@@ -48,7 +48,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/consume_approval.py\"",
+            "command": "CLAUDE_HOOK_SCRIPT=consume_approval.py . \"${CLAUDE_PLUGIN_ROOT}/hooks/run_hook.sh\"",
             "timeout": 10
           }
         ]
@@ -59,7 +59,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/guard_approve.py\"",
+            "command": "CLAUDE_HOOK_SCRIPT=guard_approve.py . \"${CLAUDE_PLUGIN_ROOT}/hooks/run_hook.sh\"",
             "timeout": 10
           }
         ]

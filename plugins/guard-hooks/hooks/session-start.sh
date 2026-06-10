@@ -6,21 +6,45 @@
 #    writes, force-push, rm -rf). Stdout from SessionStart hooks is appended
 #    to the model's context as "SessionStart hook additional context".
 
-if ! command -v python &>/dev/null && ! command -v python3 &>/dev/null; then
+# Probe for a usable Python >= 3.9 the same way run_hook.sh resolves one
+# (a bare `command -v python` false-passes on the Windows Store stub).
+PY_FOUND=""
+for cand in "${CLAUDE_HOOKS_PYTHON:-}" python3 python "py -3"; do
+  [ -n "$cand" ] || continue
+  if $cand -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)' </dev/null >/dev/null 2>&1; then
+    PY_FOUND="$cand"
+    break
+  fi
+done
+if [ -z "$PY_FOUND" ]; then
   cat >&2 <<'WARN'
-⚠️ guard-hooks plugin: 'python' is not installed or not in PATH.
-All guard hooks will fail silently without it (the hooks are Python scripts
-as of v2.7.1 — jq is no longer required).
+⚠️ guard-hooks plugin: no usable Python >= 3.9 found (tried $CLAUDE_HOOKS_PYTHON,
+python3, python, py -3). The guard hooks are Python scripts as of v2.7.1 and
+will be INACTIVE this session — they fail OPEN, so tool calls still work but
+nothing is guarded.
 Install: https://www.python.org/downloads/ (3.9+)
   - macOS:       brew install python
   - Linux (apt): sudo apt install python3
   - Windows:     winget install Python.Python.3.12
+or set CLAUDE_HOOKS_PYTHON to an interpreter command.
 WARN
 fi
 
-cat <<'BANNER'
+if [ -n "$PY_FOUND" ]; then
+  cat <<'HEADER'
 guard-hooks active. The following Bash patterns are BLOCKED (approval-gated
 unless noted), with rationale you should know BEFORE attempting them:
+HEADER
+else
+  cat <<'HEADER'
+guard-hooks INACTIVE this session: no usable Python >= 3.9 on this machine,
+so the guards cannot run (they fail open — tool calls are allowed but
+unguarded). The following Bash patterns would normally be BLOCKED; treat
+these rules as YOUR responsibility to follow manually:
+HEADER
+fi
+
+cat <<'BANNER'
 
   • `git worktree remove --force` / `-f`  — DANGEROUS ON WINDOWS.
     Observed in a 2026-05-19 incident: with submodules or near-MAX_PATH paths,

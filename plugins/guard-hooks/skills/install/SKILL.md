@@ -5,51 +5,40 @@ description: Install guard hooks into user-scoped ~/.claude/settings.json. Use w
 
 # Install Guard Hooks
 
-This skill installs the guard-destructive and guard-edits hooks into the user's `~/.claude/settings.json`.
-
-## Prerequisites
-
-- `jq` must be installed and available in the user's PATH (the hooks use it to parse tool input)
+As of v2.7.x the guard hooks are **Python scripts auto-registered by the
+plugin's own `hooks/hooks.json`** — enabling the plugin is the installation.
+Do NOT copy hook scripts into `~/.claude/hooks/`; detached copies go stale
+and stop matching the plugin's behavior (jq is no longer required either).
 
 ## Steps
 
-1. Check if `jq` is available by running `jq --version`. If not found, tell the user to install it first (`winget install jqlang.jq` on Windows, `brew install jq` on macOS, `apt install jq` on Linux).
+1. Confirm the plugin is enabled (it is, if this skill is available). The
+   hooks register automatically at session start; there is nothing to write
+   into `~/.claude/settings.json`.
 
-2. Read `~/.claude/settings.json` to check if hooks are already configured.
+2. Check that a usable Python is available — run:
 
-3. If no `hooks` key exists, add the following to the top level of the settings JSON:
+   ```bash
+   python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)' \
+     || python -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)' \
+     || py -3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)'
+   ```
 
-```json
-"hooks": {
-  "PreToolUse": [
-    {
-      "matcher": "Bash",
-      "hooks": [
-        {
-          "type": "command",
-          "command": "bash \"$HOME/.claude/hooks/guard-destructive.sh\""
-        }
-      ]
-    },
-    {
-      "matcher": "Edit|Write",
-      "hooks": [
-        {
-          "type": "command",
-          "command": "bash \"$HOME/.claude/hooks/guard-edits.sh\""
-        }
-      ]
-    }
-  ]
-}
-```
+   If none succeeds, tell the user the hooks will be INACTIVE (they fail
+   open — tool calls work but nothing is guarded) and how to fix it:
+   - Windows: `winget install Python.Python.3.12`
+   - macOS: `brew install python`
+   - Linux: `sudo apt install python3`
+   - Or set `CLAUDE_HOOKS_PYTHON` to an interpreter command if Python is
+     installed somewhere unusual.
 
-4. Copy the hook scripts from the plugin to `~/.claude/hooks/`:
-   - `guard-destructive.sh`
-   - `guard-edits.sh`
+3. Tell the user to restart their Claude Code session for the hooks to take
+   effect (hook registrations are snapshotted at SessionStart).
 
-5. Tell the user to restart their Claude Code session for the hooks to take effect.
+## Migrating from a pre-plugin manual install
 
-## If hooks already exist
-
-If `~/.claude/settings.json` already has a `hooks.PreToolUse` array, append the guard hook entries to the existing array rather than overwriting. Check for duplicates first — skip any matcher that already has a guard hook configured.
+If `~/.claude/settings.json` contains old user-scoped guard entries
+(commands referencing `~/.claude/hooks/guard-destructive.sh` or
+`guard-edits.sh`), offer to remove those entries and delete the copied
+scripts from `~/.claude/hooks/` — the plugin's auto-registered hooks
+replace them, and leaving both active runs every guard twice.
