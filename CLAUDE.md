@@ -56,6 +56,15 @@ Each project that uses taskmaster can declare its Project manifest at `.taskmast
 
 When a downstream skill or hook needs to know about repos, branches, or observability layout, read the manifest — don't reinvent detection from `git remote` or hard-coded paths.
 
+## UI testing & debugging (viewer and any web-rendered surface)
+
+**Playbook:** `docs/playbooks/agent-driven-ui-testing.md` — the two-harness model. **Read it before writing or debugging any UI test infrastructure**, and use it inside workflows/subagents that build or verify viewer UI:
+
+- **Harness 1 (deterministic E2E)** — `@playwright/test` specs are the regression gate. The viewer suite lives at `plugins/taskmaster/viewer/tests/` (`*.spec.js` e2e + `tests/unit/*.test.js` via `node --test`). Every new viewer surface ships with spec coverage.
+- **Harness 2 (agent-driven exploratory)** — use `@playwright/cli` (`playwright-cli -s=qa open http://localhost:<port>`) to click through in-progress UI as a human-tester surrogate: `snapshot --boxes` → act → observe (`console`, `requests`, screenshots) → judge against the viewer's design rules → file findings as bugs/ideas in the backlog, **never silent fixes**. A clean run means "no friction found on driven paths," not "verified."
+- **Claude-tools reading of the adaptation matrix (§5):** the viewer is a local dashboard — no auth seeding, no bridge shim, no paid/destructive guards needed; CLI launches directly (no CDP attach). Most Electron-weight sections drop away.
+- Hard rules index (§6) applies verbatim — notably: verify selectors against the real rendered DOM, keep unit-runner globs away from `.spec.js` files, never `npm install` inside a worktree.
+
 ## Design philosophy
 
 **Harness engineering is opinionated.** When designing or modifying taskmaster features, bake strong opinions into defaults rather than offering toggles. The design dialogue with the user is where the opinion gets forged — fight for the right default, don't punt to a config flag. (See user-level memory `feedback_taskmaster_opinionated_design.md` for the full rule.)
