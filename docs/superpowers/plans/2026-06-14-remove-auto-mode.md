@@ -109,7 +109,7 @@ git rm plugins/taskmaster/tests/test_server_auto_mode.py \
 
 1. Delete the entire `test_auto_mode_tools_exposed` group (comment + `@pytest.mark.parametrize` + function, hint: lines 152–165).
 2. In `test_full_v3_surface_count` remove `"auto_"` from the keyword tuple (hint: line 204).
-3. Lower the floor (hint: line 208) by 6 (currently `>= 36` → `>= 30`); update the adjacent comment to note the auto removal.
+3. Fix the floor (hint: line 208). The assertion is `>=`, not equality, so do **not** blindly hardcode 30 — it could be wrong or needlessly weak. Run the test after the keyword + tool removals, read the actual count, and set the floor to `actual` (or `actual` minus a 1-2 margin) so the test keeps its strength. The existing `>= 36` may even still hold if the live count stayed above it. Update the adjacent comment to note the auto removal and the new number.
 
 - [ ] **Step 6: Edit `tests/test_dead_tool_cull.py`**
 
@@ -479,12 +479,9 @@ For `v3-teams-006`, `tm-audit-009`, `tm-audit-010`, `tm-audit-018`, `agentic-os-
 
 `backlog_status()` — confirm no in-review/todo task still references the removed auto surface.
 
-- [ ] **Step 5: Commit the backlog changes**
+- [ ] **Step 5: No commit — `.taskmaster/` is gitignored in claude-tools**
 
-```bash
-git add -A .taskmaster/
-git commit -m "chore(taskmaster): archive/rescope auto-mode-moot backlog tasks (remove-auto-mode-001)"
-```
+This repo does not version-control its own `.taskmaster/` (it is gitignored). The MCP mutations in Steps 1-3 persist to `.taskmaster/backlog.yaml` on disk and need no git commit. Do **not** run `git add .taskmaster/` — it errors as "ignored". (Confirmed: an earlier `git add .taskmaster/` in this repo was rejected as ignored.)
 
 ---
 
@@ -494,7 +491,8 @@ git commit -m "chore(taskmaster): archive/rescope auto-mode-moot backlog tasks (
 - [ ] Viewer unit green: `npm run test:unit` (from `viewer/`).
 - [ ] Smoke spec green + no `/api/auto/*` 404: `npm run test:e2e -- smoke.spec.js`.
 - [ ] No live import resolves to a deleted module: `grep -rn "auto-status\|auto-mode-strip\|sessions-strip\|lib/auto-state" plugins/taskmaster/viewer/js` returns only `_dormant/` self-references (documented).
-- [ ] No stray backend reference: `grep -rn "backlog_auto_\|AUTO_SESSIONS_DIR\|read_auto_state" plugins/taskmaster/*.py` returns nothing.
+- [ ] No stray backend reference: `grep -rn "backlog_auto_\|AUTO_SESSIONS_DIR\|read_auto_state\|AUTO_HOOKS_LOG" plugins/taskmaster/*.py plugins/taskmaster/tests/` returns nothing (catches any test still importing a deleted symbol).
+- [ ] No hook references auto: `grep -rni "auto_hooks_log\|backlog_auto_\|api/auto" plugins/taskmaster/hooks .claude/hooks 2>/dev/null` returns nothing (confirms the spec's hook edge-case).
 - [ ] Version check exit 0: `python scripts/check_plugin_version_bump.py --base origin/master`.
 - [ ] Then run `taskmaster:review-gate remove-auto-mode-001`.
 
