@@ -1,9 +1,13 @@
 # Remove Auto Mode → Hand Off to Goals + Ultracode
 
-**Date:** 2026-06-11
-**Status:** Design approved (pending spec review)
+**Date:** 2026-06-11 (spec-reviewed & revised 2026-06-14)
+**Status:** Spec-reviewed — revised to clear spec-review findings; ready for writing-plans
 **Plugin:** taskmaster
-**Version target:** 3.16.0 → 3.17.0 (minor — auto treated as effectively internal/unshipped)
+**Version target:** 3.16.1 → 3.17.0 — **minor by explicit decision** (auto treated as effectively
+internal/unshipped), consciously overriding the repo rule "removed surface → major". **Condition of
+that decision:** `marketplace.json`'s `description` string (which today advertises the auto state
+machines) MUST be scrubbed of auto, and the CHANGELOG MUST state both the removed surface and the
+minor-over-removed-surface call, so the "unshipped" framing stays honest.
 
 ## Problem
 
@@ -104,14 +108,31 @@ per-project user data, not shipped by the plugin.)
 
   | Intent Signal | Route To |
   |---|---|
-  | "auto this task", "autopilot", "auto-epic X", "auto T-001" | Redirect: auto mode removed — suggest **goals + ultracode** |
+  | "auto this task", "autopilot", "auto-epic X", "auto T-001" | Redirect: auto mode removed — suggest **ultracode** (Workflow orchestration) |
+
+**Also triage (grep-confirmed auto references beyond the files above):**
+
+- `skills/migrate-v3/SKILL.md` + `references/v2-vs-v3.md` + `references/migration-steps.md` — remove
+  the "turn on auto-mode" trigger phrase and any auto-mode migration step; auto is no longer a v3
+  opt-in feature.
+- `skills/handover/references/session-kinds.md` — drop the auto session-kind entry.
+- `skills/init-taskmaster/SKILL.md` + `references/analysis-mode.md` — remove auto-mode mentions.
+- **Not a target:** `skills/decision/references/auto-resolution.md` — "auto-resolution" is decision
+  auto-resolve, unrelated to auto mode. Left untouched (false positive).
 
 **Redirect copy** (the "thin suggestion"), emitted by the router when auto/autopilot intent
 is detected:
 
-> Auto mode has been removed from taskmaster. To drive a task or epic autonomously, define
-> the goal and run it through **ultracode** (multi-agent Workflow orchestration) rather than
-> an in-plugin state machine.
+> Auto mode has been removed from taskmaster. To drive a task or epic autonomously, run it
+> through **ultracode** — the multi-agent `Workflow` orchestration — instead of an in-plugin
+> state machine. (A dedicated taskmaster goals surface is not yet built; ultracode is the
+> supported autonomous path today.)
+
+The redirect deliberately points only at **ultracode/`Workflow`, which exists today**. It does not
+promise a taskmaster "/goal" surface — that path is still planned (the Auto-Brainstorm + /goal epic
+is unbuilt, `goal-judge` agent pending). Accepted capability gap: ultracode is more general but is
+not lane/gate-aware the way auto's per-task lifecycle driving was; the brainstorm decision accepts
+this loss.
 
 No stub skills are kept. `/auto-*` as literal slash commands stop resolving — that is the
 intended outcome.
@@ -136,6 +157,13 @@ intended outcome.
   (header pill), `components/auto-mode-strip.js` (kanban strip), `components/sessions-strip.js`
   (parallel-session tabs), `lib/auto-state.js` (`isAutoRunning` predicate). These are tied to
   the removed live state, not reusable presentation.
+
+**Remove CSS + markup** (grep-confirmed; absent from the original draft):
+
+- Delete `viewer/css/screens/auto-mode.css` entirely.
+- Remove auto-mode rules from `viewer/css/shell.css`, `css/screens/kanban.css`,
+  `css/screens/task-detail.css`, `css/screens/desk.css`, and the auto token(s) in `css/tokens.css`.
+- `viewer/index.html` — remove the `auto-mode.css` `<link>` and any auto nav/markup node.
 
 **Preserve dormant** — move to `viewer/js/_dormant/` with a `README.md`:
 
@@ -191,7 +219,9 @@ prevents silent re-introduction.
 **Versioning (3 parts move together, per repo protocol):**
 
 - `plugins/taskmaster/.claude-plugin/plugin.json` → `3.17.0`
-- `.claude-plugin/marketplace.json` → taskmaster `3.17.0`
+- `.claude-plugin/marketplace.json` → taskmaster `3.17.0` **and** edit the `description` string to
+  remove the "auto-task / auto-epic / auto-phase state machines" advertising (a condition of the
+  minor-bump decision — see header).
 - `plugins/taskmaster/CHANGELOG.md` → new `## 3.17.0` section. Minor (not major) by explicit
   decision: auto mode is treated as effectively internal/unshipped. The CHANGELOG entry must
   state the removed surface (6 MCP tools, 7 endpoints, 3 skills) and the redirect, so the
@@ -199,7 +229,28 @@ prevents silent re-introduction.
 
 Run `python scripts/check_plugin_version_bump.py --base origin/master` before opening a PR.
 
+### 5. Backlog hygiene — moot / orphaned tasks
+
+Removing auto invalidates existing backlog work. As part of this task:
+
+- **Archive (now impossible / irrelevant):** `tm-audit-004` (auto state-machine completion bug),
+  `v3-polish-006` (slim auto-mode header).
+- **Pull back + close:** `v3-polish-028` (auto-mode strip copy) — currently *in-review* against a
+  surface being deleted.
+- **Rescope (auto-skill anchors shrink):** `v3-teams-006`, `tm-audit-009`, `tm-audit-010`,
+  `tm-audit-018`, `agentic-os-001` — drop the `skills/auto-*` anchors / auto scope from each.
+
 ## Error handling / edge cases
+
+- **In-flight collision on core files:** `v3-release-010` and `project-manifest-001` are in-progress
+  and edit `taskmaster_v3.py`; this task deletes ~650 lines from the same file. Sequence this task
+  *after* those merge (or coordinate) to avoid a large conflict. Relocate every deletion by **symbol**,
+  not the line numbers quoted above (they drift as siblings land).
+- **Persisted viewer prefs:** real projects' `viewer.json` may still carry an `auto_mode` screen key
+  after the default is dropped. Confirm the prefs loader ignores unknown screen keys (no crash on a
+  stale key), not only that the default is removed.
+- **Hook events:** `AUTO_HOOKS_LOG` implies auto event logging; grep found no `hooks/` references, so
+  no registered plugin hook appears to write it — verify during implementation before assuming clean.
 
 - **Orphaned `.taskmaster/auto/` dirs** in real projects: left as-is, ignored. No reader code
   remains to trip on them. Acceptable — they are user data, not plugin-shipped.
@@ -228,10 +279,14 @@ Run `python scripts/check_plugin_version_bump.py --base origin/master` before op
 
 1. Backend: remove state machine (`taskmaster_v3.py`) + tools/endpoints (`backlog_server.py`).
 2. Tests: delete/edit Python auto tests; add negative guard; get suite green.
-3. Skills: delete three skills; edit end-session/pick-task/taskmaster + routing-table redirect.
-4. Viewer: unwire live surfaces; move dormant components + README; fix prefs.
+3. Skills: delete three driver skills; edit end-session/pick-task/taskmaster + routing-table redirect;
+   triage migrate-v3 / handover / init-taskmaster auto references.
+4. Viewer: unwire live JS surfaces; delete/trim auto CSS + `index.html` link/markup; move dormant
+   components + README; fix prefs.
 5. Viewer tests: delete/edit specs; confirm green + no 404s.
 6. Docs: supersede goal docs; note in CLAUDE.md.
-7. Versioning: bump 3 parts to 3.17.0; run check script.
+7. Versioning: bump 3 parts to 3.17.0; scrub auto from `marketplace.json` description; CHANGELOG
+   states removed surface + justifies the minor; run check script.
+8. Backlog hygiene: archive / close / rescope moot tasks (see §5).
 
 Each step is independently committable and leaves the suite green.
