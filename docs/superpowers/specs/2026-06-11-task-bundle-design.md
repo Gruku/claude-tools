@@ -1,7 +1,7 @@
 # Task Bundle — Design
 
 **Date:** 2026-06-11
-**Status:** Approved (brainstorm session 2026-06-11)
+**Status:** Revised 2026-06-14 to clear design-review (9 gaps resolved — see "Design-review resolutions"); ready for writing-plans
 **Context:** auto-epic / auto-task are being removed; bundles target the normal interactive flow (pick → work → review-gate → merge).
 
 ## Problem
@@ -29,6 +29,15 @@ One new slim task field:
 - `bundle: <slug>` — e.g. `bundle: asset-contract-ux`. Tasks sharing the slug are bundle members.
 
 No bundle file, no new YAML collection, no new viewer screen. The slug serves as both the *hint* (written at birth) and the *binding* (consumed at pick). Cleared on descope.
+
+**Slug format:** `^[a-z0-9][a-z0-9-]{1,40}$` (lowercase kebab, 2–41 chars). Validated wherever `bundle` is written (`backlog_add_task`, `backlog_update_task`, `backlog_batch_update`) so a typo can't silently create a broken half-bundle.
+
+**Field plumbing (all required for the slug to be visible/writable):**
+- `taskmaster_v3.py` `SLIM_FIELDS["task"]` — add `bundle` (else it's stripped from every slim read; the viewer badge and pick-task never see it).
+- `backlog_server.py` `ALLOWED_FIELDS` — add `bundle` (the validation gate for `backlog_update_task` *and* `backlog_batch_update`).
+- `backlog_add_task` — add a `bundle` param (this tool has its own explicit param list, separate from `ALLOWED_FIELDS`).
+
+**Birth-time `sub_repo` validation:** when `backlog_add_task` / `backlog_update_task` sets `bundle` and other members already exist, reject a `sub_repo` mismatch *at write time* (not only at pick). One worktree = one repo; a cross-repo bundle should never be representable, not merely unpickable.
 
 ## Lifecycle
 
@@ -68,20 +77,44 @@ No bundle file, no new YAML collection, no new viewer screen. The slug serves as
 4. **Slug, not entity** — strongest call. A bundle has no independent life: it is born from a slug, becomes a worktree, dies at merge.
 5. **Descope rule** — strongest call. Atomic branch + individual records means a failing member must be fixed or descoped; descope is explicit (slug cleared, spec claims removed), never silent.
 
-## Changes by location
+## Design-review resolutions (2026-06-14)
+
+These resolve the gaps the design-review found between this spec and the current code. They are the opinionated defaults; the build follows them.
+
+**C1 — Multi-member session context.** `_session_task` is a single slot today. Add a parallel `_session_bundle` slot holding `{slug, sub_repo, branch, worktree, members: [task_id]}`. `backlog_pick_task` on a bundle sets `_session_task` to the *picked* member (so existing "current task" inference still works) **and** populates `_session_bundle`. A new `_get_session_bundle()` lets review-gate / end-session iterate members. No tool that reads `_get_session_task()` changes behavior.
+
+**C2 — Merge fan-out = skill loop, no new tool.** There is no batch merge tool and the merge-recorder hook is single-task. The merge skill calls `backlog_record_merge(member, rung, sha)` once per completing member (N load/save cycles — acceptable at bundle sizes; cheaper than a new tool surface). The PostToolUse merge-recorder hook stays single-task; the *skill* owns the fan-out loop, reading members from `_session_bundle`.
+
+**C3 — Find-by-bundle helper.** Add `_find_tasks_by_bundle(data, slug)` in `backlog_server.py` (scan all epics' tasks for `task.get("bundle") == slug`). Used by `backlog_pick_task` binding. Internal helper, not a new MCP tool.
+
+**I1 — Descope.** `in-progress → todo` is a legal transition (confirmed in `LEGAL_STATUS_TRANSITIONS`), so descope is: `backlog_update_task(member, "bundle", "")` + `backlog_update_task(member, "status", "todo")` + clear `branch`/`worktree`. "Remove spec claims" = Claude edits the shared spec doc to excise that member's section (a documented manual editor step in review-gate — there is no document-mutation MCP tool, by design).
+
+**I2 — Lane.** Do **not** mutate each member's per-task `lane`. `backlog_pick_task` computes the strictest member lane (`full > standard > express`) and returns it as the *bundle execution lane*; the pick-task skill routes the shared lifecycle (which gates run) at that lane. Per-task `lane` stays as authored, so post-merge per-task records remain truthful.
+
+**I3 — `backlog_batch_preview`.** It has no `update` op and previewing a bundle assignment isn't needed. Drop the `batch_preview` claim; `backlog_batch_update` alone sets `bundle` across members.
+
+**I4 — Structured detection data.** `backlog_blast_radius(mode="predictive")` returns markdown; parsing it for the fallback is fragile. Add a structured variant (a `structured=True` flag, or expose `analyze_predictive` as a thin MCP tool returning the `overlapping_tasks` list) so the pick-task fallback consumes `[{task_id, status, shared_paths}]` directly and filters `status == "todo"`.
+
+**I5 — End-session timing + per-member records.** Each completing member gets its own real completion record via `backlog_complete_task(member)` (override the `edge-cases.md` "secondary = update-status-only" shortcut for bundles — the spec mandates own records). The shared `.worktrees/<slug>` is removed **only when the last member leaves the bundle** (all members `done` or descoped) — end-session checks `_session_bundle` membership before offering cleanup.
+
+**I6 — Locking.** All members get `locked_by = SESSION_ID` at bind. The lock-conflict error in `backlog_pick_task` gains a bundle-aware message ("`<id>` is a member of bundle `<slug>` locked by another session") so a second session understands the bundle-level lock.
+
+## Changes by location (corrected)
 
 | Where | Change |
 |---|---|
 | `taskmaster_v3.py` `SLIM_FIELDS["task"]` | add `bundle` |
-| `backlog_server.py` `ALLOWED_FIELDS` | add `bundle` |
-| `backlog_add_task` | accept `bundle` param |
-| `backlog_batch_update` / `backlog_batch_preview` | support setting `bundle` |
-| `backlog_pick_task` + `_build_worktree_instruction()` | bundle-aware: detect slug on picked task, return member list + shared worktree instruction (`.worktrees/<slug>`, `feature/<slug>`); validate all members share `sub_repo`; idempotent re-pick when bundle already in progress |
-| `skills/pick-task/SKILL.md` | bundle pickup protocol replaces the per-task worktree mandate when slug present; detection-fallback step via `backlog_blast_radius(mode="predictive")` |
-| `skills/review-gate/SKILL.md` | per-member verdict mode + descope path |
-| `skills/end-session/SKILL.md` | handle multiple members completing off one branch |
-| `blast_radius.py` | unchanged — `find_overlapping_tasks()` is already the detection kernel |
-| Viewer kanban | bundle badge on cards sharing a slug (no new screen) |
+| `backlog_server.py` `ALLOWED_FIELDS` | add `bundle` + slug-format validation |
+| `backlog_add_task` | add `bundle` param + slug-format + birth-time `sub_repo` validation |
+| `backlog_batch_update` | sets `bundle` (via `ALLOWED_FIELDS`). **`backlog_batch_preview` unchanged** — no `update` op, not needed |
+| `backlog_server.py` `_find_tasks_by_bundle()` | **new helper** — find members by slug (C3) |
+| `backlog_server.py` `_session_bundle` + `_get_session_bundle()` | **new** — multi-member session context (C1) |
+| `backlog_pick_task` + `_build_worktree_instruction()` | bundle-aware: detect slug, bind all members (status/lock/branch/worktree), shared `.worktrees/<slug>` + `feature/<slug>`, validate `sub_repo`, compute strictest lane, idempotent re-pick, bundle-aware lock error |
+| `blast_radius.py` / `backlog_blast_radius` | add structured predictive output for the detection-fallback (I4) |
+| `skills/pick-task/SKILL.md` | bundle pickup replaces the per-task worktree mandate when slug present; detection-fallback step via structured predictive blast-radius |
+| `skills/review-gate/SKILL.md` | per-member N-verdict mode + descope path (slug/status/branch clear + manual spec-claim excision) |
+| `skills/end-session/SKILL.md` | per-member `backlog_complete_task`; merge fan-out loop; worktree cleanup gated on last member (C2, I5) |
+| Viewer `card.js` / `kanban.js` | bundle badge on cards sharing a slug (depends on `bundle` in `SLIM_FIELDS`); no new screen |
 
 ## Out of scope / adjacent
 
@@ -91,5 +124,7 @@ No bundle file, no new YAML collection, no new viewer screen. The slug serves as
 
 ## Testing
 
-- Unit: slug round-trip through `backlog_add_task` / `backlog_update_task`; `backlog_pick_task` returns member list + shared instruction; `sub_repo` mismatch rejected; descope clears slug and resets status.
-- Behavioral (skill-level): pick-on-member binds whole bundle; review gate emits N verdicts; merge fan-out records the same rung/sha on all completing members.
+- Unit — data/validation: slug round-trip through `backlog_add_task` / `backlog_update_task`; bad slug rejected (format rule); `sub_repo` mismatch rejected **at birth** and at pick; `bundle` present in slim reads (in `SLIM_FIELDS`); descope clears slug + resets status to `todo` + clears branch/worktree.
+- Unit — primitives: `_find_tasks_by_bundle(slug)` returns exactly the members; `backlog_pick_task` on a member binds all members (status/lock/branch/worktree), returns member list + shared instruction (`.worktrees/<slug>`, `feature/<slug>`) + computed strictest lane; idempotent re-pick of an already-bound bundle; bundle-aware lock-conflict error for a second session; `_session_bundle` populated while `_session_task` is the picked member.
+- Unit — detection: structured predictive blast-radius returns `[{task_id, status, shared_paths}]`; fallback filters `todo`.
+- Behavioral (skill-level): pick-on-member binds whole bundle; review-gate emits N per-member verdicts in one report; a failing member blocks the merge until fix-up or descope; merge fan-out loop records the same rung/sha on every completing member; end-session writes a real completion record per member and only offers worktree cleanup once the last member leaves the bundle.

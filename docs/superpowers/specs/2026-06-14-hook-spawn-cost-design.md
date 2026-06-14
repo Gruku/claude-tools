@@ -29,14 +29,23 @@ Hook registrations snapshot at SessionStart, so none of this is active until Cla
 
 Both JSON files validated. Confirmed live in both files via grep on 2026-06-14.
 
-## Decision — Windows Defender exclusions (PENDING, user's call)
+## Decision — Windows Defender exclusions: PATH-ONLY (decided 2026-06-14)
 
-The #1 remaining lever for the *irreducible* hooks (the guard-hooks core `guard_bash.py` must inspect every command and cannot be gated). Proposed, to be run in an elevated PowerShell:
+The #1 remaining lever for the *irreducible* hooks (the guard-hooks core `guard_bash.py` must inspect every command and cannot be gated).
 
-- **Process exclusions:** `python.exe`, `pythonw.exe`, `bash.exe`, `sh.exe`, `jq.exe`, `git.exe`, `node.exe` — stop AV scanning each interpreter spawn (the dominant cost).
-- **Path exclusions:** `~/.claude`, claude-tools, CodeMaestro — stop file-scan on git tree-walks in hot repos.
+**Decision: path exclusions only — no process/interpreter exclusions.** The user chose the conservative option: capture most of the git-tree-walk win without weakening malware coverage on interpreters. To be run in an elevated PowerShell:
 
-**Tradeoff (stated plainly):** excluding `python.exe`/`node.exe` from real-time scanning is a genuine reduction in AV coverage (malware favors living in interpreters). Path exclusions are lower-risk than process exclusions. Conservative option: run only the path block for most of the git-tree-walk win without the interpreter-exclusion exposure. This is a machine-security-posture decision and is explicitly the user's to make.
+- **Path exclusions (APPROVED):** `~/.claude`, claude-tools (`C:\Users\gruku\Files\Claude\claude-tools`), CodeMaestro (`C:\Users\gruku\Files\Work\CodeMaestro`) — stop file-scan on git tree-walks in hot repos.
+- **Process exclusions (REJECTED):** `python.exe`/`node.exe`/`bash.exe`/etc. were considered and **declined** — excluding interpreters from real-time scanning is a genuine reduction in AV coverage (malware favors living in interpreters); not worth the exposure.
+
+```powershell
+# Path exclusions only (run elevated)
+'C:\Users\gruku\.claude',
+'C:\Users\gruku\Files\Claude\claude-tools',
+'C:\Users\gruku\Files\Work\CodeMaestro' |
+  ForEach-Object { Add-MpPreference -ExclusionPath $_ }
+Get-MpPreference | Select-Object -ExpandProperty ExclusionPath   # verify
+```
 
 ## Deliberately NOT done
 
@@ -55,7 +64,7 @@ The #1 remaining lever for the *irreducible* hooks (the guard-hooks core `guard_
 2. **`git -C <path> push` still guarded:** `git -C "…/code-maestro-api" push --dry-run origin <feature-branch>` → guard stderr must still fire. If not, the `git * push:*` pattern isn't spanning the path → widen to `Bash(git *)` on the blocking guards.
 3. **PowerShell `if` works:** trigger a develop-push (or worktree-remove) via the PowerShell tool once; if not caught, the inferred `PowerShell(...)` syntax failed → revert those matchers to ungated.
 4. **Fail-open preserved:** force one gated guard to fire and error (e.g. a transient bad state); confirm the Bash command still proceeds (PreToolUse exits non-deny). A gating edit must never convert a fail-open guard into a fail-closed DENY.
-5. **Defender (if the user opts in):** after running the exclusion block, `Get-MpPreference | Select -ExpandProperty ExclusionProcess` lists the expected entries.
+5. **Defender (path-only, decided):** after running the path-exclusion block in an elevated shell, `Get-MpPreference | Select -ExpandProperty ExclusionPath` lists the three hot-repo paths. (No process exclusions expected — that option was declined.)
 
 ## Rollback
 
@@ -64,5 +73,5 @@ Fully reversible by hand — the change only *added* `if` fields to existing hoo
 ## Done criteria
 
 - Post-restart verification steps 1-3 pass (read-path quiet; push + worktree guards still fire on both `git -C` and PowerShell forms).
-- The Defender decision is made (path-only, full, or declined) and, if accepted, applied + verified (step 4).
+- Defender path-only exclusions applied in an elevated shell + verified (step 5). (Decision already made: path-only; process exclusions declined.)
 - Any coverage loss found in steps 2-3 is repaired (widen pattern / revert matcher) before close.
