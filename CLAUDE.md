@@ -41,7 +41,7 @@ When creating a PR that touched plugin source, treat "bump the three parts + run
 
 - **MCP server**: `plugins/taskmaster/taskmaster_v3.py` (FastMCP). Surface is the `backlog_*` family of tools. Read this before adding new tools.
 - **Skills**: `plugins/taskmaster/skills/<name>/SKILL.md`. Universal entry points (`taskmaster:taskmaster`, `taskmaster:start-session`, `taskmaster:end-session`, `taskmaster:auto-task`, etc.). Skills are content-driven and progressive-disclosure — the `description` field is what Claude reads to decide whether to invoke.
-- **Agents**: `plugins/taskmaster/agents/<name>.md`. Currently none ship; the `goal-judge` agent (designed in `docs/superpowers/specs/2026-05-10-auto-brainstorm-goal-design.md`, *pending*) will be the first.
+- **Agents**: `plugins/taskmaster/agents/<name>.md`. Currently none ship; the `goal-judge` agent (designed in `docs/superpowers/specs/2026-05-10-auto-brainstorm-goal-design.md`, *pending*) will be the first — note: that design is superseded pending a goals+ultracode redesign (auto-mode removed).
 - **Viewer**: `plugins/taskmaster/viewer/` — local-first kanban UI; `js/screens/<name>.js` per surface (kanban, issues, lessons, ideas, etc.). v3 is moving toward single-app + project switcher (see memory: `project_taskmaster_v3_single_app.md`).
 - **On-disk backlog**: `.taskmaster/` per project — `backlog.yaml` (lightweight metadata), `tasks/<id>.md` (task body + spec/plan), `issues/`, `lessons/`, `ideas/`, `handovers/`, `auto/state.json`.
 
