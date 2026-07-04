@@ -56,3 +56,14 @@ plugins/taskmaster/docs/generalization-plan.md
 .claude/backlog.yaml
 .claude/tasks/
 .claude/PROGRESS.md
+
+# Backstop for tm-audit-001 (artifact-root hijack): the resolver guard is the
+# real fix, but if a dev/dogfood run ever regenerates artifacts directly under
+# the plugin dir, don't let them get committed.
+plugins/taskmaster/lessons/
+plugins/taskmaster/notes/
+plugins/taskmaster/handovers/
+plugins/taskmaster/ideas/
+plugins/taskmaster/issues/
+plugins/taskmaster/recaps/
+plugins/taskmaster/viewer.json
