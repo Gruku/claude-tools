@@ -1,0 +1,3 @@
+[submodule "plugins/taskmaster"]
+	path = plugins/taskmaster
+	url = C:/Users/gruku/Files/Claude/taskmaster
