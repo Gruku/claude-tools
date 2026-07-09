@@ -2,6 +2,13 @@
 
 This repo is the home of the **taskmaster** plugin (and supporting tooling). It's a Claude Code plugin distribution: skills, slash commands, MCP servers, agents, hooks, and a viewer UI live under `plugins/`.
 
+## Sibling repos
+
+Two active sibling projects, referenced from here but developed in their own trees:
+
+- **`C:\Users\gruku\Files\Claude\taskmaster`** — the taskmaster **source of truth**, upstream of the `plugins/taskmaster` submodule in this repo (`https://github.com/Gruku/taskmaster.git`). Develop taskmaster features there, not by editing the submodule in place; land changes here by advancing the submodule pointer (see versioning protocol below) and keep this repo's `plugin.json` / marketplace version in lockstep with taskmaster's own `pyproject.toml` version.
+- **`C:\Users\gruku\Files\Claude\Project-Fold`** — "The Fold" (`https://github.com/Gruku/the-fold.git`), the Agentic OS project, previously on hold and now active again. Consumes taskmaster as its backlog engine; keep taskmaster's module boundaries extraction-friendly for it.
+
 ## Working on the taskmaster plugin
 
 Most work in this repo touches `plugins/taskmaster/`. When adding or modifying any plugin component, **invoke the matching `plugin-dev:` skill BEFORE writing code** — these skills encode the frontmatter rules, structural conventions, and trigger-phrasing that make components actually work in Claude Code:
@@ -79,6 +86,9 @@ Living design specs live under `docs/superpowers/specs/YYYY-MM-DD-<topic>-design
 - **No motion on hover** — color/border/background changes only, no `transform` / `translate` / `scale`.
 - **No box-shadows for elevation** — use surface stepping.
 - **TDD is the default in `auto-task`** — write failing tests as their own commit before implementing. Skipping requires explicit rationale recorded in the handover.
+- **Chip-row filters use the shared `chipClickNext` helper** (`plugins/taskmaster/viewer/js/util/chip-toggle.js`): plain click filters to only that key, shift-click toggles it into the multi-select pool. Every chip row (kanban, table, issues) must behave identically — don't hand-roll per-screen toggle logic.
+- **Fix guard-hooks false positives by tightening the matcher, never by loosening coverage.** Parse git argv (subcommand + flags), don't substring-scan the raw command — true-positive coverage for the destructive cases the 2026-05-19 incident added (worktree `--force`, push `--force`, `.git/`-write redirects) must stay identical after any precision fix.
+- **Before culling anything flagged "dead" by an audit, grep the whole repo** — including `skills/*/references/`, `skills/*/templates/`, sibling plugins, and in-file string references — not just `SKILL.md` files. Live callers hide in reference subfiles.
 
 ## Reflect Targets
 

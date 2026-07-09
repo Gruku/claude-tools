@@ -11,8 +11,8 @@
     {
       "name": "taskmaster",
       "source": "./plugins/taskmaster",
-      "description": "Universal AI-powered task and backlog management with v3 narrative continuity: handovers, lessons, issues, recap, snapshot/PreCompact hook. Redesigned kanban viewer with inline edit-in-UI. Per-task files (.taskmaster/tasks/<id>.md) with slim YAML index. v2 backlogs keep working unchanged; opt into v3 via taskmaster:migrate-v3 skill or backlog_init schema_version=3. Requires: uv (https://docs.astral.sh/uv/)",
-      "version": "3.24.1"
+      "description": "Universal AI-powered task and backlog management with narrative continuity: handovers, issues, areas, finite epics (done_when), recap, snapshot/PreCompact hook. Redesigned kanban viewer with inline edit-in-UI. Per-task files (.taskmaster/tasks/<id>.md) with slim YAML index. Lessons subsystem removed in 4.0 (durable knowledge now lives in assistant memory + CLAUDE.md/AGENTS.md) — run taskmaster:migrate-lessons once per project with existing lesson files. v2 backlogs keep working unchanged; opt into v3 via taskmaster:migrate-v3 skill or backlog_init schema_version=3. Requires: uv (https://docs.astral.sh/uv/)",
+      "version": "4.1.0"
     },
     {
       "name": "guard-hooks",
