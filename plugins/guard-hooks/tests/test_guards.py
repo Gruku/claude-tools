@@ -408,8 +408,13 @@ class TestAckSentinel:
         proc = run_bash_guard(soft_cmd, home)
         assert proc.returncode == 0
 
-        # Consumer deletes the ack; next attempt blocks again.
-        run_hook(CONSUME_APPROVAL, {}, home)
+        # The soft command's own PostToolUse consumer deletes the ack
+        # (one-shot); next attempt blocks again.
+        run_hook(
+            CONSUME_APPROVAL,
+            {"tool_name": "Bash", "tool_input": {"command": soft_cmd}},
+            home,
+        )
         assert not ack_path(home).exists()
         proc = run_bash_guard(soft_cmd, home)
         assert proc.returncode == 2
@@ -1018,6 +1023,15 @@ FRICTION_CASES = [
      'git commit -m "touch tests & document guard-approve flow"', False),
     ("commit -m then real touch still blocked",
      'git commit -m "docs" && touch ~/.claude/guard-approve-default', True),
+    # -- git-fed heredoc bodies are inert text (live FP hit during this
+    #    task: a commit message mentioning a PS cmdlet + a .git/ path) --
+    ("git commit -F heredoc body with scary text",
+     "git commit -F - <<'EOF'\nnote: Remove-Item and .git/ redirect rules\nEOF",
+     False),
+    ("bash heredoc with rm -rf still blocked",
+     "bash <<'EOF'\nrm -rf /tmp/x\nEOF", True),
+    ("psql heredoc still scanned (DB guard)",
+     "psql <<EOF\nDROP DATABASE foo;\nEOF", True),
     # -- ISS-026: PowerShell-native destructive patterns --
     ("Remove-Item -Recurse -Force", "Remove-Item -Recurse -Force C:\\repo\\dir", True),
     ("Remove-Item -Recurse only", "Remove-Item -Recurse C:\\repo\\dir", True),

@@ -67,6 +67,8 @@ cat <<'BANNER'
     a partial-failure cascade can run silently. Re-run without the filter.
 
   • `rm -rf` / `rmdir` / `shred` / `unlink`  (approval-gated)
+  • PowerShell `Remove-Item -Recurse` (approval-gated) — the PowerShell tool
+    is guarded the same as Bash; switching tools does not bypass any rule.
   • `git reset --hard`, `git clean -f`, `git branch -D`, `git checkout .`
   • `git stash clear` / `git stash drop --all`
   • `git push --force` and pushing to main/master (approval-gated)
@@ -75,7 +77,10 @@ cat <<'BANNER'
 
 When a guard fires, it prints the rationale and recovery hint. Read those
 before retrying. The approval flow is AskUserQuestion with labels exactly
-"Approve" / "Deny"; only the user can authorize.
+"Approve" / "Deny"; only the user can authorize. An approval covers exactly
+the blocked command, lasts 5 minutes, and is consumed when that command
+runs — intermediate commands do not use it up, and it does not authorize
+any other guarded action.
 BANNER
 
 exit 0

@@ -16,13 +16,18 @@ by guard 4).
 
 Exit 2 = block. Exit 0 = allow.
 
-Approval flow (shared with the rest of guard-hooks):
-  The AI calls AskUserQuestion with labels "Approve"/"Deny". On "Approve",
-  the PostToolUse hook on AskUserQuestion creates the per-session approval
-  file automatically. The user can also type "approve" as a chat message
-  (UserPromptSubmit hook). Approval is valid for 60 seconds; PreToolUse
-  only checks freshness — consume_approval.py (PostToolUse) deletes it
-  after the tool actually runs.
+Approval flow (shared with the rest of guard-hooks, scoped as of v2.8.0):
+  A block records its scope (guard + command hash) in the per-session
+  guard-pending file. The AI calls AskUserQuestion with labels
+  "Approve"/"Deny". On "Approve", the PostToolUse hook on AskUserQuestion
+  arms the per-session approval file with that scope. The user can also
+  type "approve" as a chat message (UserPromptSubmit hook). Approval is
+  valid for 5 minutes and covers exactly the blocked command; PreToolUse
+  only checks it — consume_approval.py (PostToolUse) burns it after the
+  approved command actually runs.
+
+Registered for both the Bash and PowerShell tools (ISS-026) — both carry
+the command in tool_input.command.
 
 Zero subprocess spawns on the hot path: the only subprocess is
 `git branch --show-current`, run exclusively when a bare `git push` already
@@ -47,6 +52,53 @@ RE_APPROVE_MUTATION = re.compile(
     r'[^|;&]*guard-approve(-[A-Za-z0-9_-]+)?($|[\s"\'])'
 )
 
+# Commit/tag message arguments (-m "...", --message=..., -F "..."): inert
+# text sinks. Stripped before the approve-mutation scan so a commit message
+# that merely MENTIONS touch + guard-approve doesn't false-positive (B-009).
+RE_MSG_ARG = re.compile(
+    r'(?:^|\s)(?:-m|--message=?|-F)\s*("(?:[^"\\]|\\.)*"|\'[^\']*\')'
+)
+
+
+def _strip_message_args(command):
+    return RE_MSG_ARG.sub(' ', command)
+
+
+# git-fed heredocs (git commit -F - <<EOF, git tag -F - <<EOF, ...) are text
+# sinks — git never executes the body. Their content triggered verb/token
+# co-occurrence false positives (observed live: a commit message mentioning
+# a PS cmdlet plus a .git/ path was hard-blocked). Only git-fed bodies are
+# stripped: `bash <<EOF` and `psql <<EOF` bodies remain fully scanned, so
+# true-positive coverage (destructive shell/SQL via heredoc) is unchanged.
+RE_GIT_HEREDOC = re.compile(
+    r'(\bgit\b[^|;&<>]*<<-?\s*([\'"]?)(\w+)\2)(.*?)(^\3[ \t\r]*$|\Z)',
+    re.DOTALL | re.MULTILINE,
+)
+
+
+def _strip_git_heredocs(command):
+    return RE_GIT_HEREDOC.sub(lambda m: m.group(1) + "\n" + m.group(5), command)
+
+
+# Redirect TARGETS of a segment: the token following >/>> (optionally
+# fd-prefixed like 2> or bash's &>). fd duplications (2>&1, >&2) yield no
+# target. Used by the .git/ and system-path redirect rules so a target of
+# /dev/null — or an unexpanded "$var" — is judged on the TARGET, not on
+# whatever paths happen to co-occur in the segment (B-064).
+RE_REDIRECT_TARGET = re.compile(
+    r'(?:^|\s)(?:\d+|&)?>{1,2}\s*("[^"]*"|\'[^\']*\'|[^\s|;&<>]+)'
+)
+
+
+def _redirect_targets(seg):
+    targets = []
+    for match in RE_REDIRECT_TARGET.finditer(seg):
+        t = match.group(1)
+        if len(t) >= 2 and t[0] in ('"', "'") and t[-1] == t[0]:
+            t = t[1:-1]
+        targets.append(t)
+    return targets
+
 
 # ===========================================================================
 # Guard 1 — destructive (port of guard-destructive.sh)
@@ -57,7 +109,11 @@ RE_FILE_DELETION = re.compile(
     re.IGNORECASE,
 )
 RE_PUSH_CMD = re.compile(r'git\s+((-[a-zA-Z]+\s+\S+|--[a-z-]+)\s+)*push(\s+[^;&|]+)?')
-RE_FORCE_FLAG = re.compile(r'(-f|--force)')
+# PowerShell recursive delete — the `rm -rf` analog (ISS-026). `-Force`
+# alone (single item, no recursion) stays allowed, matching `rm -f` parity.
+RE_PS_RECURSIVE_DELETE = re.compile(
+    r'\bRemove-Item\b[^|;&]*\s-(Recurse|r)\b', re.IGNORECASE
+)
 RE_RESET_HARD = re.compile(r'git\s+reset\s+--hard')
 RE_GIT_CLEAN = re.compile(r'git\s+clean\s+-[a-zA-Z]*f')
 RE_WORKTREE_REMOVE = re.compile(r'git\s+([^|;&]*\s)?worktree\s+remove')
@@ -92,16 +148,21 @@ After the user responds:
   - "Approve" → rerun the ORIGINAL command unchanged
   - "Deny" or no response → do NOT run the command
 
+The approval covers exactly this command for 5 minutes and is consumed when
+it runs — intermediate commands do not use it up, and it does not authorize
+any other guarded action.
 Only the exact label "Approve" is recognized as authorization.
 Do NOT re-run automatically. Do NOT create the approval file yourself.
 """
 
 
-def guard_destructive(command, approve_path, ack_path, hook_cwd):
+def guard_destructive(command, approve_path, ack_path, hook_cwd,
+                      pending_path=None, action_hash=""):
     """Returns the stderr block message, or None to allow."""
 
     # --- Block LLM from creating the approval file ---
-    if RE_APPROVE_MUTATION.search(command):
+    # Commit-message bodies are inert text — strip them first (B-009).
+    if RE_APPROVE_MUTATION.search(_strip_message_args(command)):
         return (
             "⛔ GUARD HOOK BLOCKED THIS COMMAND.\n"
             "Reason: You cannot create or manipulate the guard approval file. "
@@ -109,10 +170,15 @@ def guard_destructive(command, approve_path, ack_path, hook_cwd):
         )
 
     def block(reason):
-        # Check for valid user approval before blocking. Approval is NOT
-        # consumed here — consume_approval.py (PostToolUse) does that.
-        if common.file_recent(approve_path):
+        # Check for a valid user approval covering THIS action before
+        # blocking. Approval is NOT consumed here — consume_approval.py
+        # (PostToolUse) does that after the approved command actually runs.
+        if common.approval_grants(approve_path, "destructive", action_hash):
             return None
+        if pending_path is not None:
+            common.write_scope(
+                pending_path, {"guard": "destructive", "hash": action_hash}
+            )
         return (
             "⛔ GUARD HOOK BLOCKED THIS COMMAND.\n"
             "Reason: {}\n"
@@ -127,6 +193,13 @@ def guard_destructive(command, approve_path, ack_path, hook_cwd):
             "Use 'git worktree remove' for worktrees.".format(command)
         )
 
+    # --- PowerShell recursive delete (rm -rf analog) ---
+    if RE_PS_RECURSIVE_DELETE.search(command):
+        return block(
+            "Remove-Item -Recurse deletes a directory tree (the PowerShell "
+            "'rm -rf'). Use 'git worktree remove' for worktrees."
+        )
+
     # --- Git push guards (force push, push to main/master, bare push) ---
     # Extract the git push portion, accounting for global flags like -C <path>
     # between 'git' and 'push'. Stops at && | or ; to avoid false positives
@@ -136,7 +209,25 @@ def guard_destructive(command, approve_path, ack_path, hook_cwd):
         push_cmd = push_match.group(0)
         # Extract just the args after "push" (greedy, like `sed 's/.*push//'`).
         push_args = re.sub(r'.*push', '', push_cmd, count=1)
-        if RE_FORCE_FLAG.search(push_args):
+
+        # Force detection walks flag TOKENS only — a substring scan flagged
+        # branch names containing "-f" (e.g. asset-engine-foundation, B-062).
+        force_hit = False
+        for token in push_args.split():
+            if token == '--':
+                break  # everything after is positional
+            if not token.startswith('-'):
+                continue
+            if (
+                token in ('-f', '--force')
+                or token.startswith('--force-with-lease')
+                or token.startswith('--force-if-includes')
+                # short-flag cluster containing f (e.g. -uf)
+                or (re.match(r'^-[a-zA-Z]+$', token) and 'f' in token)
+            ):
+                force_hit = True
+                break
+        if force_hit:
             return block("Force push detected. This can overwrite remote history.")
 
         # Protected-branch detection: walk the positional args, drop flags and
@@ -321,6 +412,9 @@ After the user responds:
   - "Approve" → rerun the ORIGINAL command unchanged
   - "Deny" or no response → do NOT run the command
 
+The approval covers exactly this command for 5 minutes and is consumed when
+it runs — intermediate commands do not use it up, and it does not authorize
+any other guarded action.
 Only the exact label "Approve" is recognized as authorization. The PostToolUse
 hook on AskUserQuestion creates the approval file automatically — you do NOT
 need to ask the user to touch any file. Typing "approve" as a chat message is
@@ -340,7 +434,7 @@ command:
     : guard-ack-self
 The hook recognizes the sentinel, records a per-session ack, and lets the
 no-op proceed. Then re-run the ORIGINAL command unchanged. The ack is
-one-shot and expires in 60 seconds.
+one-shot and expires in 5 minutes.
 
 Do NOT ask the user to run the touch command — this ack is AI-driven by design.
 If you are uncertain whether the scope is intended, defer to the user with the
@@ -348,13 +442,14 @@ AskUserQuestion tool (labels "Approve" / "Deny") instead of self-acking.
 """
 
 
-def guard_database(command, approve_path, ack_path, hook_cwd):
+def guard_database(command, approve_path, ack_path, hook_cwd,
+                   pending_path=None, action_hash=""):
     """Returns the stderr block message, or None to allow."""
 
     # --- AI must not create the user-only approval file ---
     # (Unreachable in the consolidated flow — guard_destructive's identical
     # pattern fires first — kept for structural fidelity with the bash script.)
-    if RE_APPROVE_MUTATION.search(command):
+    if RE_APPROVE_MUTATION.search(_strip_message_args(command)):
         return (
             "GUARD HOOK BLOCKED THIS COMMAND.\n"
             "Reason: You cannot create or manipulate the user-only approval file. "
@@ -369,9 +464,16 @@ def guard_database(command, approve_path, ack_path, hook_cwd):
         common.touch(ack_path)
         return None
 
+    def _note_pending():
+        if pending_path is not None:
+            common.write_scope(
+                pending_path, {"guard": "database", "hash": action_hash}
+            )
+
     def block_hard(reason, recovery):
-        if common.file_recent(approve_path):
+        if common.approval_grants(approve_path, "database", action_hash):
             return None
+        _note_pending()
         return (
             "GUARD HOOK BLOCKED THIS COMMAND (HARD).\n"
             "Reason: {}\n"
@@ -381,8 +483,10 @@ def guard_database(command, approve_path, ack_path, hook_cwd):
         )
 
     def block_soft(reason, recovery):
-        if common.file_recent(approve_path) or common.file_recent(ack_path):
+        if (common.approval_grants(approve_path, "database", action_hash)
+                or common.file_recent(ack_path)):
             return None
+        _note_pending()
         return (
             "GUARD HOOK BLOCKED THIS COMMAND (SOFT — AI self-ack permitted).\n"
             "Reason: {}\n"
@@ -547,8 +651,6 @@ RE_FIND_DESTRUCTIVE = re.compile(
     r'(^|[\s&|;`(])find(\s+[^|;&]*)?\s(-delete|-exec\s+(rm|unlink|shred|chmod|chown|mv))',
     re.IGNORECASE,
 )
-# Output redirection (cmd, bash, PowerShell all use > / >>)
-RE_REDIRECT = re.compile(r'(>|>>)')
 # Destructive verbs reduced to a basename allowlist — used to detect when an
 # absolute-path invocation like `/usr/bin/rm /etc/passwd` is destructive.
 RE_UNIX_VERB_BASENAME = re.compile(
@@ -573,6 +675,9 @@ After the user responds:
   - "Approve" → rerun the ORIGINAL command unchanged
   - "Deny" or no response → do NOT run the command
 
+The approval covers exactly this command for 5 minutes and is consumed when
+it runs — intermediate commands do not use it up, and it does not authorize
+any other guarded action.
 Only the exact label "Approve" is recognized as authorization. The PostToolUse
 hook on AskUserQuestion creates the approval file automatically — you do NOT
 need to ask the user to touch any file. Typing "approve" as a chat message is
@@ -653,13 +758,23 @@ def _split_first_token(segment):
     return first, rest, first_base_lower
 
 
-def guard_system_paths(command, approve_path, ack_path, hook_cwd):
+def _target_is_syspath(target):
+    """True if a redirect TARGET is an OS system path. Targets that start
+    with an unexpanded variable reference cannot be resolved statically —
+    treat as not-a-system-path rather than lying about what it is (B-064)."""
+    if target.startswith('$'):
+        return False
+    return bool(RE_WIN_SYS.search(target) or RE_UNIX_SYS.search(target))
+
+
+def guard_system_paths(command, approve_path, ack_path, hook_cwd,
+                       pending_path=None, action_hash=""):
     """Returns the stderr block message, or None to allow. Every denial is
     logged to ~/.claude/logs/guard-system-paths.log."""
 
     # --- AI must not create the approval file ---
     # (Unreachable in the consolidated flow — guard_destructive fires first.)
-    if RE_APPROVE_MUTATION.search(command):
+    if RE_APPROVE_MUTATION.search(_strip_message_args(command)):
         return (
             "GUARD HOOK BLOCKED THIS COMMAND.\n"
             "Reason: You cannot create or manipulate the guard approval file. "
@@ -669,9 +784,13 @@ def guard_system_paths(command, approve_path, ack_path, hook_cwd):
     log_file = common.home_dir() / ".claude" / "logs" / "guard-system-paths.log"
 
     def block(reason):
-        if common.file_recent(approve_path):
+        if common.approval_grants(approve_path, "system-paths", action_hash):
             return None
-        common.log_denied(log_file, reason, command)
+        if pending_path is not None:
+            common.write_scope(
+                pending_path, {"guard": "system-paths", "hash": action_hash}
+            )
+            common.log_denied(log_file, reason, command)
         return (
             "GUARD HOOK BLOCKED THIS COMMAND.\n"
             "Reason: {}\n"
@@ -710,7 +829,9 @@ def guard_system_paths(command, approve_path, ack_path, hook_cwd):
             return block("Destructive PowerShell cmdlet (Remove-Item/Move-Item/Rename-Item/Copy-Item/Set-Content/takeown/icacls) targeting a system path.")
         if RE_FIND_DESTRUCTIVE.search(seg):
             return block("Destructive find (-delete or -exec rm/unlink/shred/chmod/chown/mv) targeting a system path.")
-        if RE_REDIRECT.search(seg):
+        # Judge the redirect TARGET, not path co-occurrence in the segment:
+        # `ls /etc/hosts 2>/dev/null` redirects into /dev/null, not /etc (B-064).
+        if any(_target_is_syspath(t) for t in _redirect_targets(seg)):
             return block("Output redirection (> or >>) into a system path.")
 
     return None
@@ -740,27 +861,25 @@ RE_GITINT_PS_VERB = re.compile(
     r'|Out-File|Set-Content|Add-Content|Clear-Content|New-Item)',
     re.IGNORECASE,
 )
-# Output redirection to a PATH. fd duplications like '2>&1', '1>&2', '&>&N'
-# are NOT path writes — optional leading fd digit OR '&' (for bash '&>'),
-# then '>' or '>>', optional whitespace, then a target byte that is NOT '&',
-# '>', or whitespace (the start of a filename).
-RE_PATH_REDIRECT = re.compile(r'(^|\s)[0-9&]?>>?\s*[^&\s>]')
 # Allowlist: redirection into the review-gate blessing marker is permitted.
 # Pairs with ~/.claude/hooks/push-review-gate-guard.py. Narrow scope: only
 # the redirect rule honors it; destructive verbs remain hard-blocked.
-RE_BLESS_REDIRECT = re.compile(
-    r'(>|>>)\s*[^\s&|;<>]*\.git[/\\]CLAUDE_REVIEW_GATE_OK'
-)
+RE_BLESS_TARGET = re.compile(r'\.git[/\\]CLAUDE_REVIEW_GATE_OK$')
 
 
-def guard_git_internals(command, approve_path, ack_path, hook_cwd):
+def guard_git_internals(command, approve_path, ack_path, hook_cwd,
+                        pending_path=None, action_hash=""):
     """Returns the stderr block message, or None to allow. No approval bypass.
     Every denial is logged to ~/.claude/logs/guard-git-internals.log."""
 
     log_file = common.home_dir() / ".claude" / "logs" / "guard-git-internals.log"
 
     def block(reason):
-        common.log_denied(log_file, reason, command)
+        # No pending scope is written: this guard has no approval bypass,
+        # so there is nothing to arm. Log only on the real PreToolUse pass
+        # (pending_path set), not on consume-time re-evaluation.
+        if pending_path is not None:
+            common.log_denied(log_file, reason, command)
         return (
             "GUARD HOOK BLOCKED THIS COMMAND.\n"
             "Reason: {}\n"
@@ -807,10 +926,12 @@ def guard_git_internals(command, approve_path, ack_path, hook_cwd):
             return block("Destructive PowerShell cmdlet (Remove-Item/Move-Item/Rename-Item/Set-Content) targeting .git/")
         if RE_FIND_DESTRUCTIVE.search(seg):
             return block("Destructive find (-delete or -exec rm/unlink/shred/chmod/chown/mv) targeting .git/")
-        if RE_PATH_REDIRECT.search(seg):
-            if RE_BLESS_REDIRECT.search(seg):
-                pass  # allowed: writing the review-gate blessing marker
-            else:
+        # Judge the redirect TARGET, not path co-occurrence in the segment:
+        # `ls .git/index.lock 2>/dev/null` redirects into /dev/null (B-064).
+        for target in _redirect_targets(seg):
+            if RE_BLESS_TARGET.search(target):
+                continue  # allowed: writing the review-gate blessing marker
+            if RE_GIT_TOKEN.search(target):
                 return block("Output redirection (> or >>) into .git/")
 
     return None
@@ -822,6 +943,37 @@ def guard_git_internals(command, approve_path, ack_path, hook_cwd):
 
 GUARDS = (guard_destructive, guard_database, guard_system_paths, guard_git_internals)
 
+# guard_database scans the RAW command (psql <<EOF bodies are live SQL);
+# the other guards get git-fed heredoc bodies stripped (inert text sinks).
+_STRIPS_GIT_HEREDOCS = {guard_destructive, guard_system_paths, guard_git_internals}
+
+
+def _run_guards(command, approve_path, ack_path, hook_cwd,
+                pending_path=None, action_hash=""):
+    """Run all guards, first block wins. Returns the block message or None."""
+    stripped = _strip_git_heredocs(command)
+    for guard in GUARDS:
+        text = stripped if guard in _STRIPS_GIT_HEREDOCS else command
+        message = guard(text, approve_path, ack_path, hook_cwd,
+                        pending_path, action_hash)
+        if message is not None:
+            return message
+    return None
+
+
+def would_block(command, hook_cwd=""):
+    """True if `command` would trip any guard with no approvals present.
+    Used by consume_approval.py to decide whether the command that just ran
+    was a guarded action (only those burn approval/ack tokens)."""
+    if not command:
+        return False
+    # The ack sentinel is the handshake itself, not a guarded action — and
+    # evaluating it through guard_database would touch the ack file.
+    if RE_ACK_SENTINEL.search(command):
+        return False
+    missing = common.claude_dir() / "guard-approve-never-exists"
+    return _run_guards(command, missing, missing, hook_cwd) is not None
+
 
 def main():
     data = common.read_hook_input()
@@ -832,16 +984,20 @@ def main():
     sid = common.session_id(data)
     approve_path = common.approve_file(sid)
     ack_path = common.ack_file(sid)
+    pending_path = common.pending_file(sid)
+    # Action identity: hash of the raw command. The Approve flow arms exactly
+    # this hash; rerunning the ORIGINAL command unchanged matches it.
+    action_hash = common.hash_text(command)
     # Hook's reported cwd of the calling shell, used to resolve relative paths
     # during the worktree-removal pre-flight. Optional — absent in older
     # hook payloads.
     hook_cwd = common.jq_str(data, "cwd")
 
-    for guard in GUARDS:
-        message = guard(command, approve_path, ack_path, hook_cwd)
-        if message is not None:
-            common.write_stderr(message)
-            sys.exit(2)
+    message = _run_guards(command, approve_path, ack_path, hook_cwd,
+                          pending_path, action_hash)
+    if message is not None:
+        common.write_stderr(message)
+        sys.exit(2)
     sys.exit(0)
 
 
