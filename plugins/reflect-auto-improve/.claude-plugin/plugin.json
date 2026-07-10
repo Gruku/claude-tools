@@ -1,7 +1,7 @@
 {
   "name": "reflect-auto-improve",
-  "description": "Reflect on past work and propose concrete improvements. Time-windowed project retros, pain-point harvesting into workflow drafts, and claude-tools plugin self-audits. Outputs route through taskmaster as ideas, issues, and lessons.",
-  "version": "0.1.0",
+  "description": "Reflect on past work and propose concrete improvements. Time-windowed project retros, pain-point harvesting into workflow drafts, and claude-tools plugin self-audits. Outputs route through taskmaster as ideas and issues.",
+  "version": "0.1.1",
   "author": {
     "name": "gruku"
   }

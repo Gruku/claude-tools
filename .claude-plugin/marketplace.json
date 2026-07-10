@@ -11,8 +11,8 @@
     {
       "name": "taskmaster",
       "source": "./plugins/taskmaster",
-      "description": "Universal AI-powered task and backlog management with narrative continuity: handovers, issues, areas, finite epics (done_when), recap, snapshot/PreCompact hook. Redesigned kanban viewer with inline edit-in-UI. Per-task files (.taskmaster/tasks/<id>.md) with slim YAML index. Lessons subsystem removed in 4.0 (durable knowledge now lives in assistant memory + CLAUDE.md/AGENTS.md) — run taskmaster:migrate-lessons once per project with existing lesson files. v2 backlogs keep working unchanged; opt into v3 via taskmaster:migrate-v3 skill or backlog_init schema_version=3. Requires: uv (https://docs.astral.sh/uv/)",
-      "version": "4.1.0"
+      "description": "Universal AI-powered task and backlog management with narrative continuity: handovers, issues, areas, finite epics (done_when). Redesigned kanban viewer with inline edit-in-UI. Per-task files (.taskmaster/tasks/<id>.md) with slim YAML index. Lessons subsystem removed in 4.0 (durable knowledge now lives in assistant memory + CLAUDE.md/AGENTS.md) — run taskmaster:migrate-lessons once per project with existing lesson files; recap + project-structure scan removed in 4.2. v2 backlogs keep working unchanged; opt into v3 via taskmaster:migrate-v3 skill or backlog_init schema_version=3. Requires: uv (https://docs.astral.sh/uv/)",
+      "version": "4.2.0"
     },
     {
       "name": "guard-hooks",
@@ -35,8 +35,8 @@
     {
       "name": "reflect-auto-improve",
       "source": "./plugins/reflect-auto-improve",
-      "description": "Reflect on past work and propose concrete improvements. Time-windowed project retros, pain-point harvesting into workflow drafts, and claude-tools plugin self-audits. Outputs route through taskmaster as ideas, issues, and lessons.",
-      "version": "0.1.0"
+      "description": "Reflect on past work and propose concrete improvements. Time-windowed project retros, pain-point harvesting into workflow drafts, and claude-tools plugin self-audits. Outputs route through taskmaster as ideas and issues.",
+      "version": "0.1.1"
     },
     {
       "name": "feedback-inbox",

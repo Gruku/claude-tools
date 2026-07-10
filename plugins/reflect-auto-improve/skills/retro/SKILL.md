@@ -1,6 +1,6 @@
 ---
 name: retro
-description: Time-windowed retrospective on a project's past work. Reads taskmaster artifacts (handovers, lessons, issues, ideas, recap) and git log to produce a markdown report plus concrete proposals routed back through taskmaster. Invoke when the user says 'retro the last week', 'run a retrospective', 'do a post-mortem', 'what did we accomplish this week', 'wrap up the sprint', 'how did we work in CodeMaestro', 'review our recent sessions', 'what worked and what didn't this sprint', 'look back at this project'. Accepts depth=shallow|standard (deep is v1.1) and --project <path> (defaults to cwd).
+description: Time-windowed retrospective on a project's past work. Reads taskmaster artifacts (handovers, lessons, issues, ideas) and git log to produce a markdown report plus concrete proposals routed back through taskmaster. Invoke when the user says 'retro the last week', 'run a retrospective', 'do a post-mortem', 'what did we accomplish this week', 'wrap up the sprint', 'how did we work in CodeMaestro', 'review our recent sessions', 'what worked and what didn't this sprint', 'look back at this project'. Accepts depth=shallow|standard (deep is v1.1) and --project <path> (defaults to cwd).
 ---
 
 # retro — Time-windowed project retrospective
@@ -27,8 +27,7 @@ Read these in parallel using Glob/Read/Bash:
 3. `<project>/.taskmaster/lessons/*.md` — all lessons; flag any reinforced in window.
 4. `<project>/.taskmaster/issues/*.md` — filter by status=open or status changed in window.
 5. `<project>/.taskmaster/ideas/*.md` — recent ideas (created in window).
-6. (Skip recap_get — it requires an explicit session_id and handovers already carry equivalent context. To get recent recaps, optionally call `mcp__plugin_taskmaster_taskmaster__recap_list` and pick the most recent N entries.)
-7. `git log --since=<window> --oneline` and `git log --since=<window> --stat` (use Bash).
+6. `git log --since=<window> --oneline` and `git log --since=<window> --stat` (use Bash).
 
 For `depth=shallow`, just (1), last 3 of (2), and `git log -n 30 --oneline`.
 
