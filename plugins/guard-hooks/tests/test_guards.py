@@ -82,6 +82,10 @@ def ack_path(home):
     return Path(home) / ".claude" / "guard-ack-default"
 
 
+def pending_path(home):
+    return Path(home) / ".claude" / "guard-pending-default"
+
+
 @pytest.fixture
 def home(tmp_path):
     h = tmp_path / "home"
@@ -255,8 +259,15 @@ class TestApprovalLifecycle:
         proc = run_bash_guard("rm -rf /tmp/foo", home)
         assert proc.returncode == 0, "retry within window — expected allow"
 
-        # After PostToolUse consumer runs, the approval is gone.
-        run_hook(CONSUME_APPROVAL, {}, home)
+        # After PostToolUse consumer runs FOR THE GATED COMMAND, the approval
+        # is gone. (v2.8.0: the consumer only burns the token when the command
+        # that just ran was itself a guarded action — benign intermediate
+        # calls no longer eat it. See TestScopedApproval for that behavior.)
+        run_hook(
+            CONSUME_APPROVAL,
+            {"tool_name": "Bash", "tool_input": {"command": "rm -rf /tmp/foo"}},
+            home,
+        )
         assert not approve_path(home).exists(), (
             "PostToolUse consumer did not delete approval"
         )
@@ -266,13 +277,23 @@ class TestApprovalLifecycle:
         assert proc.returncode == 2, "post-consume — expected block (2)"
 
     def test_expired_approval(self, home):
-        # Expired approval (>60s) is cleaned up by PreToolUse and does not allow.
+        # Expired approval (>300s as of v2.8.0) is cleaned up by PreToolUse
+        # and does not allow.
         approve_path(home).touch()
-        expired = time.time() - 120
+        expired = time.time() - 400
         os.utime(str(approve_path(home)), (expired, expired))
         proc = run_bash_guard("rm -rf /tmp/foo", home)
         assert proc.returncode == 2, "expired approval — expected block (2)"
         assert not approve_path(home).exists(), "expired approval not cleaned up"
+
+    def test_fresh_at_two_minutes(self, home):
+        # 120s-old approval is still fresh under the 300s window (IDEA-017:
+        # the old 60s window lapsed during multi-step approve→push protocols).
+        approve_path(home).touch()
+        aged = time.time() - 120
+        os.utime(str(approve_path(home)), (aged, aged))
+        proc = run_bash_guard("rm -rf /tmp/foo", home)
+        assert proc.returncode == 0, "120s-old approval — expected allow"
 
 
 # ---------------------------------------------------------------------------
@@ -539,8 +560,12 @@ class TestSyspathApprovalBypass:
         # consumer's job. So a retry within the 60s window is still allowed.
         proc = run_bash_guard("rm /usr/bin/python", home)
         _check(proc, False, "approval persists for retry")
-        # Simulate the PostToolUse consumer after the tool actually executed.
-        run_hook(CONSUME_APPROVAL, {}, home)
+        # Simulate the PostToolUse consumer after the gated tool call executed.
+        run_hook(
+            CONSUME_APPROVAL,
+            {"tool_name": "Bash", "tool_input": {"command": "rm /usr/bin/python"}},
+            home,
+        )
         proc = run_bash_guard("rm /usr/bin/python", home)
         _check(proc, True, "post-consume blocks again")
 
@@ -774,6 +799,9 @@ After the user responds:
   - "Approve" → rerun the ORIGINAL command unchanged
   - "Deny" or no response → do NOT run the command
 
+The approval covers exactly this command for 5 minutes and is consumed when
+it runs — intermediate commands do not use it up, and it does not authorize
+any other guarded action.
 Only the exact label "Approve" is recognized as authorization.
 Do NOT re-run automatically. Do NOT create the approval file yourself.
 """
@@ -919,9 +947,15 @@ def test_ask_question_no_answers(home):
 
 
 def test_consume_deletes_both_tokens(home):
+    # v2.8.0: the consumer burns tokens when the command that just ran was a
+    # guarded action (here: rm -rf, a destructive-guard match).
     approve_path(home).touch()
     ack_path(home).touch()
-    proc = run_hook(CONSUME_APPROVAL, {}, home)
+    proc = run_hook(
+        CONSUME_APPROVAL,
+        {"tool_name": "Bash", "tool_input": {"command": "rm -rf /tmp/foo"}},
+        home,
+    )
     assert proc.returncode == 0
     assert not approve_path(home).exists()
     assert not ack_path(home).exists()
@@ -931,7 +965,250 @@ def test_consume_session_keyed(home):
     """Consumer only deletes tokens for ITS session."""
     (home / ".claude" / "guard-approve-s1").touch()
     (home / ".claude" / "guard-approve-s2").touch()
-    proc = run_hook(CONSUME_APPROVAL, {"session_id": "s1"}, home)
+    proc = run_hook(
+        CONSUME_APPROVAL,
+        {
+            "session_id": "s1",
+            "tool_name": "Bash",
+            "tool_input": {"command": "rm -rf /tmp/foo"},
+        },
+        home,
+    )
     assert proc.returncode == 0
     assert not (home / ".claude" / "guard-approve-s1").exists()
     assert (home / ".claude" / "guard-approve-s2").is_file()
+
+
+# ===========================================================================
+# v2.8.0 friction polish (guard-hooks-005)
+# ===========================================================================
+# False-positive fixes: B-062 (force-push substring), B-064 (redirect targets),
+# B-009 (approve-mutation in commit messages). Scoped one-shot approvals:
+# B-004 / B-008 / ISS-012 / B-010 / IDEA-017. PowerShell coverage: ISS-026.
+
+FRICTION_CASES = [
+    # -- B-062: force-flag must be a flag TOKEN, not a substring of a branch --
+    ("push branch containing -f (foundation)",
+     "git push origin 1.3.5/feature/asset-engine-foundation", False),
+    ("push branch fix-foo", "git push origin fix-foo", False),
+    ("push branch ends -f", "git push origin release-f", False),
+    ("push -f still blocked", "git push -f origin feature", True),
+    ("push --force still blocked", "git push --force origin feature", True),
+    ("push --force-with-lease blocked",
+     "git push --force-with-lease origin feature", True),
+    ("push --force-with-lease=ref blocked",
+     "git push --force-with-lease=feature:abc123 origin feature", True),
+    ("push -uf cluster blocked", "git push -uf origin feature", True),
+    # -- B-064a: redirect checks must parse the redirect TARGET (.git) --
+    ("stderr-to-devnull near .git path",
+     "ls /repo/.git/index.lock 2>/dev/null && echo LOCK || echo GONE", False),
+    ("stdout-to-devnull near .git path",
+     "cat .git/HEAD > /dev/null", False),
+    ("redirect INTO .git still blocked", "echo x > .git/config", True),
+    ("append INTO .git still blocked", "echo y >> .git/hooks/pre-commit", True),
+    ("fd-dup near .git allowed", "git -C /repo status 2>&1", False),
+    # -- B-064b: redirect checks must parse the redirect TARGET (syspaths) --
+    ("heredoc shebang + var target",
+     'cat > "$1/$2" <<EOF\n#!/bin/sh\necho hi\nEOF', False),
+    ("stderr-to-devnull near /etc read", "ls /etc/hosts 2>/dev/null", False),
+    ("redirect INTO /etc still blocked", "echo x > /etc/foo.conf", True),
+    ("append INTO /usr/bin still blocked", "echo x >> /usr/bin/tool", True),
+    # -- B-009: approve-mutation detector vs commit messages --
+    ("commit msg with touch + guard-approve",
+     'git commit -m "touch tests & document guard-approve flow"', False),
+    ("commit -m then real touch still blocked",
+     'git commit -m "docs" && touch ~/.claude/guard-approve-default', True),
+    # -- ISS-026: PowerShell-native destructive patterns --
+    ("Remove-Item -Recurse -Force", "Remove-Item -Recurse -Force C:\\repo\\dir", True),
+    ("Remove-Item -Recurse only", "Remove-Item -Recurse C:\\repo\\dir", True),
+    # -Force alone is the `rm -f` analog (single item, no recursion) — the
+    # bash guard allows `rm -f`; keep parity to avoid new friction.
+    ("Remove-Item -Force single file allowed",
+     "Remove-Item -Force C:\\repo\\file.txt", False),
+    ("Remove-Item plain file allowed", "Remove-Item C:\\repo\\file.txt", False),
+    ("Remove-Item -Filter not a force flag",
+     "Remove-Item C:\\repo\\tmp -Filter *.log", False),
+]
+
+
+@pytest.mark.parametrize(
+    "desc,command,blocked", FRICTION_CASES, ids=[c[0] for c in FRICTION_CASES]
+)
+def test_friction_polish(desc, command, blocked, home):
+    _check(run_bash_guard(command, home), blocked, desc)
+
+
+def test_powershell_payload_same_guards(home):
+    """guard_bash is registered for the PowerShell tool too (ISS-026): the
+    same command field is guarded regardless of tool_name."""
+    payload = {
+        "tool_name": "PowerShell",
+        "tool_input": {"command": "git push --force origin feature"},
+    }
+    proc = run_hook(GUARD_BASH, payload, home)
+    assert proc.returncode == 2, "force push via PowerShell tool must block"
+
+
+def test_hooks_json_covers_powershell():
+    """Registration pin: PreToolUse command guard and PostToolUse consumer
+    must both match the PowerShell tool (ISS-026)."""
+    hooks_json = json.loads(
+        (HOOKS_DIR / "hooks.json").read_text(encoding="utf-8")
+    )
+    pre = hooks_json["hooks"]["PreToolUse"]
+    post = hooks_json["hooks"]["PostToolUse"]
+    bash_matchers = [
+        e["matcher"] for e in pre
+        if "guard_bash.py" in e["hooks"][0]["command"]
+    ]
+    assert bash_matchers and all(
+        "PowerShell" in m for m in bash_matchers
+    ), "guard_bash PreToolUse matcher must include PowerShell"
+    consume_matchers = [
+        e["matcher"] for e in post
+        if "consume_approval.py" in e["hooks"][0]["command"]
+    ]
+    assert consume_matchers and all(
+        "PowerShell" in m for m in consume_matchers
+    ), "consume_approval PostToolUse matcher must include PowerShell"
+
+
+class TestScopedApproval:
+    """v2.8.0 scoped one-shot approvals: a block records WHAT was blocked
+    (guard + command hash) in guard-pending-<sid>; Approve arms exactly that
+    scope; the consumer burns the token only when the approved action runs.
+
+    Fixes: B-008/ISS-012 (sibling guards no longer authorized by one Approve),
+    B-004 (same logical action doesn't re-prompt in-window), B-010 (pending
+    has a TTL via mtime), and the guard-hooks-002 friction (benign
+    intermediate commands no longer eat the token).
+    """
+
+    GATED = "rm -rf /tmp/foo"           # destructive guard
+    SIBLING = "git reset --hard"        # destructive guard, different action
+    APPROVE_ANSWER = {"tool_response": {"answers": {"q": "Approve"}}}
+
+    def test_block_writes_pending_scope(self, home):
+        proc = run_bash_guard(self.GATED, home)
+        assert proc.returncode == 2
+        assert pending_path(home).is_file(), "block must record pending scope"
+        scope = json.loads(pending_path(home).read_text(encoding="utf-8"))
+        assert scope.get("guard"), "pending scope must name the guard"
+        assert scope.get("hash"), "pending scope must carry the action hash"
+
+    def test_golden_path_end_to_end(self, home):
+        # 1. Block records the pending scope.
+        assert run_bash_guard(self.GATED, home).returncode == 2
+        # 2. User picks "Approve" — the approval is armed with that scope.
+        run_hook(ASK_QUESTION_APPROVAL, self.APPROVE_ANSWER, home)
+        assert approve_path(home).is_file()
+        assert not pending_path(home).exists(), "pending consumed by Approve"
+        # 3. A benign intermediate command runs; its consumer must NOT burn
+        #    the token (the guard-hooks-002 friction).
+        run_hook(
+            CONSUME_APPROVAL,
+            {"tool_name": "Bash", "tool_input": {"command": "git status"}},
+            home,
+        )
+        assert approve_path(home).is_file(), (
+            "benign intermediate command burned the approval token"
+        )
+        # 4. The approved command reruns unchanged — allowed.
+        assert run_bash_guard(self.GATED, home).returncode == 0
+        # 5. Its consumer burns the token (one-shot).
+        run_hook(
+            CONSUME_APPROVAL,
+            {"tool_name": "Bash", "tool_input": {"command": self.GATED}},
+            home,
+        )
+        assert not approve_path(home).exists(), "approval must be one-shot"
+        # 6. Next attempt blocks again.
+        assert run_bash_guard(self.GATED, home).returncode == 2
+
+    def test_scope_does_not_authorize_sibling_action(self, home):
+        # Approve the GATED command...
+        assert run_bash_guard(self.GATED, home).returncode == 2
+        run_hook(ASK_QUESTION_APPROVAL, self.APPROVE_ANSWER, home)
+        # ...a DIFFERENT gated action must still block (B-008/ISS-012).
+        proc = run_bash_guard(self.SIBLING, home)
+        assert proc.returncode == 2, (
+            "approval scoped to one action authorized a sibling action"
+        )
+        # And the original stays approved (mismatch must not burn the token).
+        assert run_bash_guard(self.GATED, home).returncode == 0
+
+    def test_same_action_reapproved_without_reprompt(self, home):
+        # B-004: rerunning the SAME logical action within the window doesn't
+        # re-prompt (PreToolUse doesn't consume; only its PostToolUse does).
+        assert run_bash_guard(self.GATED, home).returncode == 2
+        run_hook(ASK_QUESTION_APPROVAL, self.APPROVE_ANSWER, home)
+        assert run_bash_guard(self.GATED, home).returncode == 0
+        assert run_bash_guard(self.GATED, home).returncode == 0
+
+    def test_typed_approve_arms_pending_scope(self, home):
+        # The typed-"approve" fallback (B-063 path) arms the same scope.
+        assert run_bash_guard(self.GATED, home).returncode == 2
+        proc = run_hook(GUARD_APPROVE, {"prompt": "approve"}, home)
+        assert proc.returncode == 0
+        assert approve_path(home).is_file()
+        scope = json.loads(approve_path(home).read_text(encoding="utf-8"))
+        assert scope.get("hash"), "typed approve must arm the pending scope"
+        assert run_bash_guard(self.GATED, home).returncode == 0
+
+    def test_unscoped_approval_still_universal(self, home):
+        # Legacy/preemptive path: an EMPTY approve file (typed "approve" with
+        # no pending block, or a project hook's token) allows any guard once.
+        approve_path(home).touch()
+        assert run_bash_guard(self.GATED, home).returncode == 0
+        assert run_bash_guard(self.SIBLING, home).returncode == 0
+
+    def test_stale_pending_not_armed(self, home):
+        # B-010: a stale pending scope (>300s) must not be attributed to a
+        # later unrelated Approve — the approval arms unscoped instead.
+        assert run_bash_guard(self.GATED, home).returncode == 2
+        stale = time.time() - 400
+        os.utime(str(pending_path(home)), (stale, stale))
+        run_hook(ASK_QUESTION_APPROVAL, self.APPROVE_ANSWER, home)
+        assert approve_path(home).is_file()
+        content = approve_path(home).read_text(encoding="utf-8").strip()
+        assert not content or not json.loads(content).get("hash"), (
+            "stale pending must not be attributed to a later Approve"
+        )
+
+    def test_ack_survives_its_own_sentinel_consume(self, home):
+        # Live 2.7.2 bug found during the guard-hooks-005 audit: the
+        # `: guard-ack-self` sentinel is itself a Bash tool call, so its OWN
+        # PostToolUse consumer deleted the ack token the moment it was
+        # created — the soft-ack flow could never work end-to-end.
+        assert run_bash_guard(": guard-ack-self", home).returncode == 0
+        assert ack_path(home).is_file()
+        run_hook(
+            CONSUME_APPROVAL,
+            {"tool_name": "Bash", "tool_input": {"command": ": guard-ack-self"}},
+            home,
+        )
+        assert ack_path(home).is_file(), (
+            "consumer burned the ack token on the sentinel command itself"
+        )
+        # The soft-blocked command then runs (ack honored)...
+        soft = 'psql -c "DROP TABLE users"'
+        assert run_bash_guard(soft, home).returncode == 0
+        # ...and ITS consumer burns the ack (one-shot).
+        run_hook(
+            CONSUME_APPROVAL,
+            {"tool_name": "Bash", "tool_input": {"command": soft}},
+            home,
+        )
+        assert not ack_path(home).exists()
+
+    def test_benign_consume_keeps_unscoped_token(self, home):
+        # Unscoped tokens get the same benign-intermediate protection.
+        approve_path(home).touch()
+        run_hook(
+            CONSUME_APPROVAL,
+            {"tool_name": "Bash", "tool_input": {"command": "git status"}},
+            home,
+        )
+        assert approve_path(home).is_file(), (
+            "benign command burned an unscoped approval token"
+        )
