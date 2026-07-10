@@ -99,7 +99,7 @@ In main context:
 2. **Route each proposal** via the taskmaster gate skills into the target project's backlog. Always include a `reflect:retro` tag/label.
 
    - `kind: issue` → invoke `taskmaster:issue` skill (do NOT call `backlog_issue_create` directly — that bypasses the gate). Pass severity from proposer; map P0/P1 → high, P2 → medium, P3 → low.
-   - `kind: idea` → call `mcp__plugin_taskmaster_taskmaster__backlog_idea_create` directly with `created_by="Claude"` (the sanctioned auto-log path documented in `taskmaster:add-idea`).
+   - `kind: idea` → call `mcp__plugin_taskmaster_tm__backlog_idea_create` directly with `created_by="Claude"` (the sanctioned auto-log path documented in `taskmaster:add-idea`).
 
    *Why ideas go direct while issues/lessons go through skill gates: `taskmaster:add-idea` documents a Claude-initiated carve-out (`created_by="Claude"`) for auto-log paths like this one. `taskmaster:issue` and `taskmaster:lesson` have no such carve-out and must route through their gate skills.*
 

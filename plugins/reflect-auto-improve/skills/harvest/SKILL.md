@@ -106,7 +106,7 @@ In main context (Opus):
 
 1. **Report**: write to `<project>/.taskmaster/harvests/YYYY-MM-DD-harvest-<slug>.md` if `<project>/.taskmaster/` exists. Otherwise fall back to `<project>/.reflect/harvests/YYYY-MM-DD-harvest-<slug>.md`. Create the directory if missing. Sections: Header → Recurring Patterns (with sessions/SHAs) → Workflow Proposals (with drafts, blast radius, confidence) → Adversarial Rejections (so the user can audit the filter) → Open Questions.
 
-2. **Route proposals**: every kept proposal becomes `mcp__plugin_taskmaster_taskmaster__backlog_idea_create` tagged `reflect:harvest`. The draft outline goes in the idea body so a future task can pick it up.
+2. **Route proposals**: every kept proposal becomes `mcp__plugin_taskmaster_tm__backlog_idea_create` tagged `reflect:harvest`. The draft outline goes in the idea body so a future task can pick it up.
 
 3. **Final message**: one paragraph + report path + idea IDs.
 

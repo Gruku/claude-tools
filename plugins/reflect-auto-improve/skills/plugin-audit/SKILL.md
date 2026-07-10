@@ -126,7 +126,7 @@ In main context (Opus).
 
 1. **Report**: `docs/reflect/audits/YYYY-MM-DD-<scope>.md` where `<scope>` is the `--plugin` value or `all`. Create `docs/reflect/audits/` if missing. This path is intentionally repo-level (not per-target-project) — the audit subject IS claude-tools, so the report belongs to claude-tools itself, not to any external taskmaster project.
 
-2. **Route proposals**: into claude-tools' own taskmaster backlog (cwd should already be in claude-tools when this runs). Each finding becomes a direct call to `mcp__plugin_taskmaster_taskmaster__backlog_idea_create` with `created_by="Claude"`. Do NOT invoke the `taskmaster:add-idea` skill — `add-idea`'s SKILL.md documents this carve-out for Claude-initiated auto-log paths, but the carve-out IS the direct call, not skill invocation. Tag each idea `reflect:plugin-audit` with category suffix (`reflect:plugin-audit:dead-skill`, `reflect:plugin-audit:oversized-description`, etc.).
+2. **Route proposals**: into claude-tools' own taskmaster backlog (cwd should already be in claude-tools when this runs). Each finding becomes a direct call to `mcp__plugin_taskmaster_tm__backlog_idea_create` with `created_by="Claude"`. Do NOT invoke the `taskmaster:add-idea` skill — `add-idea`'s SKILL.md documents this carve-out for Claude-initiated auto-log paths, but the carve-out IS the direct call, not skill invocation. Tag each idea `reflect:plugin-audit` with category suffix (`reflect:plugin-audit:dead-skill`, `reflect:plugin-audit:oversized-description`, etc.).
 
 3. **Final message**: one paragraph + report path + idea IDs.
 
