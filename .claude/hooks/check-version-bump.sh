@@ -95,14 +95,36 @@ for plugin_dir in "$REPO_ROOT"/plugins/*/ ; do
   # Skip _archive and dotdirs
   case "$plugin_name" in _*|.*) continue ;; esac
 
-  changed=$(git -C "$REPO_ROOT" diff --name-only "$REMOTE_SHA"..HEAD -- "plugins/$plugin_name/" 2>/dev/null)
+  changed=$(git -C "$REPO_ROOT" diff --name-only "$REMOTE_SHA"..HEAD -- "plugins/$plugin_name" 2>/dev/null)
   [ -z "$changed" ] && continue
 
-  pjson="plugins/$plugin_name/.claude-plugin/plugin.json"
-  pj_ver=$(jq -r '.version // empty' "$REPO_ROOT/$pjson" 2>/dev/null)
   mp_ver=$(jq -r --arg n "$plugin_name" '.plugins[] | select(.name==$n) | .version // empty' "$MARKETPLACE" 2>/dev/null)
-  version_changed=$(git -C "$REPO_ROOT" diff "$REMOTE_SHA"..HEAD -- "$pjson" 2>/dev/null | grep '"version"' || true)
   file_count=$(echo "$changed" | wc -l | tr -d ' ')
+
+  # Submodule plugins: the superproject diff only ever shows the gitlink, so
+  # the plugin.json bump lives INSIDE the submodule. Compare the version field
+  # between the old and new gitlink commits instead of grepping the diff.
+  # If either version is unreadable, leave version_changed empty — that keeps
+  # the warn (block) path, preserving true-positive coverage.
+  mode=$(git -C "$REPO_ROOT" ls-tree HEAD -- "plugins/$plugin_name" 2>/dev/null | awk '{print $1}' | head -1)
+  if [ "$mode" = "160000" ]; then
+    sub_dir="$REPO_ROOT/plugins/$plugin_name"
+    new_sha=$(git -C "$REPO_ROOT" rev-parse "HEAD:plugins/$plugin_name" 2>/dev/null)
+    old_sha=$(git -C "$REPO_ROOT" rev-parse "$REMOTE_SHA:plugins/$plugin_name" 2>/dev/null)
+    new_ver=""
+    [ -n "$new_sha" ] && new_ver=$(git -C "$sub_dir" show "$new_sha:.claude-plugin/plugin.json" 2>/dev/null | jq -r '.version // empty' 2>/dev/null)
+    old_ver=""
+    [ -n "$old_sha" ] && old_ver=$(git -C "$sub_dir" show "$old_sha:.claude-plugin/plugin.json" 2>/dev/null | jq -r '.version // empty' 2>/dev/null)
+    pj_ver="$new_ver"
+    version_changed=""
+    if [ -n "$new_ver" ] && [ "$new_ver" != "$old_ver" ]; then
+      version_changed="gitlink: v${old_ver:-none} -> v$new_ver"
+    fi
+  else
+    pjson="plugins/$plugin_name/.claude-plugin/plugin.json"
+    pj_ver=$(jq -r '.version // empty' "$REPO_ROOT/$pjson" 2>/dev/null)
+    version_changed=$(git -C "$REPO_ROOT" diff "$REMOTE_SHA"..HEAD -- "$pjson" 2>/dev/null | grep '"version"' || true)
+  fi
 
   if [ -z "$version_changed" ]; then
     warnings="$warnings\n  - $plugin_name (v${pj_ver:-?}) — $file_count files changed, version NOT bumped in plugin.json"

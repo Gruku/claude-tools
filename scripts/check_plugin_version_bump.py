@@ -45,7 +45,38 @@ def _load_marketplace_versions() -> dict[str, str]:
     return out
 
 
+def _git(*args: str, cwd: Path | None = None) -> str:
+    return subprocess.run(
+        ["git", "-C", str(cwd or ROOT), *args],
+        capture_output=True, text=True,
+    ).stdout.strip()
+
+
+def _submodule_sha(name: str, ref: str) -> str | None:
+    """Gitlink SHA of plugins/<name> at superproject <ref>, or None if the
+    path is not a submodule there (regular dir, or doesn't exist)."""
+    line = _git("ls-tree", ref, "--", f"plugins/{name}")
+    if not line or not line.startswith("160000"):
+        return None
+    return _git("rev-parse", f"{ref}:plugins/{name}") or None
+
+def _submodule_file(name: str, sha: str, rel: str) -> str | None:
+    """Contents of <rel> inside the plugins/<name> submodule at commit <sha>."""
+    blob = _git("show", f"{sha}:{rel}", cwd=ROOT / "plugins" / name)
+    return blob or None
+
+
 def _plugin_json_version(name: str) -> str | None:
+    # Submodule plugins: read through the gitlink at HEAD, not the working
+    # dir — a lagging `git submodule update` must not skew the check.
+    sha = _submodule_sha(name, "HEAD")
+    if sha:
+        blob = _submodule_file(name, sha, ".claude-plugin/plugin.json")
+        if blob:
+            try:
+                return json.loads(blob).get("version")
+            except json.JSONDecodeError:
+                return None
     pjson = ROOT / "plugins" / name / ".claude-plugin" / "plugin.json"
     if not pjson.exists():
         return None
@@ -54,19 +85,18 @@ def _plugin_json_version(name: str) -> str | None:
 
 def _changelog_has(name: str, version: str) -> bool | None:
     """True/False if a CHANGELOG exists; None if the plugin has no CHANGELOG."""
-    changelog = ROOT / "plugins" / name / "CHANGELOG.md"
-    if not changelog.exists():
-        return None
-    text = changelog.read_text(encoding="utf-8")
+    sha = _submodule_sha(name, "HEAD")
+    if sha:
+        text = _submodule_file(name, sha, "CHANGELOG.md")
+        if text is None:
+            return None
+    else:
+        changelog = ROOT / "plugins" / name / "CHANGELOG.md"
+        if not changelog.exists():
+            return None
+        text = changelog.read_text(encoding="utf-8")
     # Match a heading line like "## 3.9.0" or "## 3.9.0 — title".
     return re.search(rf"^##\s+{re.escape(version)}\b", text, re.MULTILINE) is not None
-
-
-def _git(*args: str) -> str:
-    return subprocess.run(
-        ["git", "-C", str(ROOT), *args],
-        capture_output=True, text=True,
-    ).stdout.strip()
 
 
 def _plugins_changed_since(base: str) -> set[str]:
@@ -80,8 +110,14 @@ def _plugins_changed_since(base: str) -> set[str]:
 
 
 def _version_at(base: str, name: str) -> str | None:
-    rel = f"plugins/{name}/.claude-plugin/plugin.json"
-    blob = _git("show", f"{base}:{rel}")
+    # Submodule plugins: `git show base:plugins/<name>/...` cannot traverse a
+    # gitlink, so resolve the gitlink SHA at <base> and read inside the
+    # submodule (B-074: this silent skip let unbumped submodule advances pass).
+    sha = _submodule_sha(name, base)
+    if sha:
+        blob = _submodule_file(name, sha, ".claude-plugin/plugin.json")
+    else:
+        blob = _git("show", f"{base}:plugins/{name}/.claude-plugin/plugin.json")
     if not blob:
         return None
     try:
