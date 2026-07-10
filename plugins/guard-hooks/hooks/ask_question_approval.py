@@ -54,7 +54,8 @@ def main():
         if RE_APPROVE.search(answer):
             # Per-session token: keyed by harness session_id so concurrent
             # Claude Code sessions don't trample each other's approvals.
-            common.touch(common.approve_file(common.session_id(data)))
+            # Arms the pending block's scope when one is fresh (v2.8.0).
+            common.arm_approval(common.session_id(data))
             break
 
     sys.exit(0)

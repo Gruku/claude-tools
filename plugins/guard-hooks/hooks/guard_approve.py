@@ -26,9 +26,10 @@ def main():
 
     if RE_APPROVE.search(prompt):
         # Per-session token: keyed by harness session_id so concurrent
-        # sessions don't trample each other's approvals.
-        common.touch(common.approve_file(common.session_id(data)))
-        print("Guard approval granted. The next blocked command will be allowed (valid for 60 seconds).")
+        # sessions don't trample each other's approvals. Arms the pending
+        # block's scope when one is fresh (v2.8.0).
+        common.arm_approval(common.session_id(data))
+        print("Guard approval granted. The blocked command will be allowed (valid for 5 minutes, consumed when it runs).")
         sys.exit(0)
 
     sys.exit(0)
