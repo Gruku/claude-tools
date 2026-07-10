@@ -1023,6 +1023,22 @@ FRICTION_CASES = [
      'git commit -m "touch tests & document guard-approve flow"', False),
     ("commit -m then real touch still blocked",
      'git commit -m "docs" && touch ~/.claude/guard-approve-default', True),
+    # -- review findings (gh005-review): no-space redirects must still hit --
+    ("no-space redirect into /etc", "echo x>/etc/passwd", True),
+    ("no-space redirect into /etc/shadow", "printf pwned>/etc/shadow", True),
+    ("no-space append into /usr/bin", "echo x>>/usr/bin/tool", True),
+    ("no-space redirect into .git", "echo x>.git/config", True),
+    ("no-space fd-dup still fine", "git -C /repo status 2>&1", False),
+    # -- review findings: same-line code after <<DELIM is NOT heredoc body --
+    ("git heredoc same-line chained rm",
+     "git commit -F - <<'EOF' && rm -rf /tmp/repo\nmsg\nEOF", True),
+    ("git heredoc same-line force push",
+     "git commit -F - <<EOF && git push --force origin main\nbody\nEOF", True),
+    # -- review findings: Remove-Item aliases + parameter prefixes --
+    ("rm alias -Recurse -Force", "rm -Recurse -Force C:\\repo\\dir", True),
+    ("Remove-Item -Rec prefix", "Remove-Item -Rec C:\\repo\\dir", True),
+    ("ri alias -r", "ri -r C:\\repo\\dir", True),
+    ("del alias -Recurse", "del -Recurse C:\\repo\\tmp", True),
     # -- git-fed heredoc bodies are inert text (live FP hit during this
     #    task: a commit message mentioning a PS cmdlet + a .git/ path) --
     ("git commit -F heredoc body with scary text",

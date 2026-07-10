@@ -155,7 +155,7 @@ def arm_approval(sid: str) -> None:
 
 
 def file_recent(path: Path) -> bool:
-    """True if `path` exists and was modified within the last 60 seconds.
+    """True if `path` exists and was modified within TTL_SECONDS.
 
     Expired files are removed (cleanup). Files whose mtime can't be stat'd
     are left in place and treated as not-recent, so the user's later attempt

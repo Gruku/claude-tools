@@ -70,23 +70,29 @@ def _strip_message_args(command):
 # a PS cmdlet plus a .git/ path was hard-blocked). Only git-fed bodies are
 # stripped: `bash <<EOF` and `psql <<EOF` bodies remain fully scanned, so
 # true-positive coverage (destructive shell/SQL via heredoc) is unchanged.
+# The BODY starts after the newline that ends the `<<DELIM` line — anything
+# else on that same physical line (e.g. `<<EOF && rm -rf ...`) is live
+# command-line code and is preserved for scanning.
 RE_GIT_HEREDOC = re.compile(
-    r'(\bgit\b[^|;&<>]*<<-?\s*([\'"]?)(\w+)\2)(.*?)(^\3[ \t\r]*$|\Z)',
+    r'(\bgit\b[^|;&<>]*<<-?\s*([\'"]?)(\w+)\2[^\n]*\n)(.*?)(^\3[ \t\r]*$|\Z)',
     re.DOTALL | re.MULTILINE,
 )
 
 
 def _strip_git_heredocs(command):
-    return RE_GIT_HEREDOC.sub(lambda m: m.group(1) + "\n" + m.group(5), command)
+    return RE_GIT_HEREDOC.sub(lambda m: m.group(1) + m.group(5), command)
 
 
-# Redirect TARGETS of a segment: the token following >/>> (optionally
-# fd-prefixed like 2> or bash's &>). fd duplications (2>&1, >&2) yield no
-# target. Used by the .git/ and system-path redirect rules so a target of
-# /dev/null — or an unexpanded "$var" — is judged on the TARGET, not on
-# whatever paths happen to co-occur in the segment (B-064).
+# Redirect TARGETS of a segment: the token following >/>>. fd duplications
+# (2>&1, >&2, &>&2) yield no target (the class excludes a leading '&');
+# heredocs (<<) and pre-matched '>>' positions are excluded by the
+# lookbehind. Notably the operator needs NO preceding whitespace —
+# `echo x>/etc/passwd` is as much a redirect as the spaced form. Used by
+# the .git/ and system-path redirect rules so a target of /dev/null — or an
+# unexpanded "$var" — is judged on the TARGET, not on whatever paths happen
+# to co-occur in the segment (B-064).
 RE_REDIRECT_TARGET = re.compile(
-    r'(?:^|\s)(?:\d+|&)?>{1,2}\s*("[^"]*"|\'[^\']*\'|[^\s|;&<>]+)'
+    r'(?<![<>])>{1,2}\s*("[^"]*"|\'[^\']*\'|[^\s|;&<>]+)'
 )
 
 
@@ -109,10 +115,14 @@ RE_FILE_DELETION = re.compile(
     re.IGNORECASE,
 )
 RE_PUSH_CMD = re.compile(r'git\s+((-[a-zA-Z]+\s+\S+|--[a-z-]+)\s+)*push(\s+[^;&|]+)?')
-# PowerShell recursive delete — the `rm -rf` analog (ISS-026). `-Force`
+# PowerShell recursive delete — the `rm -rf` analog (ISS-026). Covers the
+# Remove-Item aliases (rm/ri/rmdir/del/erase/rd) and every unambiguous
+# parameter prefix PS accepts for -Recurse (-r, -re, ... -recurse). `-Force`
 # alone (single item, no recursion) stays allowed, matching `rm -f` parity.
 RE_PS_RECURSIVE_DELETE = re.compile(
-    r'\bRemove-Item\b[^|;&]*\s-(Recurse|r)\b', re.IGNORECASE
+    r'\b(Remove-Item|rm|ri|rmdir|del|erase|rd)\b[^|;&]*'
+    r'\s-r(?:e(?:c(?:u(?:r(?:s(?:e)?)?)?)?)?)?\b',
+    re.IGNORECASE,
 )
 RE_RESET_HARD = re.compile(r'git\s+reset\s+--hard')
 RE_GIT_CLEAN = re.compile(r'git\s+clean\s+-[a-zA-Z]*f')
