@@ -48,7 +48,7 @@
       "name": "agent-relay",
       "source": "./plugins/agent-relay",
       "description": "Explicit, local-first direct and group communication between selected Codex and Claude Code CLI sessions, with direct messages, review requests, replies, and rooms.",
-      "version": "0.2.0"
+      "version": "0.3.0"
     }
   ]
 }

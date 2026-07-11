@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0
+
+- Add persistent user-level broker configuration discovered automatically by the CLI and MCP adapter.
+- Add `setup`, one-time `pair`, `status`, and `doctor` workflows as the shared operational surface for the future TUI.
+- Start the broker in the background during setup and advertise reachable pairing endpoints.
+
 ## 0.2.0
 
 - Add an authenticated HTTP broker so Windows, WSL, and other hosts share one authoritative relay.

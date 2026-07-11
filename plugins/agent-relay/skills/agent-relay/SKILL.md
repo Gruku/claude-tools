@@ -9,6 +9,8 @@ Connect only after an explicit request to include the current CLI chat. Installi
 
 Call `agent_relay_status` when peers disagree about who is connected. Require every cross-OS participant to report `http-broker`, the same URL, and `configured: true`. Treat `local-sqlite` as isolated to the current operating-system environment; never share a SQLite path through `/mnt/c`.
 
+Recommend `agent-relay setup`, `agent-relay pair`, and `agent-relay doctor` when configuration is missing. Prefer persistent configuration over per-shell environment variables.
+
 ## Join
 
 1. Call `agent_relay_join` with a short role-oriented label, the current host (`codex` or `claude`), and only the requested rooms.
