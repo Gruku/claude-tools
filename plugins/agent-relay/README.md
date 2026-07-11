@@ -56,7 +56,30 @@ Codex asks for approval before a state-changing relay tool runs. Approve the cal
 
 ## Windows + WSL broker mode
 
-Do not share a SQLite file through `/mnt/c`: Windows and Linux SQLite locking/WAL views can diverge. Run one broker that owns the database, then point every CLI at it before starting Codex or Claude Code.
+Do not share a SQLite file through `/mnt/c`: Windows and Linux SQLite locking/WAL views can diverge. Run one broker that owns the database and pair each operating environment with it.
+
+In a Windows Codex or Claude Code chat, ask: `Set up Agent Relay and show the WSL pairing URLs and code.` Then ask the WSL chat: `Pair Agent Relay using URL ... and code ..., then run the relay doctor.` The plugin performs the persistence and broker startup itself.
+
+Equivalent standalone commands for shell diagnostics and future TUI development:
+
+```powershell
+node .\scripts\agent-relay.js setup
+```
+
+This writes `%LOCALAPPDATA%\agent-relay\config.json`, starts the broker in the background, and prints a short-lived pairing code plus candidate URLs. In WSL, use a reachable URL from that output:
+
+```bash
+node ./scripts/agent-relay.js pair --url http://WINDOWS_HOST:43127 --code 123456
+node ./scripts/agent-relay.js doctor
+```
+
+The WSL client writes `~/.config/agent-relay/config.json`. New Codex and Claude Code sessions discover these files automatically; per-terminal environment variables are unnecessary. Use `status` for broker health and `doctor` for configuration, connectivity, and credential checks.
+
+The pairing code expires after ten minutes and succeeds once. Treat both configuration files as secrets and never commit them.
+
+### Manual override
+
+The following environment-driven flow remains available for troubleshooting and automation.
 
 Start the broker on Windows from the plugin directory (replace the example token):
 

@@ -12,6 +12,8 @@ const { values } = parseArgs({ options: {
   port: { type: "string", default: "43127" },
   database: { type: "string" },
   token: { type: "string" },
+  "pairing-code": { type: "string" },
+  "pairing-expires-at": { type: "string" },
 } });
 const database = values.database || process.env.AGENT_RELAY_DATABASE;
 const token = values.token || process.env.AGENT_RELAY_TOKEN;
@@ -19,7 +21,12 @@ if (!database) throw new Error("--database or AGENT_RELAY_DATABASE is required")
 if (!token) throw new Error("--token or AGENT_RELAY_TOKEN is required");
 mkdirSync(dirname(database), { recursive: true });
 const relay = new AgentRelay({ databasePath: database });
-const server = createBrokerServer({ relay, token });
+const server = createBrokerServer({
+  relay,
+  token,
+  pairingCode: values["pairing-code"],
+  pairingExpiresAt: Number(values["pairing-expires-at"] || 0),
+});
 server.listen(Number(values.port), values.host, () => {
   process.stderr.write(`Agent Relay broker listening on http://${values.host}:${values.port}\n`);
 });

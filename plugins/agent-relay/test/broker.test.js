@@ -35,6 +35,24 @@ test("broker rejects missing authentication", async () => {
   assert.equal(response.status, 401);
 });
 
+test("pairing code can be exchanged only once", async () => {
+  const pairedRelay = new AgentRelay();
+  const pairedServer = createBrokerServer({
+    relay: pairedRelay,
+    token: "paired-broker-secret",
+    pairingCode: "123456",
+    pairingExpiresAt: Date.now() + 60_000,
+  });
+  await new Promise((resolve) => pairedServer.listen(0, "127.0.0.1", resolve));
+  const pairUrl = `http://127.0.0.1:${pairedServer.address().port}/v1/pair`;
+  const first = await fetch(pairUrl, { method: "POST", body: JSON.stringify({ code: "123456" }) });
+  const second = await fetch(pairUrl, { method: "POST", body: JSON.stringify({ code: "123456" }) });
+  assert.equal((await first.json()).token, "paired-broker-secret");
+  assert.equal(second.status, 401);
+  await new Promise((resolve) => pairedServer.close(resolve));
+  pairedRelay.close();
+});
+
 test("two remote clients see the same authoritative relay", async () => {
   const codexResponse = await command("join", { label: "codex-wsl", host: "codex", rooms: ["general"] });
   const claudeResponse = await command("join", { label: "claude-windows", host: "claude", rooms: ["general"] });

@@ -65,13 +65,27 @@ def _run(command: str, **options: object) -> object:
 @mcp.tool
 def agent_relay_status() -> object:
     """Report whether this chat uses a local database or the cross-OS broker."""
-    url = os.environ.get("AGENT_RELAY_URL")
-    return {
-        "transport": "http-broker" if url else "local-sqlite",
-        "url": url,
-        "configured": bool(url and os.environ.get("AGENT_RELAY_TOKEN")) if url else True,
-        "joined": PROFILE.exists(),
-    }
+    result = _run("status")
+    result["joined"] = PROFILE.exists()
+    return result
+
+
+@mcp.tool
+def agent_relay_setup(host: str = "0.0.0.0", port: int = 43127) -> object:
+    """Persist configuration and start the local broker with a one-time pairing code."""
+    return _run("setup", host=host, port=port)
+
+
+@mcp.tool
+def agent_relay_pair(url: str, code: str) -> object:
+    """Pair this environment to a broker using a short-lived one-time code."""
+    return _run("pair", url=url, code=code)
+
+
+@mcp.tool
+def agent_relay_doctor() -> object:
+    """Diagnose persistent configuration, broker reachability, and authentication."""
+    return _run("doctor")
 
 
 @mcp.tool
