@@ -166,7 +166,7 @@ One-shot idempotent migration (gated like `migrate-v3`; if legacy `lessons/` exi
 4. Stamp new `schema_version`.
 
 - **Major version bump**; plugin.json + marketplace.json + CHANGELOG per repo protocol; MCP restart required.
-- Old-layout projects load read-only with a migrate prompt (v2→v3 UX).
+- Old-layout (v3) projects stay fully usable (read + write via the retained v3 path) with a migrate nudge surfaced at `backlog_status`/start-session — not hard read-only, so consumers aren't bricked on upgrade. *(Amended during plan review; rev 2 originally said read-only.)*
 - Single-user projects migrate to the same layout, sync off — exactly one schema. The relayout (with dirty-scoped save) is the mandatory part and is a win on its own; sync stays opt-in.
 
 ## 11. Testing
