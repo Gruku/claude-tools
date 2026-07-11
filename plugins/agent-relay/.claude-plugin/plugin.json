@@ -1,0 +1,8 @@
+{
+  "name": "agent-relay",
+  "version": "0.1.0",
+  "description": "Explicit, local-first direct and group communication between selected AI coding sessions.",
+  "author": {
+    "name": "gruku"
+  }
+}

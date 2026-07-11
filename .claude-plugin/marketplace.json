@@ -43,6 +43,12 @@
       "source": "./plugins/feedback-inbox",
       "description": "Live feedback channel from any Claude instance back to the claude-tools toolmaker. Producer skill writes tagged messages to a configurable inbox; /inbox triage walks pending messages and routes accepted ones to taskmaster:add-idea or taskmaster:bug. Run /feedback-inbox-setup once per machine.",
       "version": "0.1.0"
+    },
+    {
+      "name": "agent-relay",
+      "source": "./plugins/agent-relay",
+      "description": "Explicit, local-first direct and group communication between selected Codex and Claude Code CLI sessions, with direct messages, review requests, replies, and rooms.",
+      "version": "0.1.0"
     }
   ]
 }
