@@ -1,12 +1,14 @@
 # Claude Tools
 
-Plugin marketplace for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+Plugin marketplace for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and Codex.
 
 **[Browse Plugins](https://gruku.github.io/claude-tools/)** · Marketplace: `gruku-tools`
 
 > Versions are not listed in this README — they live in [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) as the single source of truth. The [GitHub Pages site](https://gruku.github.io/claude-tools/) reads that file at load time, so the browsable catalog is always current without a docs build step.
 
 ## Quick Start
+
+### Claude Code
 
 ```bash
 # 1. Add the marketplace
@@ -18,6 +20,21 @@ Plugin marketplace for [Claude Code](https://docs.anthropic.com/en/docs/claude-c
 # 3. Reload
 /reload-plugins
 ```
+
+### Codex
+
+```powershell
+# 1. Add the marketplace
+codex plugin marketplace add Gruku/claude-tools
+
+# 2. Install Taskmaster
+codex plugin add taskmaster@gruku-tools
+```
+
+Start a new Codex task after installation. Taskmaster's MCP core, viewer,
+project manifest, and assistant-neutral workflow playbooks are available on
+Codex. Enforcement hooks remain Claude Code-only; Codex follows the same gates
+advisorily through the playbooks.
 
 ---
 

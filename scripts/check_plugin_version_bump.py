@@ -12,6 +12,9 @@ This script is the canonical pre-PR checker. The push-time guard hook
 (.claude/hooks/check-version-bump.sh) is a leaner bash backstop; this is the
 richer, manually-runnable check that the PR workflow should call.
 
+Plugins that ship `.codex-plugin/plugin.json` must also have an installable,
+correctly sourced entry in `.agents/plugins/marketplace.json`.
+
 Usage:
   python scripts/check_plugin_version_bump.py                 # sync-check all plugins
   python scripts/check_plugin_version_bump.py taskmaster      # one plugin
@@ -33,6 +36,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 MARKETPLACE = ROOT / ".claude-plugin" / "marketplace.json"
+CODEX_MARKETPLACE = ROOT / ".agents" / "plugins" / "marketplace.json"
 
 
 def _load_marketplace_versions() -> dict[str, str]:
@@ -43,6 +47,15 @@ def _load_marketplace_versions() -> dict[str, str]:
         if name:
             out[name] = entry.get("version", "")
     return out
+
+
+def _load_codex_marketplace_entries() -> dict[str, dict]:
+    data = json.loads(CODEX_MARKETPLACE.read_text(encoding="utf-8"))
+    return {
+        entry["name"]: entry
+        for entry in data.get("plugins", [])
+        if entry.get("name")
+    }
 
 
 def _git(*args: str, cwd: Path | None = None) -> str:
@@ -81,6 +94,13 @@ def _plugin_json_version(name: str) -> str | None:
     if not pjson.exists():
         return None
     return json.loads(pjson.read_text(encoding="utf-8")).get("version")
+
+
+def _has_codex_manifest(name: str) -> bool:
+    sha = _submodule_sha(name, "HEAD")
+    if sha:
+        return _submodule_file(name, sha, ".codex-plugin/plugin.json") is not None
+    return (ROOT / "plugins" / name / ".codex-plugin" / "plugin.json").is_file()
 
 
 def _changelog_has(name: str, version: str) -> bool | None:
@@ -133,6 +153,7 @@ def main() -> int:
     args = ap.parse_args()
 
     mp = _load_marketplace_versions()
+    codex_mp = _load_codex_marketplace_entries()
     targets = [args.plugin] if args.plugin else sorted(mp)
     changed = _plugins_changed_since(args.base) if args.base else set()
 
@@ -149,6 +170,22 @@ def main() -> int:
             problems.append(
                 f"{name}: OUT OF SYNC — plugin.json v{pj} vs marketplace.json v{mpv}"
             )
+
+        if _has_codex_manifest(name):
+            codex_entry = codex_mp.get(name)
+            if codex_entry is None:
+                problems.append(f"{name}: Codex manifest exists but plugin is not listed in the Codex marketplace")
+            else:
+                source_path = codex_entry.get("source", {}).get("path")
+                if source_path != f"./plugins/{name}":
+                    problems.append(
+                        f"{name}: Codex marketplace source is {source_path!r}, expected './plugins/{name}'"
+                    )
+                installation = codex_entry.get("policy", {}).get("installation")
+                if installation not in {"AVAILABLE", "INSTALLED_BY_DEFAULT"}:
+                    problems.append(
+                        f"{name}: Codex manifest exists but installation policy is {installation!r}"
+                    )
 
         if args.base and name in changed:
             old = _version_at(args.base, name)
