@@ -36,6 +36,13 @@ project manifest, and assistant-neutral workflow playbooks are available on
 Codex. Enforcement hooks remain Claude Code-only; Codex follows the same gates
 advisorily through the playbooks.
 
+Taskmaster's canonical source remains its standalone repository/submodule. The
+Codex marketplace consumes a generated regular-file distribution under
+`codex-plugins/taskmaster` because repository marketplace installs do not
+materialize Git submodules. Maintainers refresh it with
+`python scripts/sync_taskmaster_codex_distribution.py` after advancing the
+Taskmaster submodule.
+
 ---
 
 ## Plugins

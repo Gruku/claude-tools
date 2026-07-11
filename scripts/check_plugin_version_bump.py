@@ -177,10 +177,42 @@ def main() -> int:
                 problems.append(f"{name}: Codex manifest exists but plugin is not listed in the Codex marketplace")
             else:
                 source_path = codex_entry.get("source", {}).get("path")
-                if source_path != f"./plugins/{name}":
+                valid_source_paths = {
+                    f"./plugins/{name}",
+                    f"./codex-plugins/{name}",
+                }
+                if source_path not in valid_source_paths:
                     problems.append(
-                        f"{name}: Codex marketplace source is {source_path!r}, expected './plugins/{name}'"
+                        f"{name}: Codex marketplace source is {source_path!r}, expected one of {sorted(valid_source_paths)!r}"
                     )
+                elif source_path.startswith("./codex-plugins/"):
+                    distribution_root = ROOT / source_path.removeprefix("./")
+                    distribution_manifest = distribution_root / ".codex-plugin" / "plugin.json"
+                    distribution_metadata = distribution_root / ".taskmaster-distribution.json"
+                    if not distribution_manifest.is_file():
+                        problems.append(
+                            f"{name}: generated Codex distribution has no plugin manifest"
+                        )
+                    else:
+                        dist = json.loads(distribution_manifest.read_text(encoding="utf-8"))
+                        if dist.get("name") != name or dist.get("version") != pj:
+                            problems.append(
+                                f"{name}: generated Codex distribution manifest is not aligned with v{pj}"
+                            )
+                    if name == "taskmaster":
+                        if not distribution_metadata.is_file():
+                            problems.append(
+                                "taskmaster: generated Codex distribution metadata is missing"
+                            )
+                        else:
+                            metadata = json.loads(
+                                distribution_metadata.read_text(encoding="utf-8")
+                            )
+                            expected_commit = _submodule_sha(name, "HEAD")
+                            if metadata.get("upstream_commit") != expected_commit:
+                                problems.append(
+                                    "taskmaster: generated Codex distribution is stale against the submodule pointer"
+                                )
                 installation = codex_entry.get("policy", {}).get("installation")
                 if installation not in {"AVAILABLE", "INSTALLED_BY_DEFAULT"}:
                     problems.append(

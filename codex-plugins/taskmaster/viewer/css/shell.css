@@ -1,0 +1,490 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Source+Serif+Pro:ital,wght@1,400&display=swap');
+
+:root {
+  /* Shell-specific vars (behavioural + shell-scoped design values; not in tokens.css) */
+  /* spec §3.4 — 1.5x baked into source CSS values, not via CSS zoom */
+  --shell-bg-sidebar:   #101116;                   /* sidebar surface, darker than --bg-shell */
+  --shell-label-size:   14px;                      /* section header caps, sub-text-xs */
+  --shell-hover-overlay: rgba(255,255,255,0.03);   /* near-invisible hover scrim */
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  background: var(--bg-canvas);
+  color: var(--ink);
+  font-size: var(--text-base);
+  line-height: 1.5;
+}
+
+.mono { font-family: var(--font-mono); }
+.serif { font-family: var(--font-serif); font-style: italic; }
+
+/* Shell grid: sidebar + main.
+   Explicit row track of 100vh + box-sizing:border-box on .main below
+   ensures the grid fits the viewport exactly even with padding on .main. */
+.shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  grid-template-rows: 100vh;
+  background: var(--bg-shell);
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--ink);
+}
+
+/* Sidebar */
+.sidebar {
+  background: var(--shell-bg-sidebar);
+  border-right: 1px solid var(--border);
+  padding: var(--sp-6) 0 0;   /* bottom padding moves to .sidebar-nav so logo always has full width */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  box-sizing: border-box;
+}
+/* Nav scroll body — lives below the logo; only this region scrolls */
+.sidebar-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  min-height: 0;
+  padding-bottom: var(--sp-6);
+}
+.sidebar-logo {
+  padding: 0 var(--sp-6) var(--sp-6);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  border-bottom: 1px solid var(--border-soft);
+}
+.sidebar-logo .mark {
+  width: 27px; height: 27px; border-radius: var(--r-sm);
+  flex-shrink: 0;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+/* .brand stacks name + ver vertically and takes the available flex space */
+.sidebar-logo .brand {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.sidebar-logo .name { font-weight: 600; font-size: var(--text-md); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sidebar-logo .ver { color: var(--ink-3); font-size: var(--text-xs); font-family: var(--font-mono); }
+
+.sidebar-section-h {
+  padding: var(--sp-4) var(--sp-6) var(--sp-2);
+  font-size: var(--shell-label-size); text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--ink-3);
+}
+.sidebar-link {
+  padding: var(--sp-2) var(--sp-6);
+  display: flex; align-items: center; gap: var(--sp-3);
+  color: var(--ink-2);
+  cursor: pointer;
+  text-decoration: none;
+  font-size: var(--text-base);
+}
+.sidebar-link:hover { background: var(--shell-hover-overlay); }
+.sidebar-link.active {
+  background: var(--accent-soft);
+  color: var(--ink);
+  /* inset shadow on left edge, not a left ribbon */
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.sidebar-link .ic { width: 21px; height: 21px; opacity: 0.65; }
+.sidebar-link .badge {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+}
+.sidebar-link.live .badge::before {
+  content: '●';
+  color: var(--green);
+  margin-right: 6px;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding: var(--sp-4) var(--sp-6);
+  border-top: 1px solid var(--border-soft);
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+  display: flex; align-items: center; gap: var(--sp-2);
+}
+.sidebar-footer .pulse {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--green);
+  display: none;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+/* Collapse toggle button */
+.sidebar-collapse-btn {
+  margin-left: auto;
+  width: 24px; height: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0;
+}
+.sidebar-collapse-btn:hover { color: var(--ink); background: var(--shell-hover-overlay); }
+
+/* Sidebar width animates between expanded and collapsed states. */
+.shell {
+  transition: grid-template-columns var(--t-slow) var(--ease);
+}
+.sidebar-logo .brand,
+.sidebar-logo .name,
+.sidebar-logo .ver,
+.sidebar-link .lbl,
+.sidebar-link .badge,
+.sidebar-footer span:last-child {
+  transition: opacity var(--t-base) var(--ease), max-width var(--t-slow) var(--ease);
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 200px;
+  opacity: 1;
+}
+/* .brand and .name need uncapped width — override the group's 200px clip */
+.sidebar-logo .brand { max-width: none; white-space: normal; overflow: visible; }
+.sidebar-logo .name { max-width: none; }
+
+/* Collapsed sidebar — icons-only.
+   Section labels become hairline dividers (text hidden, padding preserved).
+   Icon size + per-link vertical rhythm match the expanded layout. */
+.shell.sidebar-collapsed { grid-template-columns: 56px minmax(0, 1fr); }
+.shell.sidebar-collapsed .sidebar-logo {
+  /* Keep horizontal layout so the row height matches expanded mode and
+     subsequent links align at the same vertical positions. The logo mark
+     hides; only the toggle button remains, centered in the row. */
+  padding: 0 0 var(--sp-6);
+  flex-direction: row;
+  gap: 0;
+  justify-content: center;
+}
+.shell.sidebar-collapsed .sidebar-logo .mark {
+  display: none;
+}
+.shell.sidebar-collapsed .sidebar-logo .brand,
+.shell.sidebar-collapsed .sidebar-logo .name,
+.shell.sidebar-collapsed .sidebar-logo .ver,
+.shell.sidebar-collapsed .sidebar-link .lbl,
+.shell.sidebar-collapsed .sidebar-link .badge,
+.shell.sidebar-collapsed .sidebar-footer span:last-child {
+  opacity: 0;
+  max-width: 0;
+  margin: 0;
+  padding: 0;
+}
+.shell.sidebar-collapsed .sidebar-section-h {
+  /* Keep the SAME vertical box as expanded so links align row-for-row.
+     Hide the text via color:transparent and render the divider as an
+     inset box-shadow so it doesn't add to the box height. */
+  color: transparent;
+  box-shadow: inset 0 -1px 0 var(--border-soft);
+  padding-left: var(--sp-3);
+  padding-right: var(--sp-3);
+}
+.shell.sidebar-collapsed .sidebar-collapse-btn { margin: 0 auto; }
+.shell.sidebar-collapsed .sidebar-link {
+  padding: var(--sp-2) 0;
+  justify-content: center;
+  gap: 0; /* prevent invisible .lbl / .badge from offsetting the centered icon */
+}
+.shell.sidebar-collapsed .sidebar-link .ic { display: inline-flex; align-items: center; justify-content: center; }
+.shell.sidebar-collapsed .sidebar-link.active { box-shadow: none; }
+.shell.sidebar-collapsed .sidebar-footer {
+  padding: var(--sp-4) 0;
+  justify-content: center;
+}
+
+/* Main — fills its grid row exactly.
+   box-sizing:border-box folds the padding into the 100% height so the box
+   never overflows the row track. (Without this, content-box height + padding
+   = 100% + 40px, the bottom 40px gets clipped by .shell overflow:hidden,
+   and the page looks "off by the size of the sidebar".) */
+.main {
+  display: flex; flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  padding: var(--page-pad);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Topbar pinned to the top of .main. Structurally it's already outside the
+   scroll region (siblings: .topbar + .screen-mount, .main overflow:hidden),
+   but position:sticky + matching background defend against any future screen
+   that puts its own scroll on the wrong element. z-index:5 keeps it above
+   any screen-internal sticky chrome. Background matches .shell so the bar
+   reads as part of the surrounding chrome rather than a separate strip. */
+.topbar {
+  display: flex; align-items: center; gap: var(--sp-5);
+  margin-bottom: var(--sp-6);
+  flex-wrap: nowrap;
+  flex: 0 0 auto;
+  min-height: 48px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg-shell);
+}
+.topbar h1 {
+  font-size: var(--text-2xl);
+  margin: 0;
+  font-weight: 600;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.topbar-actions {
+  display: flex; align-items: center; gap: var(--sp-3);
+  flex: 1 1 0;
+  flex-wrap: wrap;
+  row-gap: var(--sp-2);
+  min-width: 0;
+  justify-content: flex-end;
+  container-type: inline-size;
+  container-name: topbar;
+}
+.topbar-actions:empty { display: none; }
+
+/* Screen mount slot — fills the space below the sticky topbar. It does NOT
+   scroll itself; scrolling lives inside whichever element of the mounted
+   screen claims it via the .tm-scroll primitive below. The slot is flex so
+   the screen root can flex:1 itself into the remaining height. */
+.screen-mount {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─────────── UNIFIED SCROLL PRIMITIVE ───────────
+   Drop-in classes any screen (or any nested component) can compose to get
+   consistent viewport-fitting scroll. The pattern: a flex-column parent
+   that fits its slot, with one or more .tm-scroll children claiming the
+   scrollable region. Sticky chrome (filter bars, section heads) lives
+   between the parent and the .tm-scroll child as a normal flex-0 sibling.
+
+   Rules of the road:
+   - The parent never grows past its slot (min-height:0 + overflow:hidden).
+   - Exactly ONE descendant per axis owns the scroll — usually .tm-scroll.
+   - For boards that delegate scroll to grandchildren (e.g. Kanban: only
+     .kanban-col-body scrolls), use .tm-page with no .tm-scroll child.
+
+   Every screen root in this viewer should adopt .tm-page (or its behaviour
+   via screen-local CSS) so the layout works the same everywhere. */
+
+.tm-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tm-scroll {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* All viewer screen roots get .tm-page behaviour: fill the slot, flex-column,
+   never grow past it. Two mount patterns exist in the codebase and both work
+   because .screen-mount is also flex-column with overflow:hidden:
+     (a) screen JS adds the class directly to .screen-mount
+         (dashboard:.dash, issue-detail)
+     (b) screen JS appends a child <div> with the class to .screen-mount
+         (kanban:.kanban-page, issues, ideas,
+         archived:.archived-page, task-detail:.td-page)
+
+   Adding a new screen: append its root class to BOTH the shared base list
+   below AND one of the two scroll-policy lists. */
+
+.kanban-page,
+.tbl-screen,
+.dk-desk,
+.issues,
+.ideas,
+.archived-page,
+.td-page,
+.issue-detail,
+.sessions-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* Scroll policy A — entire body scrolls vertically. Topbar stays put because
+   it sits in .main, outside this scroll region. Use when content is one
+   continuous column and no internal sticky chrome is needed. */
+.dk-desk,
+.issues,
+.archived-page,
+.td-page,
+.issue-detail,
+.sessions-page {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Scroll policy B — root never scrolls; one or more descendants own the
+   vertical scroll (Kanban's per-column bodies, Ideas' list/detail panes,
+   Table's .tbl-host). The root must clip so the scrolling descendants get
+   a real bounded slot instead of growing the page. */
+.kanban-page,
+.ideas,
+.tbl-screen {
+  overflow: hidden;
+}
+
+/* Stub screen — see _placeholders.css */
+
+/* ─────────── MOBILE SHELL (< 768px = --bp-md) ─────────── */
+/* Open up scroll so kanban columns can stack vertically as a scrollable feed.
+   Sidebar becomes a slide-in drawer triggered by a hamburger button.
+   Desktop layout (≥ 768px) is completely unchanged. */
+@media (max-width: 768px) {
+  /* Allow page-level scroll (body/html locked overflow is the main blocker on mobile) */
+  html, body {
+    overflow-x: hidden;
+    overflow-y: auto;
+    height: auto;
+    min-height: 100%;
+  }
+
+  /* Shell: single column — sidebar is a fixed drawer overlay, not in flow */
+  .shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;          /* override desktop's 100vh row */
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+    transition: none;
+  }
+
+  /* ── Sidebar as slide-in drawer ──
+     Removed: display:none from task-002.
+     The sidebar is now a fixed overlay that slides in from the left. */
+  .sidebar {
+    display: flex;               /* always rendered, just off-screen */
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: var(--sidebar-w);
+    z-index: 200;
+    transform: translateX(-100%);
+    transition: transform var(--t-slow) var(--ease);
+    /* Elevation via border, no box-shadow (design rule) */
+    border-right: 1px solid var(--border-strong);
+  }
+
+  /* When the drawer is open, slide in from left */
+  .shell.sidebar-drawer-open .sidebar {
+    transform: translateX(0);
+  }
+
+  /* Backdrop scrim — covers main content when drawer is open */
+  .sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 199;
+  }
+  .shell.sidebar-drawer-open .sidebar-backdrop {
+    display: block;
+  }
+
+  /* Hamburger button — injected by sidebar.js before topbar h1 */
+  .topbar-hamburger {
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--ink-2);
+    border-radius: var(--r-md);
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    order: -1;
+  }
+  .topbar-hamburger:hover {
+    color: var(--ink);
+    border-color: var(--border-strong);
+  }
+  .topbar-hamburger:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  /* Topbar: compact row — title shrinks, row wraps if needed */
+  .topbar {
+    flex-wrap: wrap;
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-4);
+    min-height: 44px;
+  }
+  .topbar h1 {
+    font-size: var(--text-md);
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Actions: take full width on wrap, stack below title row */
+  .topbar-actions {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+    row-gap: var(--sp-2);
+  }
+
+  /* Main: natural height, vertical scroll */
+  .main {
+    height: auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: visible;
+    padding: var(--sp-3);
+  }
+
+  /* Screen mount: natural flow */
+  .screen-mount {
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: visible;
+  }
+}

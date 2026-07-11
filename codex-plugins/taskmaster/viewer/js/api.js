@@ -1,0 +1,257 @@
+// Thin HTTP client for /api/* endpoints. All viewer mutations go through here.
+
+const BASE = ''; // same-origin
+
+async function http(method, path, body) {
+  const init = { method, headers: {} };
+  if (body !== undefined) {
+    init.headers['Content-Type'] = 'application/json';
+    init.body = JSON.stringify(body);
+  }
+  // Attach If-Match for write methods if we have an etag for this resource.
+  if (method === 'PATCH' || method === 'PUT') {
+    const m = path.match(/^\/api\/tasks\/([^/]+)/);
+    if (m) {
+      const { store } = await import('./store.js');
+      const et = store.getEtag(`task:${decodeURIComponent(m[1])}`);
+      if (et) init.headers['If-Match'] = et;
+    }
+  }
+  const resp = await fetch(BASE + path, init);
+  // Capture returned ETag for next time.
+  const et = resp.headers.get('ETag');
+  if (et) {
+    const { store } = await import('./store.js');
+    const m1 = path.match(/^\/api\/task\/([^/]+)$/);  // GET single task
+    const m2 = path.match(/^\/api\/tasks\/([^/]+)/);   // PATCH/PUT
+    const id = (m1 || m2)?.[1];
+    if (id) store.setEtag(`task:${decodeURIComponent(id)}`, et.replace(/^"|"$/g, ''));
+    if (path === '/api/backlog') store.setEtag('backlog', et.replace(/^"|"$/g, ''));
+  }
+  if (resp.status === 409) {
+    const j = await resp.json();
+    const err = new Error('stale');
+    err.code = 409;
+    err.current = j.current;
+    err.current_etag = j.current_etag;
+    throw err;
+  }
+  if (resp.status === 422) {
+    const j = await resp.json();
+    const err = new Error('validation failed');
+    err.code = 422;
+    err.errors = j.errors || {};
+    throw err;
+  }
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    throw new Error(`${method} ${path} → ${resp.status}: ${text}`);
+  }
+  const ctype = resp.headers.get('Content-Type') || '';
+  if (ctype.includes('application/json')) {
+    try {
+      return await resp.json();
+    } catch (e) {
+      throw new Error(`${method} ${path} → JSON parse failed: ${e.message}`);
+    }
+  }
+  if (ctype.includes('text/yaml') || path.endsWith('.yaml')) return resp.text();
+  return resp.text();
+}
+
+export async function getTask(id) {
+  const resp = await fetch(`/api/task/${encodeURIComponent(id)}`);
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    throw new Error(body.error || `task ${id} not found`);
+  }
+  return resp.json();
+}
+
+export async function getTaskRelated(id) {
+  const resp = await fetch(`/api/task/${encodeURIComponent(id)}/related`);
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    throw new Error(body.error || `related for ${id} not found`);
+  }
+  return resp.json();
+}
+
+export async function getEpic(id) {
+  const resp = await fetch(`/api/epic/${encodeURIComponent(id)}`);
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    throw new Error(body.error || `epic ${id} not found`);
+  }
+  return resp.json();
+}
+
+export const api = {
+  // Generic HTTP helpers — screens needing arbitrary endpoints (e.g. continuity
+  // dashboard hitting /api/continuity, /api/decisions/*) route through these
+  // instead of growing the named-method surface.
+  get:             (path)        => http('GET', path),
+  post:            (path, body)  => http('POST', path, body ?? {}),
+  identity:        ()    => http('GET', '/api/identity'),
+  backlog:         ()    => http('GET', '/api/backlog'),
+  prefs:           ()    => http('GET', '/api/viewer/prefs'),
+  savePrefs:       (p)   => http('PUT', '/api/viewer/prefs', p),
+  getTask,
+  getEpic,
+  getTaskRelated,
+  patchTask:    (id, patch) => http('PATCH', `/api/tasks/${encodeURIComponent(id)}`, patch),
+  putTask:      (id, full)  => http('PUT',   `/api/tasks/${encodeURIComponent(id)}`, full),
+  createTask:   (payload)   => http('POST',  '/api/tasks', payload),
+  archiveTask:  (id)        => http('POST',  `/api/tasks/${encodeURIComponent(id)}/archive`, {}),
+  validateTask: (taskId, patch) => http('POST', '/api/tasks/validate', { task_id: taskId, patch }),
+
+  async getRecentEvents(since) {
+    const u = new URL('/api/dashboard/recent-events', location.origin);
+    u.searchParams.set('since', since);
+    const r = await fetch(u);
+    if (!r.ok) throw new Error(`recent-events: ${r.status}`);
+    return r.json();
+  },
+
+  async getLastSession() {
+    const r = await fetch('/api/sessions/last');
+    if (!r.ok) return null;
+    return r.json();
+  },
+
+  async listIssues(filter = {}) {
+    const u = new URL('/api/issues', location.origin);
+    for (const [k, v] of Object.entries(filter)) u.searchParams.set(k, v);
+    const r = await fetch(u);
+    if (!r.ok) return [];
+    return r.json();
+  },
+
+  async getRecentCommits({ limit = 8 } = {}) {
+    const r = await fetch(`/api/git/commits?limit=${limit}`);
+    if (!r.ok) return [];
+    return r.json();
+  },
+
+  async getBuildTestPulse() {
+    const r = await fetch('/api/build-test-pulse');
+    if (!r.ok) return { build: 'unknown', tests: { passed: 0, failed: 0, total: 0 }, ts: null };
+    return r.json();
+  },
+
+  async quickCapture(text) {
+    const r = await fetch('/api/quick-capture', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (!r.ok) throw new Error(`quick-capture: ${r.status}`);
+    return r.json();
+  },
+
+  // Plans 5/6 add: putAutoState, etc.
+
+  // ── Notes (Desk) ──────────────────────────────────────────────
+  notes: (includeArchived = false) =>
+    http('GET', `/api/notes${includeArchived ? '?include_archived=1' : ''}`),
+  createNote: (text, pinned = false) => http('POST', '/api/notes', { text, pinned }),
+  updateNote: (id, patch) => http('POST', `/api/notes/${encodeURIComponent(id)}/update`, patch),
+  archiveNote: (id) => http('POST', `/api/notes/${encodeURIComponent(id)}/archive`, {}),
+};
+
+// --- Sessions (Plan 5a) -------------------------------------------
+
+export async function listSessions() {
+  const r = await fetch('/api/sessions');
+  if (!r.ok) throw new Error(`listSessions: ${r.status}`);
+  return r.json();
+}
+
+export async function getSessionDetail(sid) {
+  const r = await fetch(`/api/sessions/${encodeURIComponent(sid)}`);
+  if (!r.ok) throw new Error(`getSessionDetail(${sid}): ${r.status}`);
+  return r.json();
+}
+
+export async function savePrefs(patch) {
+  const r = await fetch('/api/viewer/prefs', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  if (!r.ok) throw new Error(`savePrefs: ${r.status}`);
+  return r.json();
+}
+
+// --- Issues ----------------------------------------------------------------
+export async function getIssues({ includeResolved = true } = {}) {
+  const qs = includeResolved ? '' : '?include_resolved=false';
+  const r = await fetch(`/api/issues${qs}`);
+  if (!r.ok) throw new Error(`getIssues failed: ${r.status}`);
+  return r.json();
+}
+
+// ── Bugs ─────────────────────────────────────────────────────────────────
+
+export async function listBugs({ status, found_in, include_archive } = {}) {
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  if (found_in) params.set('found_in', found_in);
+  if (include_archive) params.set('include_archive', '1');
+  const qs = params.toString();
+  const r = await fetch(`/api/bugs${qs ? '?' + qs : ''}`);
+  if (!r.ok) throw new Error(`listBugs failed: ${r.status}`);
+  return r.json();
+}
+
+export async function getBug(bugId) {
+  const r = await fetch(`/api/bugs/${encodeURIComponent(bugId)}`);
+  if (!r.ok) throw new Error(`getBug ${bugId} failed: ${r.status}`);
+  return r.json();
+}
+
+export async function createBug(payload) {
+  const r = await fetch('/api/bugs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) throw new Error(`createBug failed: ${r.status}`);
+  return r.json();
+}
+
+export async function updateBug(bugId, patch) {
+  const r = await fetch(`/api/bugs/${encodeURIComponent(bugId)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  if (!r.ok) throw new Error(`updateBug ${bugId} failed: ${r.status}`);
+  return r.json();
+}
+
+export async function archiveBug(bugId) {
+  const r = await fetch(`/api/bugs/${encodeURIComponent(bugId)}/archive`, { method: 'POST' });
+  if (!r.ok) throw new Error(`archiveBug ${bugId} failed: ${r.status}`);
+  return r.json();
+}
+
+export async function bugPatternScan({ mode = 'all' } = {}) {
+  const r = await fetch('/api/bugs/pattern-scan', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode }),
+  });
+  if (!r.ok) throw new Error(`bugPatternScan failed: ${r.status}`);
+  return r.json();
+}
+
+export async function promoteBugs({ bug_ids, title, severity, evidence_text, components, body }) {
+  const r = await fetch('/api/bugs/promote', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bug_ids, title, severity, evidence_text, components, body }),
+  });
+  if (!r.ok) throw new Error(`promoteBugs failed: ${r.status}`);
+  return r.json();
+}

@@ -20,7 +20,7 @@
       "name": "taskmaster",
       "source": {
         "source": "local",
-        "path": "./plugins/taskmaster"
+        "path": "./codex-plugins/taskmaster"
       },
       "policy": {
         "installation": "AVAILABLE",
