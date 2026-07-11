@@ -38,7 +38,7 @@ Joining is always explicit. Sessions that have not joined cannot list participan
 
 ## Cooperative CLI tools
 
-Once the plugin is enabled in Codex CLI or Claude Code CLI, ask the chat to “join Agent Relay.” The bundled MCP server exposes explicit `join`, `who`, `send`, `request`, `reply`, `inbox`, and `leave` tools. Each host process keeps its credential profile private while all participants share the local SQLite broker.
+Once the plugin is enabled in Codex CLI or Claude Code CLI, ask the chat to “join Agent Relay.” The bundled MCP server exposes explicit `status`, `join`, `who`, `send`, `request`, `reply`, `inbox`, and `leave` tools. Each host process keeps its credential profile private.
 
 The standalone `agent-relay` command exposes the same operations for debugging and future TUI use. It requires a distinct `--profile` path for every participating chat.
 
@@ -54,9 +54,36 @@ Native cooperative chats check messages only during active turns. Agent Relay ca
 
 Codex asks for approval before a state-changing relay tool runs. Approve the call after checking its target and message body; keep this boundary enabled for normal interactive use.
 
+## Windows + WSL broker mode
+
+Do not share a SQLite file through `/mnt/c`: Windows and Linux SQLite locking/WAL views can diverge. Run one broker that owns the database, then point every CLI at it before starting Codex or Claude Code.
+
+Start the broker on Windows from the plugin directory (replace the example token):
+
+```powershell
+$env:AGENT_RELAY_TOKEN = "replace-with-a-long-random-secret"
+node .\scripts\agent-relay-daemon.js --host 0.0.0.0 --port 43127 --database "$env:LOCALAPPDATA\agent-relay\relay.sqlite"
+```
+
+Start Windows clients from a shell containing:
+
+```powershell
+$env:AGENT_RELAY_URL = "http://127.0.0.1:43127"
+$env:AGENT_RELAY_TOKEN = "replace-with-a-long-random-secret"
+```
+
+Start WSL clients with the Windows host gateway and the same token:
+
+```bash
+export AGENT_RELAY_URL="http://$(ip route show default | awk '{print $3}'):43127"
+export AGENT_RELAY_TOKEN='replace-with-a-long-random-secret'
+```
+
+Allow TCP 43127 through Windows Firewall only for the WSL/private network profile. Broker mode requires a token; never commit or send it through relay messages. Ask each chat to call `agent_relay_status`, then join. Both must report `http-broker` and see the same peer list.
+
 ## Local data and configuration
 
-The shared database is stored under `%LOCALAPPDATA%\agent-relay` on Windows or `$XDG_STATE_HOME/agent-relay` on Unix-like systems, falling back to `~/.local/state/agent-relay`. Set `AGENT_RELAY_DATABASE` to use another SQLite path.
+In direct same-host mode, the database is stored under `%LOCALAPPDATA%\agent-relay` on Windows or `$XDG_STATE_HOME/agent-relay` on Unix-like systems, falling back to `~/.local/state/agent-relay`. Set `AGENT_RELAY_DATABASE` to use another SQLite path. Set both `AGENT_RELAY_URL` and `AGENT_RELAY_TOKEN` to use broker mode instead.
 
 Every MCP process receives a random credential profile. The profile is deleted when the process exits, and abandoned broker sessions expire automatically after their TTL.
 

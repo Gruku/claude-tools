@@ -16,7 +16,7 @@ test("dual-host manifests stay version-aligned", () => {
   const packageJson = readJson(join(pluginRoot, "package.json"));
   const claudeMarketplace = readJson(join(repositoryRoot, ".claude-plugin", "marketplace.json"));
 
-  assert.equal(codex.version, "0.1.0");
+  assert.equal(codex.version, "0.2.0");
   assert.equal(claude.version, codex.version);
   assert.equal(packageJson.version, codex.version);
   assert.equal(
