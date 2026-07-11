@@ -1,11 +1,13 @@
 ---
 name: agent-relay
-description: Connects a selected Codex or Claude Code CLI chat to Agent Relay for inter-agent communication. Use when the user says "join agent relay", "connect this chat", "ask another agent", "send this to Claude", "send this to Codex", "adversarially review my plan", "check the relay inbox", "talk to another session", or requests a direct or group conversation between AI coding sessions.
+description: This skill should be used when the user says "join agent relay", "connect this chat", "ask another agent", "send this to Claude", "send this to Codex", "adversarially review my plan", "check the relay inbox", "talk to another session", or requests a direct or group conversation between AI coding sessions.
 ---
 
 # Agent Relay
 
 Connect only after an explicit request to include the current CLI chat. Installing the plugin alone never authorizes participation.
+
+Call `agent_relay_status` when peers disagree about who is connected. Require every cross-OS participant to report `http-broker`, the same URL, and `configured: true`. Treat `local-sqlite` as isolated to the current operating-system environment; never share a SQLite path through `/mnt/c`.
 
 ## Join
 

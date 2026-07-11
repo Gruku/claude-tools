@@ -35,6 +35,8 @@ Usage:
 
 Options:
   --database PATH   Override the shared SQLite database.
+  --url URL         Use an Agent Relay HTTP broker. Also accepted through AGENT_RELAY_URL.
+  --broker-token T  Authenticate to the broker. Also accepted through AGENT_RELAY_TOKEN.
   --profile PATH    Explicit per-chat credential file. Also accepted through AGENT_RELAY_PROFILE.
 `;
 }
@@ -74,62 +76,78 @@ function target(options) {
   return { toSessionId: options.to, toRoom: options.room };
 }
 
-function main() {
+async function remoteCommand(url, token, command, credentials, options) {
+  const response = await fetch(`${url.replace(/\/$/, "")}/v1/command`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify({ command, credentials, options }),
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new RelayError(payload.error || `broker returned HTTP ${response.status}`);
+  return payload.result;
+}
+
+async function main() {
   const { command, options } = parseArgs(process.argv.slice(2));
   if (!command || command === "help" || command === "--help") {
     process.stdout.write(help());
     return;
   }
 
-  const databasePath = relayDatabasePath(options);
-  ensureParent(databasePath);
-  const relay = new AgentRelay({ databasePath });
+  const url = options.url || process.env.AGENT_RELAY_URL;
+  const brokerToken = options["broker-token"] || process.env.AGENT_RELAY_TOKEN;
+  if (url && !brokerToken) throw new Error("AGENT_RELAY_TOKEN or --broker-token is required with broker mode");
+  const databasePath = url ? undefined : relayDatabasePath(options);
+  if (databasePath) ensureParent(databasePath);
+  const relay = url ? null : new AgentRelay({ databasePath });
   try {
     let result;
     switch (command) {
       case "join": {
-        result = relay.join({
+        const joinOptions = {
           label: options.label,
           host: options.host,
           rooms: options.rooms ? options.rooms.split(",").map((room) => room.trim()).filter(Boolean) : [],
           ttlMs: options.ttl ? Number(options.ttl) : undefined,
-        });
+        };
+        result = url ? await remoteCommand(url, brokerToken, command, undefined, joinOptions) : relay.join(joinOptions);
         saveCredentials(options, result.credentials);
         result = { session: result.session, profile: profilePath(options) };
         break;
       }
       case "who":
-        result = relay.who(loadCredentials(options));
+        result = url ? await remoteCommand(url, brokerToken, command, loadCredentials(options), {}) : relay.who(loadCredentials(options));
         break;
       case "send":
-        result = relay.send(loadCredentials(options), { ...target(options), body: options.body });
+        result = url ? await remoteCommand(url, brokerToken, command, loadCredentials(options), { ...target(options), body: options.body }) : relay.send(loadCredentials(options), { ...target(options), body: options.body });
         break;
       case "request":
-        result = relay.request(loadCredentials(options), { toSessionId: options.to, body: options.body });
+        result = url ? await remoteCommand(url, brokerToken, command, loadCredentials(options), { toSessionId: options.to, body: options.body }) : relay.request(loadCredentials(options), { toSessionId: options.to, body: options.body });
         break;
       case "reply":
-        result = relay.reply(loadCredentials(options), { requestId: options.request, body: options.body });
+        result = url ? await remoteCommand(url, brokerToken, command, loadCredentials(options), { requestId: options.request, body: options.body }) : relay.reply(loadCredentials(options), { requestId: options.request, body: options.body });
         break;
       case "inbox":
-        result = relay.inbox(loadCredentials(options), {
+        const inboxOptions = {
           afterSequence: options.after ? Number(options.after) : 0,
           limit: options.limit ? Number(options.limit) : 100,
-        });
+        };
+        result = url ? await remoteCommand(url, brokerToken, command, loadCredentials(options), inboxOptions) : relay.inbox(loadCredentials(options), inboxOptions);
         break;
       case "leave":
-        result = relay.leave(loadCredentials(options));
+        result = url ? await remoteCommand(url, brokerToken, command, loadCredentials(options), {}) : relay.leave(loadCredentials(options));
         break;
       default:
         throw new Error(`unknown command: ${command}`);
     }
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   } finally {
-    relay.close();
+    relay?.close();
   }
 }
 
 try {
-  main();
+  await main();
 } catch (error) {
   const expected = error instanceof RelayError || error instanceof SyntaxError || error?.code === "ENOENT";
   process.stderr.write(`${expected ? "Agent Relay" : "Agent Relay internal error"}: ${error.message}\n`);

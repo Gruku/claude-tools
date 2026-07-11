@@ -63,6 +63,18 @@ def _run(command: str, **options: object) -> object:
 
 
 @mcp.tool
+def agent_relay_status() -> object:
+    """Report whether this chat uses a local database or the cross-OS broker."""
+    url = os.environ.get("AGENT_RELAY_URL")
+    return {
+        "transport": "http-broker" if url else "local-sqlite",
+        "url": url,
+        "configured": bool(url and os.environ.get("AGENT_RELAY_TOKEN")) if url else True,
+        "joined": PROFILE.exists(),
+    }
+
+
+@mcp.tool
 def agent_relay_join(label: str, host: str, rooms: list[str] | None = None) -> object:
     """Explicitly join this MCP-backed CLI chat to Agent Relay."""
     if PROFILE.exists():

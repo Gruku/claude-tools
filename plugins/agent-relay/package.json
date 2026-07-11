@@ -1,13 +1,14 @@
 {
   "name": "agent-relay",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=22.5"
   },
   "bin": {
-    "agent-relay": "./scripts/agent-relay.js"
+    "agent-relay": "./scripts/agent-relay.js",
+    "agent-relay-daemon": "./scripts/agent-relay-daemon.js"
   },
   "scripts": {
     "test": "node --test"
