@@ -1,0 +1,15 @@
+{
+  "name": "agent-relay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "bin": {
+    "agent-relay": "./scripts/agent-relay.js"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

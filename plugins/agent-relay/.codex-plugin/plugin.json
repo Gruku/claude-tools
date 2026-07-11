@@ -1,0 +1,34 @@
+{
+  "name": "agent-relay",
+  "version": "0.1.0",
+  "description": "Explicit, local-first direct and group communication between selected AI coding sessions.",
+  "author": {
+    "name": "gruku"
+  },
+  "skills": "./skills/",
+  "mcpServers": {
+    "agent-relay": {
+      "command": "uv",
+      "cwd": ".",
+      "startup_timeout_sec": 120,
+      "tool_timeout_sec": 30,
+      "args": [
+        "run",
+        "--with",
+        "fastmcp==3.4.4",
+        "python",
+        "-c",
+        "import runpy; runpy.run_path('mcp_server.py', run_name='__main__')"
+      ]
+    }
+  },
+  "interface": {
+    "displayName": "Agent Relay",
+    "shortDescription": "Connect selected AI coding sessions.",
+    "longDescription": "Join selected Codex and Claude Code sessions to exchange direct messages, review requests, and bounded group conversations through a local relay.",
+    "developerName": "gruku",
+    "category": "Productivity",
+    "capabilities": ["Communication", "Collaboration"],
+    "defaultPrompt": "Join Agent Relay and show the other connected sessions."
+  }
+}

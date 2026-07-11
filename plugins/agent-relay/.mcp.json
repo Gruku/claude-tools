@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "agent-relay": {
+      "command": "uv",
+      "args": ["run", "--with", "fastmcp==3.4.4", "${CLAUDE_PLUGIN_ROOT}/mcp_server.py"]
+    }
+  }
+}
