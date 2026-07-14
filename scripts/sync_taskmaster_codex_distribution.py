@@ -29,7 +29,6 @@ DIRECTORIES = (
 
 FILES = (
     "backlog_server.py",
-    "backlog-viewer.html",
     "viewer/index.html",
 )
 
