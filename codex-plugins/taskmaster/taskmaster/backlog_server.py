@@ -58,6 +58,7 @@ _NAME_TO_LEGACY = {v: k for k, v in _LEGACY_TO_NAME.items()}
 from taskmaster.taskmaster_v3 import (
     SCHEMA_V2,
     SCHEMA_V3,
+    SCHEMA_V4,
     SCHEMA_DEFAULT,
     TLDR_MAX_CHARS,
     extract_tldr,
@@ -77,15 +78,20 @@ from taskmaster.taskmaster_v3 import (
     atomic_write as _atomic_write,
     load_v3 as _load_v3,
     save_v3 as _save_v3,
+    load_v4 as _load_v4,
+    save_v4 as _save_v4,
+    next_task_id,
+    next_task_order,
     migrate_v2_to_v3 as _migrate_v2_to_v3,
+    migrate_v3_to_v4 as _migrate_v3_to_v4,
     write_handover as _write_handover,
     read_handover as _read_handover,
     apply_supersession as _apply_supersession,
     apply_handover_review_flag as _apply_handover_review_flag,
     update_handover_status as _update_handover_status,
     list_handover_ids as _list_handover_ids,
-    latest_handover_id as _latest_handover_id,
     sync_handover_index as _sync_handover_index,
+    derive_thread_name as _derive_thread_name,
     ISSUE_STATUSES,
     ISSUE_SEVERITIES,
     write_issue as _write_issue,
@@ -296,7 +302,14 @@ def _backlog_path() -> Path:
 
 
 def _progress_path() -> Path:
-    return _resolve_paths()[1]
+    backlog, legacy_progress = _resolve_paths()
+    try:
+        raw = yaml.safe_load(backlog.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return legacy_progress
+    if _detect_schema_version(raw) >= SCHEMA_V4:
+        return backlog.parent / "local" / "PROGRESS.md"
+    return legacy_progress
 
 
 # ── Session identity (unique per MCP server process) ─────
@@ -304,6 +317,12 @@ SESSION_ID = f"{socket.gethostname()}-{os.getpid()}-{uuid.uuid4().hex[:8]}"
 
 # ── File-level lock for backlog.yaml writes ──────────────
 _backlog_lock = threading.Lock()
+
+import copy as _copy
+
+# Deep copy of the last v4 _load() result, used as the diff baseline for
+# dirty-scoped save_v4 (None for v2/v3, which write whole-file).
+_LOAD_SNAPSHOT: dict | None = None
 
 
 def _today() -> str:
@@ -372,12 +391,18 @@ def _normalize_priority(value: str) -> str:
 
 
 def _load() -> dict:
+    global _LOAD_SNAPSHOT
     bp = _backlog_path()
     # Peek at version without per-file enrichment so we can dispatch.
     raw = yaml.safe_load(bp.read_text(encoding="utf-8")) or {}
     version = _detect_schema_version(raw)
-    data = _load_v3(bp) if version >= SCHEMA_V3 else raw
-    # Backfill missing 'created' on tasks + normalize legacy priorities (applies to both versions).
+    if version >= SCHEMA_V4:
+        data = _load_v4(bp)
+    elif version >= SCHEMA_V3:
+        data = _load_v3(bp)
+    else:
+        data = raw
+    # Backfill missing 'created' on tasks + normalize legacy priorities.
     for epic in data.get("epics", []):
         for t in epic.get("tasks", []):
             if not t.get("created"):
@@ -385,21 +410,33 @@ def _load() -> dict:
             pri = t.get("priority", "")
             if pri in _LEGACY_TO_NAME:
                 t["priority"] = _LEGACY_TO_NAME[pri]
+    _LOAD_SNAPSHOT = _copy.deepcopy(data) if version >= SCHEMA_V4 else None
     return data
 
 
 def _save(data: dict) -> None:
     with _backlog_lock:
-        data["meta"]["updated"] = _today()
         bp = _backlog_path()
-        if _detect_schema_version(data) >= SCHEMA_V3:
+        version = _detect_schema_version(data)
+        if version >= SCHEMA_V4:
+            _write_local_meta_cache(bp, {"updated": _today()})
+            _save_v4(bp, data, snapshot=_LOAD_SNAPSHOT)
+        elif version >= SCHEMA_V3:
+            data["meta"]["updated"] = _today()
             _save_v3(bp, data)
         else:
+            data["meta"]["updated"] = _today()
             _atomic_write(
                 bp,
                 yaml.dump(data, default_flow_style=False, sort_keys=False, allow_unicode=True),
             )
 
+
+def _write_local_meta_cache(backlog_path: Path, payload: dict) -> None:
+    """Persist derived metadata without churning the shared v4 index."""
+    cache_dir = backlog_path.parent / "local" / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    _atomic_write(cache_dir / "meta.json", json.dumps(payload, indent=2) + "\n")
 
 def _has_v3_content(data: dict) -> bool:
     """True when the backlog has any v3 narrative-continuity entity content.
@@ -744,7 +781,9 @@ def regenerate_context(data: dict) -> None:
 
 def regenerate_progress_dashboard(data: dict) -> None:
     """Rewrite PROGRESS.md above the '## Changelog' line."""
-    progress_text = _progress_path().read_text(encoding="utf-8")
+    path = _progress_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    progress_text = path.read_text(encoding="utf-8") if path.exists() else "## Changelog\n"
 
     changelog_marker = "## Changelog"
     idx = progress_text.find(changelog_marker)
@@ -829,7 +868,7 @@ def regenerate_progress_dashboard(data: dict) -> None:
     lines.append("\n---\n")
 
     dashboard = "\n".join(lines) + "\n"
-    _progress_path().write_text(dashboard + changelog_section, encoding="utf-8")
+    path.write_text(dashboard + changelog_section, encoding="utf-8")
 
 
 def _mutate_and_save(data: dict) -> None:
@@ -935,6 +974,8 @@ def backlog_status(verbose: bool = False) -> str:
     ctx = data["context"]
 
     lines = [f"**Schema:** v{_effective_schema_version(data)}\n"]
+    if _effective_schema_version(data) < SCHEMA_V4:
+        lines.append("Migration available: run `backlog_migrate_v4` for sharded, merge-aware storage.\n")
     lines.append("## Dashboard\n")
     lines.append("| Workstream | Status | Progress | Current Focus |")
     lines.append("|-----------|--------|----------|---------------|")
@@ -1178,6 +1219,8 @@ def backlog_list_tasks(
                 lines.append(f"  tldr: {t['tldr']}")
             if t.get("notes"):
                 lines.append(f"  notes: {t['notes']}")
+            if t.get("human_action"):
+                lines.append(f"  waiting-on-human: {t['human_action']}")
         if footer:
             lines.append(footer)
         return "\n".join(lines)
@@ -1189,6 +1232,8 @@ def backlog_list_tasks(
         slim_entry = entry
         if tldr:
             slim_entry = f"{entry} — {tldr}"
+        if t.get("human_action"):
+            slim_entry += f"\n    waiting-on-human: {t['human_action']}"
         lines.append(f"- {slim_entry}")
     if footer:
         lines.append(footer)
@@ -1288,6 +1333,7 @@ def backlog_get_task(
         ("Completed", str(task.get("completed", "—"))),
         ("Branch", task.get("branch", "—")),
         ("Blockers", task.get("blockers", "—")),
+        ("Waiting on human", task.get("human_action", "")),
         ("Locked by", task.get("locked_by", "—")),
         ("Review instructions", task.get("review_instructions", "—")),
         ("Notes", task.get("notes", "—")),
@@ -1576,6 +1622,12 @@ def backlog_validate() -> str:
 
     issues: list[str] = []
 
+    for orphan_id in data.get("_orphan_tasks", []):
+        issues.append(
+            f"Task `{orphan_id}` names an epic that does not exist "
+            "(orphaned `epic:` frontmatter) — fix the task's epic field."
+        )
+
     for task, epic in all_tasks:
         tid = task["id"]
 
@@ -1779,8 +1831,8 @@ def backlog_init(project_name: str = "", location: str = "tracked", schema_versi
         return f"Error: location must be 'tracked', got '{location}'"
     if schema_version == 0:
         schema_version = SCHEMA_DEFAULT
-    if schema_version not in (SCHEMA_V2, SCHEMA_V3):
-        return f"Error: schema_version must be {SCHEMA_V2} or {SCHEMA_V3}, got {schema_version}"
+    if schema_version not in (SCHEMA_V2, SCHEMA_V3, SCHEMA_V4):
+        return f"Error: schema_version must be {SCHEMA_V2}, {SCHEMA_V3}, or {SCHEMA_V4}, got {schema_version}"
 
     if not project_name:
         project_name = ROOT.name
@@ -1801,7 +1853,11 @@ def backlog_init(project_name: str = "", location: str = "tracked", schema_versi
             )
 
     backlog_rel = ".taskmaster/backlog.yaml"
-    progress_rel = ".taskmaster/PROGRESS.md"
+    progress_rel = (
+        ".taskmaster/local/PROGRESS.md"
+        if schema_version >= SCHEMA_V4
+        else ".taskmaster/PROGRESS.md"
+    )
 
     backlog_abs = ROOT / backlog_rel
     progress_abs = ROOT / progress_rel
@@ -1838,8 +1894,14 @@ def backlog_init(project_name: str = "", location: str = "tracked", schema_versi
         initial_data["handovers"] = []
         initial_data["issues"] = []
         # Pre-create directories so first-run tooling has somewhere to write.
-        for sub in ("tasks", "handovers", "issues", "auto", "areas"):
+        subdirs = ["tasks", "handovers", "issues", "areas"]
+        subdirs.extend(["local", "local/cache"] if schema_version >= SCHEMA_V4 else ["auto"])
+        for sub in subdirs:
             (backlog_abs.parent / sub).mkdir(parents=True, exist_ok=True)
+
+    if schema_version >= SCHEMA_V4:
+        initial_data["meta"].pop("updated", None)
+        _write_local_meta_cache(backlog_abs, {"updated": _today()})
 
     backlog_abs.write_text(
         yaml.dump(initial_data, default_flow_style=False, sort_keys=False, allow_unicode=True),
@@ -1849,10 +1911,15 @@ def backlog_init(project_name: str = "", location: str = "tracked", schema_versi
 
     # Create PROGRESS.md
     progress_content = f"# {project_name} Progress\n\n> Auto-generated from backlog.yaml — do not edit manually\n\n## Dashboard\n\n---\n\n## Changelog\n"
+    progress_abs.parent.mkdir(parents=True, exist_ok=True)
     progress_abs.write_text(progress_content, encoding="utf-8")
     created.append(progress_rel)
 
-    schema_label = "v3 (latest — narrative continuity)" if schema_version >= SCHEMA_V3 else "v2 (stable)"
+    schema_label = (
+        "v4 (sharded per-task storage)"
+        if schema_version >= SCHEMA_V4
+        else "v3 (narrative continuity)" if schema_version >= SCHEMA_V3 else "v2 (stable)"
+    )
     return (
         f"Initialized taskmaster for **{project_name}** in `.taskmaster/` (trackable in git) on schema {schema_label}.\n"
         f"Created: {', '.join(created)}"
@@ -1909,6 +1976,26 @@ def backlog_migrate_v3() -> str:
         f"subsequent slices."
     )
 
+
+@mcp.tool()
+def backlog_migrate_v4() -> str:
+    """Migrate this project to v4 sharded per-task storage."""
+    backlog_path = _backlog_path()
+    if not backlog_path.exists():
+        return f"Error: no backlog found at {backlog_path}. Run `backlog_init` first."
+    summary = _migrate_v3_to_v4(backlog_path)
+    if summary["status"] == "already_v4":
+        return (
+            f"Already on v4 — {summary['tasks_total']} tasks, no changes made.\n"
+            f"Backlog at: {backlog_path.relative_to(ROOT)}"
+        )
+    return (
+        "Migrated v3 -> v4.\n"
+        f"- Tasks: {summary['tasks_total']} (all fields now in tasks/<id>.md)\n"
+        f"- Index: {backlog_path.relative_to(ROOT)} (slim — no task lists)\n"
+        "- Local state moved into local/; snapshots/ removed.\n"
+        "- Restart the MCP server to pick up the new schema."
+    )
 
 @mcp.tool()
 def backlog_backfill_lanes(grandfather_active: bool = True) -> str:
@@ -2016,6 +2103,7 @@ def backlog_handover_create(
     body: str = "",
     task_ids: list[str] | None = None,
     session_kind: str = "end-of-day",
+    thread: str = "",
     supersedes: str = "",
     flag_for_review: bool = False,
     options: dict | None = None,
@@ -2031,6 +2119,7 @@ def backlog_handover_create(
         body: Markdown body (the four-section narrative).
         task_ids: Tasks this handover relates to (surfaces in pick-task).
         session_kind: One of {", ".join(HANDOVER_KINDS)}.
+        thread: Thread this handover belongs to (stable resume token). Auto-derived from bundle/epic/task/tldr when empty.
         supersedes: Optional id of an older handover this one supersedes; the old
             one gets a `superseded_by:` field and a SUPERSEDED callout.
         flag_for_review: When True, flags this handover for retro extraction.
@@ -2047,6 +2136,13 @@ def backlog_handover_create(
     if not bp.exists():
         return f"Error: no backlog found at {bp}. Run `backlog_init` first."
     _ensure_handover_status_backfilled()
+    data = _load()
+    thread_name = (thread or "").strip()
+    if not thread_name:
+        bundle = _get_session_bundle() or {}
+        thread_name = _derive_thread_name(
+            task_ids or [], tldr, data, bundle_slug=bundle.get("slug", "") or ""
+        )
     try:
         hid, target = _write_handover(
             bp,
@@ -2055,6 +2151,7 @@ def backlog_handover_create(
             body=body,
             task_ids=task_ids or [],
             session_kind=session_kind,
+            thread=thread_name,
             context_size_at_write=context_size_at_write or None,
             supersedes=supersedes or None,
             branch=branch or None,
@@ -2081,7 +2178,6 @@ def backlog_handover_create(
         except FileNotFoundError as exc:
             return f"Error: handover not found: {exc}."
 
-    data = _load()
     _sync_handover_index(data, bp)
     _save(data)
     _ensure_v3_marker(bp)
@@ -2104,6 +2200,7 @@ def backlog_handover_create(
         lines.append(f"- {superseded_warning}")
     if flag_for_review:
         lines.append(f"- Flagged for review: {review_reason}")
+    lines.append(f"Resume: {thread_name} — {next_action or tldr}")
     return "\n".join(lines)
 
 
@@ -2264,46 +2361,6 @@ def backlog_handover_get(
     return "\n".join(lines)
 
 
-def backlog_handover_latest() -> str:
-    """[DEPRECATED] Alias for backlog_handover_list(status="open", limit=1, sort="created_desc").
-
-    Use `backlog_handover_list(status="open")` instead — it returns all in-flight
-    handover tracks, not just the newest one. This alias will be removed in the
-    next major release.
-    """
-    bp = _backlog_path()
-    if not bp.exists():
-        return "No backlog found."
-    _ensure_handover_status_backfilled()
-    data = _load()
-    entries = list(data.get("handovers") or [])
-    open_entries = [e for e in entries if e.get("status") == "open"]
-    # Sort by created descending; fall back to id for stable ordering.
-    open_entries.sort(key=lambda e: (e.get("created") or e.get("id") or ""), reverse=True)
-
-    deprecation_notice = (
-        "[DEPRECATED] backlog_handover_latest is an alias — "
-        "use backlog_handover_list(status=\"open\") for all open tracks.\n\n"
-    )
-
-    if not open_entries:
-        return deprecation_notice + "No open handovers."
-
-    e = open_entries[0]
-    when_line = e.get("created") or e.get("date") or ""
-    when_label = f" ({when_line})" if when_line else ""
-    return (
-        deprecation_notice
-        + f"Latest open handover: {e['id']}{when_label}\n"
-        + f"- TLDR: {e.get('tldr', '')}\n"
-        + f"- Next: {e.get('next_action', '(none)')}\n"
-        + f"- Tasks: {', '.join(e.get('task_ids') or []) or '(none)'}\n"
-        + f"- Kind: {e.get('session_kind', 'end-of-day')}\n"
-        + f"\nFetch body with `backlog_handover_get {e['id']}`.\n"
-        + f"List all open tracks with `backlog_handover_list(status=\"open\")`."
-    )
-
-
 @mcp.tool()
 def backlog_handover_resync() -> str:
     """Rebuild the handover index in backlog.yaml from disk.
@@ -2316,10 +2373,104 @@ def backlog_handover_resync() -> str:
         return "No backlog found."
     _ensure_handover_status_backfilled()
     data = _load()
+    from taskmaster.taskmaster_v3 import backfill_threads as _backfill_threads
+    backfill = _backfill_threads(bp, backlog_data=data)
     _sync_handover_index(data, bp)
     _save(data)
     n = len(data.get("handovers") or [])
-    return f"Handover index resynced — {n} entries in `backlog.yaml`."
+    extra = f" Backfilled thread on {len(backfill['stamped'])} legacy handover(s)." if backfill["stamped"] else ""
+    return f"Handover index resynced — {n} entries in `backlog.yaml`.{extra}"
+
+
+@mcp.tool()
+def backlog_thread_list(include_closed: bool = False) -> str:
+    """The thread board — open (and parked) lines of work with their stable
+    resume tokens. Resume one with `backlog_thread_resume(<name>)`.
+
+    Args:
+        include_closed: Also list closed threads (default False).
+    """
+    bp = _backlog_path()
+    if not bp.exists():
+        return "No backlog found."
+    data = _load()
+    if "threads" not in data:
+        _sync_handover_index(data, bp)
+        _save(data)
+    from taskmaster.taskmaster_v3 import list_threads as _list_threads
+    rows = _list_threads(data)
+    if not include_closed:
+        rows = [r for r in rows if r["status"] != "closed"]
+    if not rows:
+        return "No open threads. Write a handover to start one."
+    lines = []
+    for r in rows:
+        stale = f" · {r['staleness_days']}d" if r["staleness_days"] else ""
+        park = " [parked]" if r["status"] == "parked" else ""
+        branch = f" · {r['branch']}" if r["branch"] else ""
+        lines.append(f"- **{r['name']}**{park}{stale}{branch} — {r['tldr']}")
+        if r["next_action"]:
+            lines.append(f"  next: {r['next_action']}")
+        if r["task_ids"]:
+            lines.append(f"  tasks: {', '.join(r['task_ids'])}")
+    lines.append("\nResume: `backlog_thread_resume(\"<name>\")`")
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def backlog_thread_resume(ref: str) -> str:
+    """Resume a thread: returns its newest handover in full (frontmatter +
+    body) in one call. `ref` is a thread name OR any handover id (stale dated
+    slugs still land on the thread's newest handover).
+    """
+    bp = _backlog_path()
+    if not bp.exists():
+        return "No backlog found."
+    data = _load()
+    if "threads" not in data:
+        _sync_handover_index(data, bp)
+        _save(data)
+    from taskmaster.taskmaster_v3 import resolve_thread as _resolve_thread
+    try:
+        tname, hid = _resolve_thread(data, bp, ref)
+    except KeyError:
+        return (f"No thread or handover matches {ref!r}. "
+                f"See `backlog_thread_list()` for open threads.")
+    try:
+        fm, body = _read_handover(bp, hid)
+    except FileNotFoundError:
+        return f"Thread {tname!r} resolved to {hid}, but the file is missing — run `backlog_handover_resync`."
+    t = (data.get("threads") or {}).get(tname) or {}
+    header = [
+        f"# Thread: {tname or '(none — standalone handover)'}",
+        f"- status: {t.get('status', 'open')}" if tname else "",
+        f"- handovers: {len(t.get('handover_ids') or []) or 1}",
+        f"- newest: {hid}",
+        "",
+    ]
+    fm_lines = [f"  {k}: {v}" for k, v in fm.items()]
+    return "\n".join(x for x in header if x is not None) + "---\n" + "\n".join(fm_lines) + "\n---\n" + body
+
+
+@mcp.tool()
+def backlog_thread_update(name: str, status: str, reason: str = "") -> str:
+    """Set a thread's status: open / parked / closed. Writing a new handover
+    into the thread later auto-reopens it (override expires)."""
+    bp = _backlog_path()
+    if not bp.exists():
+        return "No backlog found."
+    data = _load()
+    if "threads" not in data:
+        _sync_handover_index(data, bp)
+    from taskmaster.taskmaster_v3 import update_thread_status as _update_thread_status
+    try:
+        _update_thread_status(data, bp, name=name, status=status, reason=reason)
+    except ValueError as exc:
+        return f"Error: {exc}"
+    except KeyError:
+        return f"Error: no thread named {name!r}. See `backlog_thread_list()`."
+    _save(data)
+    return f"Thread {name} → {status}." + (f" ({reason})" if reason else "")
 
 
 # ── Plan C: typed-link MCP tools (spec §6) ─────────────────────────────
@@ -2366,7 +2517,7 @@ def backlog_link_create(source: str, target: str, type: str, note: str = "") -> 
     from taskmaster.taskmaster_v3 import (
         LINK_TYPES, is_valid_link, entity_kind_of,
         read_entity_anywhere, write_entity_anywhere, add_link, entity_links,
-        sync_inverse, would_create_cycle, load_v3,
+        sync_inverse, would_create_cycle,
     )
 
     backlog_path = _backlog_path()
@@ -2395,7 +2546,7 @@ def backlog_link_create(source: str, target: str, type: str, note: str = "") -> 
     # single task→task graph; `blocks` is reversed onto `depends_on`).
     if type in ("depends_on", "blocks"):
         graph: dict[str, list[str]] = {}
-        data = load_v3(backlog_path)
+        data = _load()
         for epic in data.get("epics", []):
             for task in epic.get("tasks", []):
                 tid = task.get("id")
@@ -2483,7 +2634,7 @@ def backlog_link_query(source: str = "", target: str = "", type: str = "",
     """
     import json as _json
     from taskmaster.taskmaster_v3 import (
-        entity_kind_of, read_entity_anywhere, entity_links, load_v3,
+        entity_kind_of, read_entity_anywhere, entity_links,
     )
 
     backlog_path = _backlog_path()
@@ -2497,7 +2648,7 @@ def backlog_link_query(source: str = "", target: str = "", type: str = "",
 
     def all_edges() -> list[dict]:
         out: list[dict] = []
-        data = load_v3(backlog_path)
+        data = _load()
         for epic in data.get("epics", []):
             for task in epic.get("tasks", []):
                 tid = task.get("id")
@@ -2564,13 +2715,13 @@ def backlog_link_validate() -> str:
     """
     import json as _json
     from taskmaster.taskmaster_v3 import (
-        REVERSE_TYPE, read_entity_anywhere, entity_links, load_v3, find_cycle,
+        REVERSE_TYPE, read_entity_anywhere, entity_links, find_cycle,
     )
 
     backlog_path = _backlog_path()
 
     def iter_all_entities():
-        data = load_v3(backlog_path)
+        data = _load()
         for epic in data.get("epics", []):
             for task in epic.get("tasks", []):
                 if task.get("id"):
@@ -2692,14 +2843,14 @@ def backlog_handover_update_status(
     status: str,
     reason: str = "",
 ) -> str:
-    """Manually set a handover's status (todo / in-progress / done).
+    """Manually set a handover's status (open / closed / superseded).
 
     Marks status_user_set: true — subsequent auto-transitions (supersession,
     task-complete, resume) will skip this handover.
 
     Args:
         handover_id: The handover id (e.g. "2026-05-09-shipped-x").
-        status: One of todo, in-progress, done.
+        status: One of open, closed, superseded.
         reason: Optional free-text rationale stored as `status_reason`.
     """
     bp = _backlog_path()
@@ -4049,19 +4200,23 @@ def backlog_add_task(
             return f"Error: task ID `{task_id}` already exists"
         new_id = task_id
     else:
-        # Generate ID: {epic-id}-{NNN}
-        tasks = epic_obj.get("tasks", [])
-        max_suffix = 0
-        prefix = f"{epic}-"
-        for t in tasks:
-            tid = t["id"]
-            if tid.startswith(prefix):
-                suffix_str = tid[len(prefix):]
-                try:
-                    max_suffix = max(max_suffix, int(suffix_str))
-                except ValueError:
-                    pass
-        new_id = f"{epic}-{max_suffix + 1:03d}"
+        # v4: allocate by directory scan (honors concurrent creates); v3: legacy
+        # in-memory scan (per-task files aren't the enumeration source there).
+        if _detect_schema_version(data) >= SCHEMA_V4:
+            new_id = next_task_id(_backlog_path(), epic)
+        else:
+            tasks = epic_obj.get("tasks", [])
+            max_suffix = 0
+            prefix = f"{epic}-"
+            for t in tasks:
+                tid = t["id"]
+                if tid.startswith(prefix):
+                    suffix_str = tid[len(prefix):]
+                    try:
+                        max_suffix = max(max_suffix, int(suffix_str))
+                    except ValueError:
+                        pass
+            new_id = f"{epic}-{max_suffix + 1:03d}"
 
     # tldr: use supplied value, or auto-generate from notes/title
     tldr_autogen = False
@@ -4134,6 +4289,10 @@ def backlog_add_task(
     new_task["lane"] = _default_lane(new_task.get("priority", "medium"))
     new_task["gate_state"] = _compute_gate_state(new_task)
     new_task["merge_gate_state"] = ""   # no merges yet
+
+    if _detect_schema_version(data) >= SCHEMA_V4:
+        new_task["epic"] = epic
+        new_task["order"] = next_task_order(_backlog_path(), epic)
 
     if "tasks" not in epic_obj:
         epic_obj["tasks"] = []
@@ -4481,6 +4640,7 @@ def backlog_complete_task(
     issues: str = "",
     tasks_touched: str = "",
     target_status: str = "done",
+    human_action: str = "",
     auto_summary: bool = False,
     patchnote: str = "",
     release: str = "",
@@ -4490,9 +4650,9 @@ def backlog_complete_task(
     When session summary fields are provided, a changelog entry is appended automatically.
     This combines the status transition and session logging into one atomic operation.
 
-    Use target_status="in-review" when implementation is complete but the user needs to
-    manually test before confirming. Use target_status="done" when no manual testing is needed
-    or the user has already confirmed.
+    Use target_status="done" (default) when Claude's work is complete and gates passed.
+    Use target_status="in-review" ONLY when an action that only the human can perform
+    blocks the task (API key, LLM config, account access) — pass it as human_action.
 
     Accepts tasks that are in-progress, in-review, or blocked.
 
@@ -4503,7 +4663,8 @@ def backlog_complete_task(
         decisions: Optional newline-separated list of decisions made
         issues: Optional newline-separated list of issues encountered. Use "None" if none.
         tasks_touched: Optional comma-separated task IDs that changed status this session
-        target_status: Target status — "done" (default) or "in-review" (needs manual testing)
+        target_status: Target status — "done" (default) or "in-review" (blocked on a human-only action)
+        human_action: Required with target_status="in-review" (unless already set on the task): short imperative describing the human-only blocker, e.g. "add OPENAI_API_KEY to .env". Cleared automatically when the task reaches done.
         auto_summary: If true, generates a lightweight auto-summary instead of the structured format. Pass git stats as the done field.
         patchnote: Optional 1-2 sentence user-facing release-note line describing what shipped. Leave empty for internal/infra tasks.
         release: Optional release bucket this task ships in (e.g., "pre-alpha", "alpha-1.0"). Groups patchnotes for release notes.
@@ -4522,6 +4683,13 @@ def backlog_complete_task(
 
     if status not in ("in-progress", "in-review", "blocked"):
         return f"Error: task `{task_id}` is `{status}`, expected one of: in-progress, in-review, blocked"
+
+    if target_status == "in-review":
+        human_action = human_action.strip() or (task.get("human_action") or "").strip()
+        if not human_action:
+            return ("Error: target_status='in-review' requires human_action — the human-only "
+                    "step that blocks this task (e.g. 'add OPENAI_API_KEY to .env'). "
+                    "If nothing blocks it, target 'done'.")
 
     # Bug close-gate (per bug-tier redesign)
     bp = _backlog_path()
@@ -4545,14 +4713,12 @@ def backlog_complete_task(
         if block:
             return block
 
-    # Warn if skipping in-review when going straight to done
-    review_warning = ""
-    if target_status == "done" and status == "in-progress":
-        review_warning = "\n\n**Note:** Task went directly from in-progress → done, skipping the in-review stage. Consider using `in-review` first so the user can manually test and confirm it works."
-
     task["status"] = target_status
     if target_status == "done":
         task["completed"] = _now()
+        task.pop("human_action", None)
+    else:  # in-review — allowlist above guarantees it
+        task["human_action"] = human_action
     task.pop("locked_by", None)
 
     if patchnote:
@@ -4628,7 +4794,7 @@ def backlog_complete_task(
         suggestion = f"\n\n**Next in {epic['name']}:** `{n['id']}` — {n['title']} ({n.get('priority', 'medium')})"
 
     status_label = "Completed" if target_status == "done" else "Moved to in-review"
-    return f"{status_label} `{task_id}` — {task['title']}" + changelog_msg + review_warning + suggestion
+    return f"{status_label} `{task_id}` — {task['title']}" + changelog_msg + suggestion
 
 
 def backlog_release_notes(release: str = "", group_by: str = "epic", include_unreleased: bool = False) -> str:
@@ -4857,7 +5023,7 @@ def _strictest_lane(lanes: list) -> str:
     return max(present, key=lambda l: order[l])
 
 
-ALLOWED_FIELDS = {"title", "status", "priority", "notes", "branch", "worktree", "blockers", "docs", "depends_on", "sub_repo", "stage", "estimate", "locked_by", "review_instructions", "phase", "anchors", "blast_radius_depth", "patchnote", "release", "tldr", "next_step", "component", "design_change", "lane", "bundle", "area"}
+ALLOWED_FIELDS = {"title", "status", "priority", "notes", "branch", "worktree", "blockers", "docs", "depends_on", "sub_repo", "stage", "estimate", "locked_by", "review_instructions", "phase", "anchors", "blast_radius_depth", "patchnote", "release", "tldr", "next_step", "component", "design_change", "lane", "bundle", "area", "human_action"}
 VALID_STATUSES = {"todo", "in-progress", "in-review", "done", "archived", "blocked"}
 # Spec A Task 11: forward-transition table enforced on lane'd tasks via
 # backlog_update_task. Laneless tasks are exempt (old permissive behavior).
@@ -4889,7 +5055,7 @@ def backlog_update_task(
         task_id: The task ID (e.g., "ue-plugin-003")
         field: Field to update — one of: title, status, priority, notes, branch, worktree, blockers,
             docs, depends_on, sub_repo, stage, estimate, locked_by, review_instructions, phase,
-            patchnote, release, tldr, next_step
+            patchnote, release, tldr, next_step, human_action
         value: New value. Format varies by field:
             - docs: "key:path" (e.g., "plan:docs/plans/foo.md")
             - depends_on: comma-separated task IDs (e.g., "cpp-parser-002,cpp-parser-003")
@@ -4952,6 +5118,9 @@ def backlog_update_task(
         # writes (value == current) are always allowed — the guard only checks
         # when the status actually changes.
         cur = task.get("status", "todo")
+        if value == "in-review" and value != cur and not (task.get("human_action") or "").strip():
+            return (f"Error: `in-review` means blocked on a human-only action; set human_action first: "
+                    f"backlog_update_task('{task_id}', 'human_action', '<what the human must do>')")
         if task.get("lane") and value != cur:
             allowed = LEGAL_STATUS_TRANSITIONS.get(cur, set())
             if value not in allowed:
@@ -4961,6 +5130,8 @@ def backlog_update_task(
                 block = _completion_block_reason(task)
                 if block:
                     return block
+        if value == "done":
+            task.pop("human_action", None)
         task["status"] = value
         if value == "in-progress" and not task.get("started"):
             task["started"] = _now()
@@ -6158,6 +6329,11 @@ def backlog_batch_update(operations: str) -> str:
                 if value not in VALID_STATUSES:
                     errors.append(f"`{task_id}`: invalid status `{value}`")
                     continue
+                if value == "in-review" and task.get("status") != "in-review" and not (task.get("human_action") or "").strip():
+                    errors.append(f"`{task_id}`: in-review requires human_action — set it first via backlog_update_task")
+                    continue
+                if value == "done":
+                    task.pop("human_action", None)
                 task["status"] = value
                 if value == "in-progress" and not task.get("started"):
                     task["started"] = _now()
@@ -6243,6 +6419,9 @@ def backlog_batch_update(operations: str) -> str:
                 errors.append(f"`{task_id}`: not found")
                 continue
             task, epic = result
+            if new_status == "in-review" and task.get("status") != "in-review" and not (task.get("human_action") or "").strip():
+                errors.append(f"`{task_id}`: in-review requires human_action — set it first via backlog_update_task")
+                continue
             if new_status == "done":
                 # Same lifecycle guard + close-gate as backlog_complete_task (B-049).
                 cur_status = task.get("status", "todo")
@@ -6266,6 +6445,7 @@ def backlog_batch_update(operations: str) -> str:
                 task["started"] = task.get("started") or _now()
                 if not task.get("completed"):
                     task["completed"] = _now()
+                task.pop("human_action", None)
             if new_status not in ("in-progress",):
                 task.pop("locked_by", None)
             results.append(f"`{task_id}` → {new_status}")
@@ -6301,6 +6481,7 @@ def backlog_batch_update(operations: str) -> str:
             if not task.get("completed"):
                 task["completed"] = _now()
             task.pop("locked_by", None)
+            task.pop("human_action", None)
             results.append(f"`{task_id}` → done")
             changed = True
 
@@ -6994,6 +7175,14 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 self._send_json(400, {"ok": False, "error": str(e)})
                 return
             self._send_json(200, events)
+            return
+        elif clean_path == "/api/threads":
+            from taskmaster.taskmaster_v3 import list_threads as _list_threads_http
+            data = _load()
+            if "threads" not in data:
+                _sync_handover_index(data, _backlog_path())
+                _save(data)
+            self._send_json(200, _list_threads_http(data))
             return
         elif clean_path == "/api/sessions":
             self._send_json(200, list_sessions())

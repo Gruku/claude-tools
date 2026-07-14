@@ -32,7 +32,8 @@ _PLUGIN_DIR = Path(__file__).resolve().parent.parent
 # v3: slim backlog.yaml index + per-task files in tasks/ + handovers/ + issues/.
 SCHEMA_V2 = 2
 SCHEMA_V3 = 3
-SCHEMA_DEFAULT = SCHEMA_V2  # what new backlogs get unless v3 is explicitly requested
+SCHEMA_V4 = 4
+SCHEMA_DEFAULT = SCHEMA_V4  # new projects use sharded per-task storage
 
 
 def detect_schema_version(data: dict) -> int:
@@ -121,7 +122,7 @@ SLIM_FIELDS: dict[str, tuple[str, ...]] = {
         "skip_merge_gate", "merge_gate_freshness", "merge_gate_state",
         "depends_on", "related_issues",
         "started", "completed", "branch", "worktree",
-        "blockers", "open_handovers",
+        "blockers", "human_action", "open_handovers",
         "tldr_autogen",
     ),
     "issue": (
@@ -330,6 +331,22 @@ def _resolve_artifact_root() -> Path:
     if (cwd / "backlog.yaml").exists():
         return cwd
     return cwd / ".taskmaster"
+
+def local_dir(backlog_path: Path) -> Path:
+    """Return the machine-local state directory for a backlog."""
+    return backlog_path.parent / "local"
+
+
+def _is_v4_project(artifact_root: Path) -> bool:
+    """Return whether the backlog at ``artifact_root`` declares schema v4."""
+    backlog_path = artifact_root / "backlog.yaml"
+    if not backlog_path.exists():
+        return False
+    try:
+        raw = yaml.safe_load(backlog_path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return False
+    return detect_schema_version(raw) >= SCHEMA_V4
 
 
 # ── Markdown + YAML frontmatter ─────────────────────────────────
@@ -916,6 +933,32 @@ def _merge_task_from_v3(slim: dict[str, Any], heavy_fm: dict[str, Any], body: st
     return merged
 
 
+def task_v4_to_file(task: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    """v4: split a whole task dict into (frontmatter, body).
+
+    Unlike v3, NO field stays in backlog.yaml - every key except the prose
+    body lives in the per-task file's frontmatter (id, title, status, epic,
+    order, gates, ...). Body is the BODY_KEY value.
+    """
+    fm: dict[str, Any] = {}
+    body = ""
+    for key, value in task.items():
+        if key == BODY_KEY:
+            body = value or ""
+        else:
+            fm[key] = value
+    return fm, body
+
+
+def task_v4_from_file(fm: dict[str, Any], body: str) -> dict[str, Any]:
+    """v4: reverse of task_v4_to_file. Body attaches under BODY_KEY only when
+    non-empty (keeps bodyless tasks free of an empty _body key)."""
+    task = dict(fm)
+    if body:
+        task[BODY_KEY] = body
+    return task
+
+
 def _split_entity_for_v3(
     entity: dict[str, Any], heavy_fields: tuple[str, ...]
 ) -> tuple[dict[str, Any], dict[str, Any], str]:
@@ -1011,6 +1054,112 @@ def load_v3(backlog_path: Path) -> dict[str, Any]:
     return data
 
 
+def iter_task_files(backlog_path: Path) -> list[Path]:
+    """All v4 task files: tasks/*.md then tasks/archive/*.md, each sorted.
+
+    Mirrors next_bug_id's directory-scan philosophy — the filesystem, not an
+    in-memory index, is the enumeration source of truth.
+    """
+    tdir = backlog_path.parent / "tasks"
+    files: list[Path] = []
+    if tdir.is_dir():
+        files.extend(sorted(tdir.glob("*.md")))
+    adir = tdir / "archive"
+    if adir.is_dir():
+        files.extend(sorted(adir.glob("*.md")))
+    return files
+
+
+def next_task_id(backlog_path: Path, epic: str) -> str:
+    """Allocate the next {epic}-NNN id by scanning task filenames on disk
+    (active + archive) — mirrors next_bug_id. The filesystem, not an in-memory
+    list, is the allocation source of truth so a concurrent process's just-
+    created file is honored."""
+    prefix = f"{epic}-"
+    nums: list[int] = []
+    for tf in iter_task_files(backlog_path):
+        stem = tf.stem
+        if stem.startswith(prefix):
+            suffix = stem[len(prefix):]
+            if suffix.isdigit():
+                nums.append(int(suffix))
+    n = (max(nums) + 1) if nums else 1
+    return f"{epic}-{n:03d}"
+
+
+def next_task_order(backlog_path: Path, epic: str) -> float:
+    """Next fractional order for a new task appended to `epic`: max existing
+    order + 1.0 (1.0 when the epic is empty)."""
+    orders: list[float] = []
+    for tf in iter_task_files(backlog_path):
+        fm, _ = read_task_file(tf)
+        if fm.get("epic") == epic and "order" in fm:
+            try:
+                orders.append(float(fm["order"]))
+            except (TypeError, ValueError):
+                pass
+    return (max(orders) + 1.0) if orders else 1.0
+
+
+def order_between(a: float, b: float) -> float:
+    """Midpoint order for inserting between two tasks (fractional indexing)."""
+    return (a + b) / 2
+
+
+def load_v4(backlog_path: Path) -> dict[str, Any]:
+    """Load a v4 backlog: slim index (meta + phases + epic defs) + per-task
+    files enumerated by glob and grouped by each task's `epic:` frontmatter.
+
+    Produces the same in-memory shape as load_v3 (epics[].tasks[] populated,
+    ordered by (order, id)), so existing read code keeps working unchanged.
+    Tasks whose `epic:` names no known epic are collected under the private
+    key `_orphan_tasks` (surfaced by backlog_validate, stripped on save).
+    """
+    data = yaml.safe_load(backlog_path.read_text(encoding="utf-8")) or {}
+    epic_ids = {e.get("id") for e in data.get("epics", [])}
+    tasks_by_epic: dict[str, list[dict[str, Any]]] = {}
+    orphans: list[str] = []
+    for tf in iter_task_files(backlog_path):
+        fm, body = read_task_file(tf)
+        task = task_v4_from_file(fm, body.removesuffix("\n"))
+        eid = task.get("epic")
+        if eid not in epic_ids:
+            orphans.append(task.get("id") or tf.stem)
+            continue
+        tasks_by_epic.setdefault(eid, []).append(task)
+    for tlist in tasks_by_epic.values():
+        tlist.sort(key=lambda t: (float(t.get("order", 0.0)), str(t.get("id", ""))))
+    for epic in data.get("epics", []):
+        epic["tasks"] = tasks_by_epic.get(epic.get("id"), [])
+
+    # Per-epic / per-phase heavy bodies (doc-bearing epics/phases) — same as v3.
+    for epic in data.get("epics", []):
+        eid = epic.get("id")
+        if not eid:
+            continue
+        ef = epic_file_path(backlog_path, eid)
+        if ef.exists():
+            fm, body = read_task_file(ef)
+            epic_meta = {k: v for k, v in epic.items() if k != "tasks"}
+            merged = _merge_entity_from_v3(epic_meta, fm, body, EPIC_HEAVY_FIELDS)
+            merged["tasks"] = epic.get("tasks", [])
+            epic.clear()
+            epic.update(merged)
+    for phase in data.get("phases", []):
+        pid = phase.get("id")
+        if not pid:
+            continue
+        pf = phase_file_path(backlog_path, pid)
+        if pf.exists():
+            fm, body = read_task_file(pf)
+            merged = _merge_entity_from_v3(phase, fm, body, PHASE_HEAVY_FIELDS)
+            phase.clear()
+            phase.update(merged)
+
+    data["_orphan_tasks"] = orphans
+    return data
+
+
 def migrate_v2_to_v3(backlog_path: Path) -> dict[str, Any]:
     """Convert a v2 backlog at `backlog_path` to v3 in place.
 
@@ -1080,6 +1229,49 @@ def migrate_v2_to_v3(backlog_path: Path) -> dict[str, Any]:
         "schema_after": SCHEMA_V3,
     }
 
+
+def migrate_v3_to_v4(backlog_path: Path) -> dict[str, Any]:
+    """Convert a v3 backlog to sharded v4 storage, idempotently."""
+    raw = yaml.safe_load(backlog_path.read_text(encoding="utf-8")) or {}
+    before = detect_schema_version(raw)
+    if before >= SCHEMA_V4:
+        return {
+            "status": "already_v4",
+            "tasks_total": len(iter_task_files(backlog_path)),
+            "schema_before": before,
+            "schema_after": before,
+        }
+
+    data = load_v3(backlog_path)
+    tasks_total = 0
+    for epic in data.get("epics", []):
+        epic_id = epic.get("id")
+        for position, task in enumerate(epic.get("tasks", []), start=1):
+            task["epic"] = epic_id
+            task.setdefault("order", float(position))
+            tasks_total += 1
+    data.setdefault("meta", {})["schema_version"] = SCHEMA_V4
+    save_v4(backlog_path, data, snapshot=None)
+
+    root = backlog_path.parent
+    target = local_dir(backlog_path)
+    target.mkdir(parents=True, exist_ok=True)
+    for name in ("viewer.json", "auto"):
+        source = root / name
+        if source.exists():
+            os.replace(source, target / name)
+    snapshots = root / "snapshots"
+    if snapshots.is_dir():
+        import shutil
+
+        shutil.rmtree(snapshots)
+
+    return {
+        "status": "migrated",
+        "tasks_total": tasks_total,
+        "schema_before": before,
+        "schema_after": SCHEMA_V4,
+    }
 
 # ── v3 layout canonicalization (.claude/ or root → .taskmaster/) ─────────
 
@@ -1340,6 +1532,11 @@ def slugify(text: str, max_len: int = 40) -> str:
     return s[:max_len].rstrip("-") or "untitled"
 
 
+def normalize_thread_name(name: str) -> str:
+    """Canonical slug form for thread names — same rules as handover ids."""
+    return slugify(name, max_len=40)
+
+
 def make_handover_id(date_str: str, tldr: str) -> str:
     """Build a handover id from a date and tldr text."""
     return f"{date_str}-{slugify(tldr)}"
@@ -1362,6 +1559,7 @@ def write_handover(
     body: str = "",
     task_ids: list[str] | None = None,
     session_kind: str = "continuity",
+    thread: str | None = None,
     when: str | None = None,
     context_size_at_write: str | None = None,
     supersedes: str | None = None,
@@ -1383,6 +1581,7 @@ def write_handover(
         raise ValueError(
             f"session_kind must be one of {HANDOVER_KINDS}, got {session_kind!r}"
         )
+    thread = normalize_thread_name(thread) if thread and thread.strip() else None
     when = when or date.today().isoformat()
     base_id = make_handover_id(when, tldr)
     target = handover_path(backlog_path, base_id)
@@ -1406,6 +1605,8 @@ def write_handover(
     fm["status"] = _default_handover_status(session_kind)
     fm["status_changed"] = fm["created"]
     fm["status_user_set"] = False
+    if thread:
+        fm["thread"] = thread
     if context_size_at_write:
         fm["context_size_at_write"] = context_size_at_write
     if supersedes:
@@ -1822,7 +2023,7 @@ def migrate_handover_statuses(
 # Fields kept in the backlog.yaml `handovers:` index entry.
 _HANDOVER_INDEX_FIELDS = (
     "id", "date", "created", "tldr", "next_action",
-    "task_ids", "session_kind", "status", "flag_reason",
+    "task_ids", "session_kind", "status", "flag_reason", "thread",
 )
 
 
@@ -1880,7 +2081,292 @@ def sync_handover_index(
         except (OSError, FileNotFoundError):
             continue
 
+    sync_thread_registry(backlog_data, backlog_path)
+
     return backlog_data
+
+
+# ── Threads ─────────────────────────────────────────────────────
+# A thread is a named chain of handovers — the stable resume token.
+# `threads:` in backlog.yaml is a rebuildable projection of handover
+# frontmatter; `thread_meta:` holds user-set status overrides that expire
+# when a newer handover lands (auto-reopen). See the handover-threads design
+# spec (specs/2026-07-13-handover-threads-design.md).
+
+THREAD_STATUSES = ("open", "parked", "closed")
+
+
+def _ts_or_min(raw: str):
+    """Parse an ISO timestamp for comparison; unparsable/empty sorts as -inf."""
+    try:
+        return _parse_iso8601(raw)
+    except (ValueError, TypeError):
+        return datetime.min.replace(tzinfo=timezone.utc)
+
+
+def sync_thread_registry(
+    backlog_data: dict[str, Any],
+    backlog_path: Path,
+) -> dict[str, Any]:
+    """Rebuild backlog_data['threads'] from non-archived handover files.
+
+    Derived status: open if any member handover is open, else closed.
+    A `thread_meta` override (parked/closed/open) is honoured only while no
+    member handover is newer than the override's set_at; stale overrides and
+    overrides for vanished threads are pruned. Mutates in place, returns
+    backlog_data for chaining.
+    """
+    ids = list_handover_ids(backlog_path)  # newest-first
+    threads: dict[str, dict[str, Any]] = {}
+    for hid in reversed(ids):              # oldest-first → chronological chains
+        try:
+            fm, _ = read_handover(backlog_path, hid)
+        except (OSError, ValueError):
+            continue
+        name = fm.get("thread")
+        if not name:
+            continue
+        t = threads.setdefault(name, {
+            "status": "closed",
+            "handover_ids": [],
+            "task_ids": [],
+            "created": fm.get("created") or fm.get("date") or "",
+            "last_touched": "",
+            "tldr": "",
+            "next_action": "",
+            "branch": "",
+            "_any_open": False,
+        })
+        t["handover_ids"].append(hid)
+        for tid in fm.get("task_ids") or []:
+            if tid not in t["task_ids"]:
+                t["task_ids"].append(tid)
+        # `ids` (and thus this reversed loop) is already ordered oldest → newest
+        # per list_handover_ids — so the last-iterated member of each thread is
+        # the newest by definition. Assign unconditionally so "newest member"
+        # agrees with handover_ids[-1] rather than a separate `created` compare.
+        t["last_touched"] = fm.get("created") or fm.get("date") or ""
+        t["tldr"] = fm.get("tldr", "")
+        t["next_action"] = fm.get("next_action", "")
+        if fm.get("branch"):
+            t["branch"] = fm["branch"]
+        if fm.get("status", "open") == "open":
+            t["_any_open"] = True
+
+    meta = dict(backlog_data.get("thread_meta") or {})
+    for name, t in threads.items():
+        derived = "open" if t.pop("_any_open") else "closed"
+        override = meta.get(name)
+        if override and _ts_or_min(str(override.get("set_at", ""))) >= _ts_or_min(t["last_touched"]):
+            t["status"] = override.get("status", derived)
+        else:
+            meta.pop(name, None)  # stale/absent — newer handover reopens
+            t["status"] = derived
+    meta = {k: v for k, v in meta.items() if k in threads}
+
+    backlog_data["threads"] = threads
+    backlog_data["thread_meta"] = meta
+    return backlog_data
+
+
+def update_thread_status(
+    backlog_data: dict[str, Any],
+    backlog_path: Path,
+    *,
+    name: str,
+    status: str,
+    reason: str = "",
+) -> dict[str, Any]:
+    """User-driven thread status override (parked/closed/open).
+
+    Recorded in thread_meta with a set_at timestamp; a newer handover in the
+    thread invalidates it (auto-reopen). Raises ValueError on bad enum,
+    KeyError if the thread doesn't exist.
+    """
+    if status not in THREAD_STATUSES:
+        raise ValueError(f"status must be one of {THREAD_STATUSES}, got {status!r}")
+    name = normalize_thread_name(name)
+    threads = backlog_data.get("threads") or {}
+    if name not in threads:
+        raise KeyError(name)
+    meta = dict(backlog_data.get("thread_meta") or {})
+    entry: dict[str, Any] = {
+        "status": status,
+        "set_at": datetime.now(timezone.utc).isoformat(timespec="microseconds"),
+    }
+    if reason:
+        entry["reason"] = reason
+    meta[name] = entry
+    backlog_data["thread_meta"] = meta
+    threads[name]["status"] = status
+    return backlog_data
+
+
+def resolve_thread(
+    backlog_data: dict[str, Any],
+    backlog_path: Path,
+    ref: str,
+) -> tuple[str, str]:
+    """Resolve a resume token to (thread_name, newest_handover_id).
+
+    `ref` may be a thread name (normalized) or a handover id — live or
+    archived — whose `thread` field routes to the thread's newest handover.
+    A threadless handover id resolves to ("", ref). Raises KeyError when
+    nothing matches.
+    """
+    threads = backlog_data.get("threads") or {}
+    name = normalize_thread_name(ref)
+    if name in threads and threads[name]["handover_ids"]:
+        return name, threads[name]["handover_ids"][-1]
+
+    fm: dict[str, Any] | None = None
+    p = handover_path(backlog_path, ref)
+    if p.exists():
+        fm, _ = read_task_file(p)
+    else:
+        archive_root = handover_dir(backlog_path) / "_archive"
+        if archive_root.exists():
+            hits = list(archive_root.rglob(f"{ref}.md"))
+            if hits:
+                fm, _ = read_task_file(hits[0])
+    if fm is None:
+        raise KeyError(ref)
+    tname = fm.get("thread") or ""
+    if tname and tname in threads and threads[tname]["handover_ids"]:
+        return tname, threads[tname]["handover_ids"][-1]
+    return tname, str(fm.get("id") or ref)
+
+
+def list_threads(backlog_data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Board rows from the registry — open first, then parked, then closed;
+    newest-touched first within each status. staleness_days is whole days
+    since last_touched (0 when unparseable)."""
+    rows: list[dict[str, Any]] = []
+    now = datetime.now(timezone.utc)
+    for name, t in (backlog_data.get("threads") or {}).items():
+        try:
+            staleness = max(0, (now - _parse_iso8601(t["last_touched"])).days)
+        except (ValueError, KeyError, TypeError):
+            staleness = 0
+        rows.append({
+            "name": name,
+            "status": t.get("status", "open"),
+            "tldr": t.get("tldr", ""),
+            "next_action": t.get("next_action", ""),
+            "task_ids": list(t.get("task_ids") or []),
+            "branch": t.get("branch", ""),
+            "last_touched": t.get("last_touched", ""),
+            "staleness_days": staleness,
+        })
+    order = {"open": 0, "parked": 1, "closed": 2}
+    rows.sort(key=lambda r: _ts_or_min(r["last_touched"]), reverse=True)
+    rows.sort(key=lambda r: order.get(r["status"], 3))
+    return rows
+
+
+def backfill_threads(
+    backlog_path: Path,
+    backlog_data: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Stamp `thread:` frontmatter onto non-archived handovers that lack it.
+
+    Union-find grouping: an edge joins two handovers when one supersedes the
+    other, or when they share a task id. Name precedence per group: epic id
+    containing any member task → first member task id → newest member's id
+    with the date prefix stripped. Idempotent; files already carrying
+    `thread` are untouched. Returns {"stamped": [...], "groups": N}.
+    """
+    ids = list_handover_ids(backlog_path)
+    fms: dict[str, dict[str, Any]] = {}
+    bodies: dict[str, str] = {}
+    for hid in ids:
+        try:
+            fm, body = read_handover(backlog_path, hid)
+        except (OSError, ValueError):
+            continue
+        if fm.get("thread"):
+            continue
+        fms[hid] = fm
+        bodies[hid] = body
+    if not fms:
+        return {"stamped": [], "groups": 0}
+
+    parent: dict[str, str] = {hid: hid for hid in fms}
+
+    def find(x: str) -> str:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a: str, b: str) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+
+    by_task: dict[str, list[str]] = {}
+    for hid, fm in fms.items():
+        for link_key in ("supersedes", "superseded_by"):
+            other = fm.get(link_key)
+            if other in fms:
+                union(hid, other)
+        for tid in fm.get("task_ids") or []:
+            by_task.setdefault(tid, []).append(hid)
+    for members in by_task.values():
+        for other in members[1:]:
+            union(members[0], other)
+
+    groups: dict[str, list[str]] = {}
+    for hid in fms:
+        groups.setdefault(find(hid), []).append(hid)
+
+    task_to_epic: dict[str, str] = {}
+    for epic in (backlog_data or {}).get("epics") or []:
+        for t in epic.get("tasks") or []:
+            if t.get("id") and epic.get("id"):
+                task_to_epic[t["id"]] = epic["id"]
+
+    stamped: list[str] = []
+    for members in groups.values():
+        members.sort(key=lambda h: str(fms[h].get("created") or fms[h].get("date") or ""))
+        newest = members[-1]
+        all_tasks: list[str] = []
+        for hid in members:
+            for tid in fms[hid].get("task_ids") or []:
+                if tid not in all_tasks:
+                    all_tasks.append(tid)
+        epic_ids = [task_to_epic[t] for t in all_tasks if t in task_to_epic]
+        if epic_ids:
+            name = normalize_thread_name(epic_ids[0])
+        elif all_tasks:
+            name = normalize_thread_name(all_tasks[0])
+        else:
+            name = normalize_thread_name(re.sub(r"^\d{4}-\d{2}-\d{2}-", "", newest))
+        for hid in members:
+            fms[hid]["thread"] = name
+            write_task_file(handover_path(backlog_path, hid), fms[hid], bodies[hid])
+            stamped.append(hid)
+
+    return {"stamped": stamped, "groups": len(groups)}
+
+
+def derive_thread_name(
+    task_ids: list[str],
+    tldr: str,
+    data: dict[str, Any],
+    bundle_slug: str = "",
+) -> str:
+    """Auto-name a thread: bundle slug → epic of first linked task →
+    first task id → slugified tldr."""
+    if bundle_slug:
+        return normalize_thread_name(bundle_slug)
+    if task_ids:
+        for epic in data.get("epics") or []:
+            if any(t.get("id") in task_ids for t in epic.get("tasks") or []):
+                if epic.get("id"):
+                    return normalize_thread_name(epic["id"])
+        return normalize_thread_name(task_ids[0])
+    return normalize_thread_name(tldr)
 
 
 # ── Issues ─────────────────────────────────────────────────────
@@ -3514,7 +4000,10 @@ VIEWER_PREFS_DEFAULTS = {
 
 
 def viewer_prefs_path() -> Path:
-    return _resolve_artifact_root() / "viewer.json"
+    root = _resolve_artifact_root()
+    if _is_v4_project(root):
+        return local_dir(root / "backlog.yaml") / "viewer.json"
+    return root / "viewer.json"
 
 def load_viewer_prefs() -> dict:
     """Load viewer prefs, creating the file with defaults on first call.
@@ -3630,6 +4119,189 @@ def save_v3(backlog_path: Path, data: dict[str, Any]) -> None:
     )
 
 
+def _v4_strip_private_fields(value: Any, *, preserve_body: bool = False) -> Any:
+    """Return a persistence-safe copy with private mapping keys removed.
+
+    BODY_KEY is private runtime state everywhere except at an entity boundary,
+    where it represents the entity's markdown body and must reach the file
+    serializer. Nested mappings never inherit that exception.
+    """
+    if isinstance(value, dict):
+        return {
+            key: _v4_strip_private_fields(child)
+            for key, child in value.items()
+            if not (
+                isinstance(key, str)
+                and key.startswith("_")
+                and not (preserve_body and key == BODY_KEY)
+            )
+        }
+    if isinstance(value, list):
+        return [_v4_strip_private_fields(child) for child in value]
+    return value
+
+
+def save_v4(
+    backlog_path: Path,
+    data: dict[str, Any],
+    snapshot: dict[str, Any] | None = None,
+) -> None:
+    """Save a v4 backlog: every task field -> tasks/<id>.md; backlog.yaml holds
+    only meta (minus `updated`) + phases + epic definitions (no task lists).
+
+    `snapshot` (a deep copy of the dict returned by the matching load) enables
+    dirty-scoped writes: only tasks that differ from the snapshot are written
+    (see _v4_write_task, filled in Task 6). snapshot=None writes every task --
+    the baseline used by migration and by tests.
+    """
+    # 1. Task files.
+    for epic in data.get("epics", []):
+        for task in epic.get("tasks", []):
+            tid = task.get("id")
+            if not tid:
+                continue
+            _v4_write_task(backlog_path, task, snapshot)
+
+    # Delete task files for ids removed since load (never touch archived files --
+    # archival is a move into tasks/archive/, handled by the archive tool).
+    live_ids = {
+        task.get("id")
+        for epic in data.get("epics", [])
+        for task in epic.get("tasks", [])
+    }
+    for tid in _v4_snapshot_tasks(snapshot):
+        if tid not in live_ids:
+            _remove_entity_file(task_file_path(backlog_path, tid))
+
+    # 2. Epic / phase body files (identical policy to save_v3).
+    slim_data: dict[str, Any] = {
+        k: _v4_strip_private_fields(v)
+        for k, v in data.items()
+        if not k.startswith("_")
+    }
+    slim_data["epics"] = []
+    for epic in data.get("epics", []):
+        epic_meta = _v4_strip_private_fields(
+            {k: v for k, v in epic.items() if k != "tasks"},
+            preserve_body=True,
+        )
+        slim_meta, epic_heavy, epic_body = _split_entity_for_v3(epic_meta, EPIC_HEAVY_FIELDS)
+        eid = slim_meta.get("id")
+        if eid and (any(k in epic_heavy for k in EPIC_HEAVY_FIELDS) or epic_body):
+            write_task_file(epic_file_path(backlog_path, eid), epic_heavy, epic_body)
+            slim_data["epics"].append(slim_meta)
+        else:
+            if eid:
+                _remove_entity_file(epic_file_path(backlog_path, eid))
+            slim_data["epics"].append(epic_meta)
+
+    if "phases" in slim_data:
+        slim_phases: list[dict[str, Any]] = []
+        for phase in data.get("phases", []):
+            persistable_phase = _v4_strip_private_fields(phase, preserve_body=True)
+            slim_phase, phase_heavy, phase_body = _split_entity_for_v3(
+                persistable_phase, PHASE_HEAVY_FIELDS
+            )
+            pid = slim_phase.get("id")
+            if pid and (any(k in phase_heavy for k in PHASE_HEAVY_FIELDS) or phase_body):
+                write_task_file(phase_file_path(backlog_path, pid), phase_heavy, phase_body)
+                slim_phases.append(slim_phase)
+            else:
+                if pid:
+                    _remove_entity_file(phase_file_path(backlog_path, pid))
+                slim_phases.append(phase)
+        slim_data["phases"] = slim_phases
+
+    # 3. Slim backlog.yaml -- never carries task lists or `meta.updated`.
+    if isinstance(slim_data.get("meta"), dict):
+        slim_data["meta"] = {k: v for k, v in slim_data["meta"].items() if k != "updated"}
+    atomic_write(
+        backlog_path,
+        yaml.dump(slim_data, default_flow_style=False, sort_keys=False, allow_unicode=True),
+    )
+
+
+def _v4_snapshot_tasks(
+    snapshot: dict[str, Any] | None,
+) -> dict[str, dict[str, Any]]:
+    """Flatten a load snapshot into {task_id: task_dict} for dirty diffing."""
+    index: dict[str, dict[str, Any]] = {}
+    if not snapshot:
+        return index
+    for epic in snapshot.get("epics", []):
+        for task in epic.get("tasks", []):
+            tid = task.get("id")
+            if tid:
+                index[tid] = task
+    return index
+
+
+_MISSING = object()
+
+
+def _three_way_merge_fields(
+    base: dict[str, Any], ours: dict[str, Any], theirs: dict[str, Any]
+) -> dict[str, Any]:
+    """Per-key three-way merge with local changes winning conflicts.
+
+    A missing key is a value for merge purposes, so deletion on either side is
+    treated as a change relative to the base.
+    """
+    result: dict[str, Any] = {}
+    for key in set(base) | set(ours) | set(theirs):
+        base_value = base.get(key, _MISSING)
+        our_value = ours.get(key, _MISSING)
+        their_value = theirs.get(key, _MISSING)
+        if our_value == their_value:
+            chosen = our_value
+        elif our_value != base_value:
+            chosen = our_value
+        elif their_value != base_value:
+            chosen = their_value
+        else:
+            chosen = our_value
+        if chosen is not _MISSING:
+            result[key] = chosen
+    return result
+
+
+def _merge_task_with_disk(
+    base_task: dict[str, Any], mem_task: dict[str, Any], disk_path: Path
+) -> tuple[dict[str, Any], str]:
+    """Three-way merge an in-memory task against its current disk file."""
+    persistable_base = _v4_strip_private_fields(base_task, preserve_body=True)
+    persistable_mem = _v4_strip_private_fields(mem_task, preserve_body=True)
+    base_fm, base_body = task_v4_to_file(persistable_base)
+    mem_fm, mem_body = task_v4_to_file(persistable_mem)
+    disk_fm, disk_body = read_task_file(disk_path)
+    persistable_disk_fm = _v4_strip_private_fields(disk_fm)
+    merged_fm = _three_way_merge_fields(base_fm, mem_fm, persistable_disk_fm)
+    merged_body = mem_body if mem_body != base_body else disk_body
+    return merged_fm, merged_body
+
+
+def _v4_write_task(
+    backlog_path: Path, task: dict[str, Any], snapshot: dict[str, Any] | None
+) -> None:
+    """Write one task file, dirty-scoped and merge-aware."""
+    snap_index = _v4_snapshot_tasks(snapshot)
+    prior = snap_index.get(task["id"])
+    if prior is not None and prior == task:
+        return
+    path = task_file_path(backlog_path, task["id"])
+    if prior is not None and path.exists():
+        disk_fm, disk_body = read_task_file(path)
+        persistable_prior = _v4_strip_private_fields(prior, preserve_body=True)
+        base_fm, base_body = task_v4_to_file(persistable_prior)
+        if (disk_fm, disk_body) != (base_fm, base_body):
+            merged_fm, merged_body = _merge_task_with_disk(prior, task, path)
+            write_task_file(path, merged_fm, merged_body)
+            return
+    persistable_task = _v4_strip_private_fields(task, preserve_body=True)
+    fm, body = task_v4_to_file(persistable_task)
+    write_task_file(path, fm, body)
+
+
 # ---- Sessions ------------------------------------------------------------
 
 
@@ -3661,22 +4333,13 @@ def _handover_time(h: dict):
 
 
 def list_sessions() -> list[dict]:
-    """Synthesise sessions from on-disk handover files.
+    """One diary lane per thread, synthesised from on-disk handover files.
 
-    Algorithm: load every handover, sort by date asc, then greedily group
-    consecutive handovers that share at least one task_id AND occur within
-    SESSION_GAP_MINUTES (default 30). Each group becomes one session.
-
-    Returns: list of dicts (newest first):
-      {id, start, end, duration, time_resolution, handover_ids[],
-       task_ids[], parallel_with[]}
-
-    `time_resolution` is "full" when at least one grouped handover carried a
-    precise `created` ISO timestamp, else "date-only" — the viewer uses this to
-    avoid fabricating a clock time from a midnight-UTC date.
+    Groups handovers by their `thread` frontmatter; threadless (legacy)
+    handovers each form a solo lane keyed by their own id. Rows are
+    session-shaped for the viewer timeline: overlapping lanes render as
+    parallel columns client-side. Newest end-time first.
     """
-    from datetime import timedelta
-    SESSION_GAP_MINUTES = 30
     handovers_dir = _resolve_artifact_root() / "handovers"
     if not handovers_dir.exists():
         return []
@@ -3695,26 +4358,13 @@ def list_sessions() -> list[dict]:
             continue
     raw.sort(key=lambda h: _handover_time(h))
 
-    groups: list[list[dict]] = []
+    lanes: dict[str, list[dict]] = {}
     for h in raw:
-        h_t = _handover_time(h)
-        h_tids = set(h.get("task_ids") or [])
-        attached = False
-        if groups:
-            tail = groups[-1][-1]
-            tail_t = _handover_time(tail)
-            tail_tids = set(tail.get("task_ids") or [])
-            within_gap = (h_t - tail_t) <= timedelta(minutes=SESSION_GAP_MINUTES)
-            shared_tasks = bool(h_tids & tail_tids)
-            if within_gap and shared_tasks:
-                groups[-1].append(h)
-                attached = True
-        if not attached:
-            groups.append([h])
+        key = h.get("thread") or h["id"]
+        lanes.setdefault(key, []).append(h)
 
     sessions: list[dict] = []
-    for idx, group in enumerate(groups, start=1):
-        sid = f"SES-{idx:04d}"
+    for key, group in lanes.items():
         start = _handover_time(group[0])
         end = _handover_time(group[-1])
         tids: list[str] = []
@@ -3722,11 +4372,13 @@ def list_sessions() -> list[dict]:
             for t in (h.get("task_ids") or []):
                 if t not in tids:
                     tids.append(t)
-        # A session whose handovers all lack `created` only has date-level
-        # resolution; the viewer should render the date without a time.
         time_resolution = "full" if any(h.get("created") for h in group) else "date-only"
+        any_open = any(h.get("status", "open") == "open" for h in group)
+        newest = group[-1]
         sessions.append({
-            "id": sid,
+            "id": key,
+            "kind": "thread",
+            "status": "open" if any_open else "closed",
             "start": start.isoformat(),
             "end": end.isoformat(),
             "duration": int((end - start).total_seconds()),
@@ -3742,26 +4394,11 @@ def list_sessions() -> list[dict]:
                 for h in group
             ],
             "task_ids": tids,
-            "parallel_with": [],   # filled below
+            "tldr": newest.get("tldr", ""),
+            "next_action": newest.get("next_action", ""),
         })
 
-    # Mark parallel sessions: any pair with overlapping [start,end] windows.
-    # Windows are expanded by SESSION_GAP_MINUTES so that two single-handover
-    # sessions that were close in time but different in task scope are flagged.
-    from datetime import timedelta as _td
-    _gap = _td(minutes=SESSION_GAP_MINUTES)
-    for i, s in enumerate(sessions):
-        s_start = _parse_iso8601(s["start"])
-        s_end = _parse_iso8601(s["end"]) + _gap
-        for j, o in enumerate(sessions):
-            if i == j:
-                continue
-            o_start = _parse_iso8601(o["start"])
-            o_end = _parse_iso8601(o["end"]) + _gap
-            if s_start <= o_end and o_start <= s_end:
-                s["parallel_with"].append(o["id"])
-
-    sessions.sort(key=lambda s: s["start"], reverse=True)
+    sessions.sort(key=lambda s: s["end"], reverse=True)
     return sessions
 
 
@@ -3930,7 +4567,16 @@ def update_task(task_id: str, patch: dict, backlog_path: Path | None = None) -> 
     """
     bp = backlog_path or _resolve_backlog_path()
     with with_file_lock(bp):
-        data = yaml.safe_load(bp.read_text(encoding="utf-8")) or {}
+        raw = yaml.safe_load(bp.read_text(encoding="utf-8")) or {}
+        version = detect_schema_version(raw)
+        if version >= SCHEMA_V4:
+            from copy import deepcopy
+
+            data = load_v4(bp)
+            snapshot = deepcopy(data)
+        else:
+            data = raw
+            snapshot = None
         found = _find_task_in_yaml(data, task_id)
         if found is None:
             raise KeyError(f"task {task_id} not found")
@@ -3944,8 +4590,14 @@ def update_task(task_id: str, patch: dict, backlog_path: Path | None = None) -> 
                 task["started"] = _now_iso()
             if after_status == "done" and not task.get("completed"):
                 task["completed"] = _now_iso()
+        # done clears the human-only blocker (parity with every other done path).
+        if after_status == "done":
+            task.pop("human_action", None)
         task["last_referenced"] = _now_iso()
-        atomic_write(bp, yaml.safe_dump(data, sort_keys=False))
+        if version >= SCHEMA_V4:
+            save_v4(bp, data, snapshot=snapshot)
+        else:
+            atomic_write(bp, yaml.safe_dump(data, sort_keys=False))
         return dict(task)
 
 
@@ -4035,6 +4687,19 @@ def validate_task_write(task_id: str, patch: dict, backlog_path: Path | None = N
     # Phase must exist if set.
     if "phase" in patch and patch["phase"] and patch["phase"] not in phase_ids:
         errors["phase"] = f"unknown phase: {patch['phase']}"
+
+    # human_action gate: `in-review` means blocked on a human-only action. A
+    # write that moves a task to in-review must leave it with a non-whitespace
+    # human_action — either already stored or arriving in the same payload.
+    # (Parity with backlog_update_task / batch; the transition-table and
+    # completion gates that path also lacks stay intentionally absent here.)
+    if patch.get("status") == "in-review":
+        ha = proposed.get("human_action")
+        if not (isinstance(ha, str) and ha.strip()):
+            errors["human_action"] = (
+                "`in-review` requires human_action — set the human-only blocker "
+                "(e.g. 'add OPENAI_API_KEY to .env') in the same write"
+            )
 
     # Deps: each must exist; no self-dep; no cycle.
     if "depends_on" in patch:
@@ -4317,6 +4982,12 @@ _ENTITY_PATH_HELPERS: dict[str, Any] = {
 }
 
 
+def _load_task_entities(backlog_path: Path) -> tuple[dict[str, Any], bool]:
+    """Load task entities through the schema-appropriate storage reader."""
+    raw = yaml.safe_load(backlog_path.read_text(encoding="utf-8")) or {}
+    is_v4 = detect_schema_version(raw) >= SCHEMA_V4
+    return (load_v4(backlog_path) if is_v4 else load_v3(backlog_path), is_v4)
+
 def read_entity_anywhere(
     backlog_path: Path,
     entity_id: str,
@@ -4338,7 +5009,7 @@ def read_entity_anywhere(
     if kind is None:
         return None
     if kind == "task":
-        data = load_v3(backlog_path)
+        data, _ = _load_task_entities(backlog_path)
         for epic in data.get("epics", []):
             for task in epic.get("tasks", []):
                 if task.get("id") == entity_id:
@@ -4376,7 +5047,11 @@ def write_entity_anywhere(backlog_path: Path, entity: dict) -> None:
     if kind is None:
         raise ValueError(f"unknown entity kind for id={entity_id!r}")
     if kind == "task":
-        data = load_v3(backlog_path)
+        data, is_v4 = _load_task_entities(backlog_path)
+        if is_v4:
+            from copy import deepcopy
+
+            snapshot = deepcopy(data)
         for epic in data.get("epics", []):
             tasks = epic.get("tasks", [])
             for i, task in enumerate(tasks):
@@ -4384,7 +5059,10 @@ def write_entity_anywhere(backlog_path: Path, entity: dict) -> None:
                     # Strip body-key before persisting (save_v3 routes it through
                     # _split_task_for_v3 which already understands BODY_KEY).
                     tasks[i] = dict(entity)
-                    save_v3(backlog_path, data)
+                    if is_v4:
+                        save_v4(backlog_path, data, snapshot=snapshot)
+                    else:
+                        save_v3(backlog_path, data)
                     return
         raise KeyError(f"task {entity_id!r} not found")
     # Non-task: split frontmatter vs body, then write via the path helper.
