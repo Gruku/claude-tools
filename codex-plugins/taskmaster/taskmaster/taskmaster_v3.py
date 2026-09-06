@@ -11,21 +11,18 @@ tested in isolation. It owns:
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable, Mapping
 
 import yaml
 
-# The plugin's own source root (repo root — this module lives in the
-# taskmaster/ package, one level down). Used by _resolve_artifact_root()'s
-# guard (tm-audit-001) to refuse treating this directory as a project root.
-_PLUGIN_DIR = Path(__file__).resolve().parent.parent
+from taskmaster import yaml_io
+
 
 # Schema versions
 # v2: single backlog.yaml with epics/tasks inline. (Legacy: missing version implies v2.)
@@ -297,41 +294,6 @@ def warn_legacy_layout(detail: str) -> None:
     )
 
 
-def _resolve_artifact_root() -> Path:
-    """Resolve the parent directory of backlog.yaml (and its artifact subdirs)
-    from CWD, using the same priority chain as `backlog_server._resolve_paths()`.
-
-    Why this exists (ISS-004): the writer functions take `backlog_path` and use
-    `bp.parent / "<artifact>"`. The CWD-flavor reader functions (`load_issue`,
-    `list_sessions`, etc.) used to hard-code
-    `Path(".taskmaster") / "<artifact>"` — silently diverging from the writer
-    on `.claude/`-layout and root-layout projects. This helper returns the same
-    parent dir the writer's resolver would, so readers and writers agree.
-
-    Resolution order: `.taskmaster/` → `.claude/` (legacy, with warning)
-    → project root → fallback `.taskmaster/`.
-
-    Guard (tm-audit-001, unconditional — checked before any fallback branch
-    so it can't go dead if a later branch starts matching first): refuse to
-    resolve when cwd is literally the plugin's own source directory. A
-    backlog.yaml or .taskmaster/ found there is a fixture, not a project.
-    """
-    if Path.cwd().resolve(strict=False) == _PLUGIN_DIR.resolve(strict=False):
-        raise RuntimeError(
-            "Refusing to use the taskmaster plugin directory as a project root. "
-            "A backlog.yaml adjacent to backlog_server.py is a fixture, not a "
-            "project. Run from a project directory or set TASKMASTER_ROOT."
-        )
-    cwd = Path.cwd()
-    if (cwd / ".taskmaster" / "backlog.yaml").exists():
-        return cwd / ".taskmaster"
-    if (cwd / ".claude" / "backlog.yaml").exists():
-        warn_legacy_layout("artifact root at .claude/")
-        return cwd / ".claude"
-    if (cwd / "backlog.yaml").exists():
-        return cwd
-    return cwd / ".taskmaster"
-
 def local_dir(backlog_path: Path) -> Path:
     """Return the machine-local state directory for a backlog."""
     return backlog_path.parent / "local"
@@ -343,7 +305,7 @@ def _is_v4_project(artifact_root: Path) -> bool:
     if not backlog_path.exists():
         return False
     try:
-        raw = yaml.safe_load(backlog_path.read_text(encoding="utf-8")) or {}
+        raw = yaml_io.safe_load(backlog_path.read_text(encoding="utf-8")) or {}
     except (OSError, yaml.YAMLError):
         return False
     return detect_schema_version(raw) >= SCHEMA_V4
@@ -406,7 +368,7 @@ def parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
     if not fm_text.strip():
         return {}, body
 
-    parsed = yaml.safe_load(fm_text) or {}
+    parsed = yaml_io.safe_load(fm_text) or {}
     if not isinstance(parsed, dict):
         # Frontmatter must be a mapping; anything else is malformed input.
         raise ValueError("Frontmatter must be a YAML mapping")
@@ -1009,7 +971,7 @@ def load_v3(backlog_path: Path) -> dict[str, Any]:
     Per-task files that don't exist yet are tolerated — that task simply has
     no heavy fields (it was created in v3 mode and hasn't been edited yet).
     """
-    data = yaml.safe_load(backlog_path.read_text(encoding="utf-8")) or {}
+    data = yaml_io.safe_load(backlog_path.read_text(encoding="utf-8")) or {}
     for epic in data.get("epics", []):
         new_tasks: list[dict[str, Any]] = []
         for slim_task in epic.get("tasks", []):
@@ -1115,8 +1077,13 @@ def load_v4(backlog_path: Path) -> dict[str, Any]:
     Tasks whose `epic:` names no known epic are collected under the private
     key `_orphan_tasks` (surfaced by backlog_validate, stripped on save).
     """
-    data = yaml.safe_load(backlog_path.read_text(encoding="utf-8")) or {}
-    epic_ids = {e.get("id") for e in data.get("epics", [])}
+    data = yaml_io.safe_load(backlog_path.read_text(encoding="utf-8")) or {}
+    # An epic with no id contributed `None` to this set, which made `None` a
+    # real bucket key: every task file with no `epic:` was filed under it, and
+    # the same list was then handed to *every* id-less epic below, so one task
+    # appeared under two parents and the import refused the duplicate. A task
+    # whose epic cannot be named is an orphan, which is what the report is for.
+    epic_ids = {e.get("id") for e in data.get("epics", []) if e.get("id")}
     tasks_by_epic: dict[str, list[dict[str, Any]]] = {}
     orphans: list[str] = []
     for tf in iter_task_files(backlog_path):
@@ -1160,132 +1127,38 @@ def load_v4(backlog_path: Path) -> dict[str, Any]:
     return data
 
 
-def migrate_v2_to_v3(backlog_path: Path) -> dict[str, Any]:
-    """Convert a v2 backlog at `backlog_path` to v3 in place.
-
-    - Reads the v2 single-file backlog.
-    - Sets `meta.schema_version = 3`.
-    - Calls save_v3, which strips heavy fields into per-task files and also
-      writes per-epic (epics/<id>.md) and per-phase (phases/<id>.md) body
-      files, then writes the slim index back to backlog.yaml.
-
-    Idempotent: re-running on a v3 backlog returns a 'no-op' summary.
-
-    Returns:
-        Summary dict with keys:
-          - status: "migrated" | "already_v3"
-          - tasks_total: int
-          - task_files_written: list[str] (relative paths) — all body files
-            written, including epics/<id>.md and phases/<id>.md, not just tasks
-          - schema_before / schema_after
-    """
-    raw = yaml.safe_load(backlog_path.read_text(encoding="utf-8")) or {}
-    before = detect_schema_version(raw)
-    if before >= SCHEMA_V3:
-        return {
-            "status": "already_v3",
-            "tasks_total": sum(len(e.get("tasks", [])) for e in raw.get("epics", [])),
-            "task_files_written": [],
-            "schema_before": before,
-            "schema_after": before,
-        }
-
-    raw.setdefault("meta", {})["schema_version"] = SCHEMA_V3
-
-    # Determine which files will get written so we can report them. This must
-    # mirror save_v3's write conditions for tasks, epics, and phases.
-    files_to_write: list[Path] = []
-    for epic in raw.get("epics", []):
-        for task in epic.get("tasks", []):
-            tid = task.get("id")
-            if not tid:
-                continue
-            _, heavy_fm, body = _split_task_for_v3(task)
-            has_heavy = any(k in heavy_fm for k in HEAVY_FIELDS) or bool(body)
-            if has_heavy:
-                files_to_write.append(task_file_path(backlog_path, tid))
-    for epic in raw.get("epics", []):
-        eid = epic.get("id")
-        if eid:
-            _, eheavy, ebody = _split_entity_for_v3(
-                {k: v for k, v in epic.items() if k != "tasks"}, EPIC_HEAVY_FIELDS
-            )
-            if any(k in eheavy for k in EPIC_HEAVY_FIELDS) or ebody:
-                files_to_write.append(epic_file_path(backlog_path, eid))
-    for phase in raw.get("phases", []):
-        pid = phase.get("id")
-        if pid:
-            _, pheavy, pbody = _split_entity_for_v3(phase, PHASE_HEAVY_FIELDS)
-            if any(k in pheavy for k in PHASE_HEAVY_FIELDS) or pbody:
-                files_to_write.append(phase_file_path(backlog_path, pid))
-
-    save_v3(backlog_path, raw)
-
-    return {
-        "status": "migrated",
-        "tasks_total": sum(len(e.get("tasks", [])) for e in raw.get("epics", [])),
-        "task_files_written": [str(p.relative_to(backlog_path.parent)) for p in files_to_write],
-        "schema_before": before,
-        "schema_after": SCHEMA_V3,
-    }
-
-
-def migrate_v3_to_v4(backlog_path: Path) -> dict[str, Any]:
-    """Convert a v3 backlog to sharded v4 storage, idempotently."""
-    raw = yaml.safe_load(backlog_path.read_text(encoding="utf-8")) or {}
-    before = detect_schema_version(raw)
-    if before >= SCHEMA_V4:
-        return {
-            "status": "already_v4",
-            "tasks_total": len(iter_task_files(backlog_path)),
-            "schema_before": before,
-            "schema_after": before,
-        }
-
-    data = load_v3(backlog_path)
-    tasks_total = 0
-    for epic in data.get("epics", []):
-        epic_id = epic.get("id")
-        for position, task in enumerate(epic.get("tasks", []), start=1):
-            task["epic"] = epic_id
-            task.setdefault("order", float(position))
-            tasks_total += 1
-    data.setdefault("meta", {})["schema_version"] = SCHEMA_V4
-    save_v4(backlog_path, data, snapshot=None)
-
-    root = backlog_path.parent
-    target = local_dir(backlog_path)
-    target.mkdir(parents=True, exist_ok=True)
-    for name in ("viewer.json", "auto"):
-        source = root / name
-        if source.exists():
-            os.replace(source, target / name)
-    snapshots = root / "snapshots"
-    if snapshots.is_dir():
-        import shutil
-
-        shutil.rmtree(snapshots)
-
-    return {
-        "status": "migrated",
-        "tasks_total": tasks_total,
-        "schema_before": before,
-        "schema_after": SCHEMA_V4,
-    }
-
 # ── v3 layout canonicalization (.claude/ or root → .taskmaster/) ─────────
 
 # Items the canonicalizer moves. Anything outside this list is left alone —
 # .claude/ in particular holds Claude Code's own files (settings.json, hooks/,
 # etc.) which must never be touched.
+# Every artifact the store treats as backlog content.  A directory left out of
+# this list is stranded at the legacy location while the canonical layout
+# bootstraps without it, so this must stay in step with
+# `store.Store._known_entity_files`.
 _CANONICALIZE_ITEMS: tuple[str, ...] = (
     "backlog.yaml",
+    # `project.yaml` (conventions and policies) and `linear.yaml` (tracker
+    # workspaces) live beside backlog.yaml and are only ever read from the
+    # canonical location. Left in the legacy layout they do not fall back —
+    # they vanish: adoption reads `.taskmaster/`, the policies and the Linear
+    # config are simply absent, and a rerun answers `already_canonical` and
+    # never recovers them.
+    "project.yaml",
+    "linear.yaml",
     "PROGRESS.md",
     "viewer.json",
     "tasks",
+    "epics",
+    "phases",
+    "bugs",
     "handovers",
     "issues",
+    "decisions",
+    "ideas",
+    "notes",
     "trackers",
+    "integrations",
     "auto",
     "areas",
 )
@@ -1551,8 +1424,7 @@ def handover_dir(backlog_path: Path) -> Path:
     return backlog_path.parent / "handovers"
 
 
-def write_handover(
-    backlog_path: Path,
+def build_handover_doc(
     *,
     tldr: str,
     next_action: str = "",
@@ -1567,12 +1439,12 @@ def write_handover(
     tip_commit: str | None = None,
     open_decisions: list[str] | None = None,
     resolved_this_session: list[str] | None = None,
-) -> tuple[str, Path]:
-    """Write a new handover file.
+) -> tuple[dict[str, Any], str]:
+    """Assemble the frontmatter document for a new handover. Returns (doc, body).
 
-    Returns (handover_id, file_path). The id is `<date>-<slug-of-tldr>`. If
-    a handover with the same id already exists the slug gets a numeric
-    suffix to avoid clobbering same-day handovers with similar tldrs.
+    Pure: no id is allocated and nothing is written. The store allocates the id
+    inside the transaction (`Transaction.allocate_id`) from `date` + `tldr`, so
+    two concurrent writers can never land on the same slug.
     """
     if not tldr or not tldr.strip():
         raise ValueError("handover tldr is required")
@@ -1583,17 +1455,11 @@ def write_handover(
         )
     thread = normalize_thread_name(thread) if thread and thread.strip() else None
     when = when or date.today().isoformat()
-    base_id = make_handover_id(when, tldr)
-    target = handover_path(backlog_path, base_id)
-    final_id = base_id
-    suffix = 2
-    while target.exists():
-        final_id = f"{base_id}-{suffix}"
-        target = handover_path(backlog_path, final_id)
-        suffix += 1
 
     fm: dict[str, Any] = {
-        "id": final_id,
+        # `id` leads so the store's allocation lands in the first frontmatter
+        # slot rather than appended after every other field.
+        "id": None,
         "date": when,
         # Microsecond precision so same-second writes order deterministically.
         "created": datetime.now(timezone.utc).isoformat(timespec="microseconds"),
@@ -1617,14 +1483,7 @@ def write_handover(
         fm["tip_commit"] = tip_commit
     fm["open_decisions"] = list(open_decisions or [])
     fm["resolved_this_session"] = list(resolved_this_session or [])
-
-    write_task_file(target, fm, body)
-    for did in fm["open_decisions"]:
-        try:
-            link_decision_to_handover(backlog_path, did, final_id)
-        except FileNotFoundError:
-            pass  # decision was deleted; don't fail the handover write
-    return final_id, target
+    return fm, body
 
 
 def read_handover(backlog_path: Path, handover_id: str) -> tuple[dict[str, Any], str]:
@@ -1694,97 +1553,58 @@ def _strip_supersession_callout(body: str) -> str:
     return "".join(body_lines[end:])
 
 
-def apply_supersession(backlog_path: Path, *, old_id: str, new_id: str) -> Path:
-    """Mark `old_id` as superseded by `new_id`.
+def supersede_handover_doc(
+    doc: Mapping[str, Any], body: str, *, new_id: str
+) -> tuple[dict[str, Any], str]:
+    """Mark one handover document as superseded by `new_id`. Pure.
 
-    Edits the old handover in place:
-      1. Sets `superseded_by: new_id` in the frontmatter.
-      2. Prepends a callout block at the top of the body, OR rewrites the
-         existing callout if one is already present (idempotent for a
-         single old → many-newer chain).
-
-    Returns the old handover's path. Raises FileNotFoundError if either id
-    is missing on disk.
+    Sets `superseded_by`, flips the status unless the user pinned it, and
+    rewrites (rather than stacks) the leading SUPERSEDED callout so a single
+    old → many-newer chain stays idempotent.
     """
-    new_path = handover_path(backlog_path, new_id)
-    if not new_path.exists():
-        raise FileNotFoundError(new_id)
-    old_path = handover_path(backlog_path, old_id)
-    if not old_path.exists():
-        raise FileNotFoundError(old_id)
-
-    fm, body = read_handover(backlog_path, old_id)
+    fm = dict(doc)
     fm["superseded_by"] = new_id
-
     if not fm.get("status_user_set"):
         fm["status"] = "superseded"
         fm["status_changed"] = datetime.now(timezone.utc).isoformat(timespec="microseconds")
         fm["status_reason"] = f"superseded by {new_id}"
-
     today = date.today().isoformat()
     callout = (
         f"> **SUPERSEDED {today} by [{new_id}](./{new_id}.md).**\n"
         f"> The next session should read the newer handover instead. "
         f"This file kept as a checkpoint reference.\n\n"
     )
-
-    write_task_file(old_path, fm, callout + _strip_supersession_callout(body))
-    return old_path
+    return fm, callout + _strip_supersession_callout(body or "")
 
 
-def apply_handover_review_flag(
-    backlog_path: Path,
-    *,
-    handover_id: str,
-    review_reason: str,
-) -> Path:
-    """Stamp `flag_for_review: true` + `review_reason` onto an existing handover.
-
-    Used to flag the active handover for a session for later follow-up review.
-    Idempotent — re-applying overwrites the `review_reason` and leaves the
-    body untouched. Raises FileNotFoundError if the handover doesn't exist
-    on disk.
-    """
-    target = handover_path(backlog_path, handover_id)
-    if not target.exists():
-        raise FileNotFoundError(handover_id)
-    fm, body = read_handover(backlog_path, handover_id)
+def flag_handover_doc_for_review(
+    doc: Mapping[str, Any], *, review_reason: str
+) -> dict[str, Any]:
+    """Stamp `flag_for_review` + `review_reason` onto a handover document. Pure."""
+    fm = dict(doc)
     fm["flag_for_review"] = True
     fm["review_reason"] = review_reason or ""
-    write_task_file(target, fm, body)
-    return target
+    return fm
 
 
-def update_handover_status(
-    backlog_path: Path,
-    *,
-    handover_id: str,
-    status: str,
-    reason: str = "",
-) -> tuple[dict[str, Any], Path]:
-    """Explicit user-driven status change. Sets status_user_set: true so
-    subsequent auto-transitions skip this handover.
+def set_handover_status_doc(
+    doc: Mapping[str, Any], *, status: str, reason: str = ""
+) -> dict[str, Any]:
+    """Explicit user-driven status change on one handover document. Pure.
 
-    Passing an empty `reason` preserves any existing `status_reason` rather
-    than clearing it. Pass an explicit non-empty value to overwrite.
-
-    Raises ValueError on bad enum, FileNotFoundError if missing.
+    Sets `status_user_set: true` so subsequent auto-transitions skip it. An
+    empty `reason` preserves any existing `status_reason` rather than clearing
+    it. Raises ValueError on a status outside the enum.
     """
     if status not in HANDOVER_STATUSES:
         raise ValueError(f"status must be one of {HANDOVER_STATUSES}, got {status!r}")
-    target = handover_path(backlog_path, handover_id)
-    if not target.exists():
-        raise FileNotFoundError(handover_id)
-    fm, body = read_handover(backlog_path, handover_id)
+    fm = dict(doc)
     fm["status"] = status
     fm["status_changed"] = datetime.now(timezone.utc).isoformat(timespec="microseconds")
     fm["status_user_set"] = True
     if reason:
         fm["status_reason"] = reason
-    write_task_file(target, fm, body)
-    return fm, target
-
-
+    return fm
 
 
 # ── Parallel-handover smart-close ─────────────────────────────────────────────
@@ -1808,35 +1628,34 @@ def _next_action_references_live_tasks(
 
 
 def smart_auto_close_handovers(
-    backlog_path: Path,
+    rows: "Iterable[tuple[str, Mapping[str, Any], str | None]]",
     *,
     triggering_task_id: str,
     done_or_archived_ids: set[str],
-) -> dict[str, list[str]]:
-    """Apply the smart auto-close rule to open handovers that include
-    `triggering_task_id` in their task_ids.
+) -> dict[str, list[tuple[str, dict[str, Any], str | None]]]:
+    """Plan the smart auto-close rule over live handover rows. Pure.
+
+    `rows` is `Transaction.list("handover")` output — `(id, doc, body)`. Nothing
+    is written: the caller commits the returned documents inside its own
+    transaction, so the close and the task transition that triggered it land
+    together or not at all.
 
     Auto-close only when ALL true:
       1. All task_ids in the handover are in done_or_archived_ids.
       2. next_action is empty OR mentions only done/archived task IDs.
       3. session_kind is "task-complete" or null/absent.
 
-    Otherwise: leave open and flag with a reason.
+    Otherwise: leave open and stamp a flag reason.
 
-    Returns:
-        {"closed": [...list of ids auto-closed...],
-         "flagged": [...list of ids kept open with flag_reason stamped...]}
+    Returns {"closed": [(id, doc, body)], "flagged": [(id, doc, body)]}. The
+    row's existing body rides along untouched so the caller can hand it back to
+    `tx.put`; a planner that dropped it would erase the handover's narrative.
     """
-    closed: list[str] = []
-    flagged: list[str] = []
+    closed: list[tuple[str, dict[str, Any], str | None]] = []
+    flagged: list[tuple[str, dict[str, Any], str | None]] = []
 
-    for hid in list_handover_ids(backlog_path):
-        try:
-            fm, body = read_handover(backlog_path, hid)
-        except (OSError, ValueError):
-            continue
-
-        # Only consider open handovers that include the triggering task.
+    for hid, doc, body in rows:
+        fm = dict(doc)
         if fm.get("status") != "open":
             continue
         task_ids: list[str] = fm.get("task_ids") or []
@@ -1845,7 +1664,6 @@ def smart_auto_close_handovers(
         if fm.get("status_user_set"):
             continue
 
-        # Evaluate the three criteria.
         all_tasks_terminal = all(t in done_or_archived_ids for t in task_ids)
         next_action: str = (fm.get("next_action") or "").strip()
         next_action_live = _next_action_references_live_tasks(next_action, done_or_archived_ids)
@@ -1853,15 +1671,14 @@ def smart_auto_close_handovers(
         kind_eligible = session_kind in _AUTO_CLOSE_ELIGIBLE_KINDS
 
         if all_tasks_terminal and not next_action_live and kind_eligible:
-            # All criteria met — auto-close.
             fm["status"] = "closed"
             fm["status_changed"] = datetime.now(timezone.utc).isoformat(timespec="microseconds")
-            fm["status_reason"] = f"auto-closed: all task_ids done, triggering task {triggering_task_id}"
+            fm["status_reason"] = (
+                f"auto-closed: all task_ids done, triggering task {triggering_task_id}"
+            )
             fm.pop("flag_reason", None)
-            write_task_file(handover_path(backlog_path, hid), fm, body)
-            closed.append(hid)
+            closed.append((hid, fm, body))
         else:
-            # Build a human-readable flag reason for start-session surfacing.
             reasons: list[str] = []
             if not all_tasks_terminal:
                 live_ids = [t for t in task_ids if t not in done_or_archived_ids]
@@ -1871,19 +1688,30 @@ def smart_auto_close_handovers(
                 reasons.append(f"next_action references {', '.join(sorted(live_refs))}")
             if not kind_eligible:
                 reasons.append(f"session_kind={session_kind!r} preserved for context")
-            flag_reason = "; ".join(reasons)
-            fm["flag_reason"] = flag_reason
-            write_task_file(handover_path(backlog_path, hid), fm, body)
-            flagged.append(hid)
+            fm["flag_reason"] = "; ".join(reasons)
+            flagged.append((hid, fm, body))
 
     return {"closed": closed, "flagged": flagged}
 
 
-def flag_open_reason(backlog_path: Path, handover_id: str) -> str | None:
+def flag_open_reason(
+    backlog_path: Path,
+    handover_id: str,
+    *,
+    doc: "Mapping[str, Any] | None" = None,
+) -> str | None:
     """Return the `flag_reason` string for an open handover, or None if absent.
 
-    Returns None for closed/superseded handovers — those are not flagged.
+    Returns None for closed/superseded handovers — those are not flagged. A
+    caller holding the store row passes it as `doc`; the file read is the
+    fallback for one that does not, and is behind the projection whenever an
+    export has failed.
     """
+    if doc is not None:
+        fm: Mapping[str, Any] = doc
+        if fm.get("status") != "open":
+            return None
+        return fm.get("flag_reason") or None
     try:
         fm, _ = read_handover(backlog_path, handover_id)
     except (OSError, ValueError):
@@ -1893,42 +1721,33 @@ def flag_open_reason(backlog_path: Path, handover_id: str) -> str | None:
     return fm.get("flag_reason") or None
 
 
-def backfill_handover_status(backlog_data: dict[str, Any], backlog_path: Path) -> list[str]:
-    """One-time pass: stamp `status: open` on every handover lacking the field,
-    plus archived handovers, then mark the backlog as backfilled.
+def backfill_handover_status(
+    backlog_data: dict[str, Any],
+    rows: "Iterable[tuple[str, Mapping[str, Any], str | None]]",
+) -> list[tuple[str, dict[str, Any], str | None]]:
+    """Plan the one-time `status: open` backfill over handover rows. Pure.
 
-    No-op if `handover_status_backfilled` is already truthy. Returns the list
-    of handover ids that were modified.
+    No-op (empty list) if `handover_status_backfilled` is already truthy.
+    Stamps the marker on `backlog_data` and returns `(id, doc, body)` triples
+    for the caller to commit; the archived tail is included because the caller
+    passes `include_archived=True` rows. The body rides along untouched so the
+    caller hands it back to `tx.put` rather than erasing the narrative.
     """
     if backlog_data.get("handover_status_backfilled"):
         return []
-    flipped: list[str] = []
-    handovers_root = handover_dir(backlog_path)
-    archive_root = handovers_root / "_archive"
-    candidates: list[Path] = []
-    if handovers_root.exists():
-        candidates.extend(p for p in handovers_root.glob("*.md"))
-    if archive_root.exists():
-        candidates.extend(archive_root.rglob("*.md"))
-    for path in candidates:
-        try:
-            fm, body = read_task_file(path)
-        except (OSError, ValueError):
+    flipped: list[tuple[str, dict[str, Any], str | None]] = []
+    for hid, doc, body in rows:
+        if "status" in doc:
             continue
-        if "status" in fm:
-            continue
-        try:
-            mtime_iso = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat(
-                timespec="microseconds"
-            )
-        except OSError:
-            mtime_iso = datetime.now(timezone.utc).isoformat(timespec="microseconds")
+        fm = dict(doc)
+        stamp = str(fm.get("created") or "") or datetime.now(timezone.utc).isoformat(
+            timespec="microseconds"
+        )
         fm["status"] = "open"
-        fm["status_changed"] = mtime_iso
+        fm["status_changed"] = stamp
         fm["status_reason"] = "backfilled by handover-status migration"
         fm["status_user_set"] = False
-        write_task_file(path, fm, body)
-        flipped.append(path.stem)
+        flipped.append((hid, fm, body))
     backlog_data["handover_status_backfilled"] = True
     return flipped
 
@@ -1941,44 +1760,31 @@ _MIGRATION_V2_KEY = "handover_status_v2_migrated"
 
 def migrate_handover_statuses(
     backlog_data: dict[str, Any],
-    backlog_path: Path,
+    rows: "Iterable[tuple[str, Mapping[str, Any], str | None]]",
     *,
     done_or_archived_ids: set[str],
-) -> dict[str, list[str]]:
-    """One-shot migration: translate old three-state enum to new three-state enum.
+) -> dict[str, list[tuple[str, dict[str, Any], str | None]]]:
+    """Plan the one-shot legacy-enum translation over handover rows. Pure.
 
     Mapping:
-      - "todo" | "in-progress"  →  "open"
-      - "done" + superseded_by  →  "superseded"
-      - "done" + smart-close eligible  →  "closed"
-      - "done" + NOT eligible  →  "open"  (context still relevant)
+      - "todo" | "in-progress"  ->  "open"
+      - "done" + superseded_by  ->  "superseded"
+      - "done" + smart-close eligible  ->  "closed"
+      - "done" + NOT eligible  ->  "open"  (context still relevant)
 
-    Idempotent: no-op if `_MIGRATION_V2_KEY` is truthy in backlog_data.
-    Returns {"migrated": [list of ids changed]}.
+    Idempotent: empty plan if `_MIGRATION_V2_KEY` is truthy. Returns
+    {"migrated": [(id, doc, body)]} for the caller to commit; the row's body
+    rides along so committing the plan cannot erase the narrative.
     """
     if backlog_data.get(_MIGRATION_V2_KEY):
         return {"migrated": []}
 
-    migrated: list[str] = []
-    handovers_root = handover_dir(backlog_path)
-    archive_root = handovers_root / "_archive"
-    candidates: list[Path] = []
-    if handovers_root.exists():
-        candidates.extend(p for p in handovers_root.glob("*.md"))
-    if archive_root.exists():
-        candidates.extend(archive_root.rglob("*.md"))
-
-    for path in candidates:
-        try:
-            fm, body = read_task_file(path)
-        except (OSError, ValueError):
-            continue
-
-        old_status = fm.get("status", "")
-        # Skip handovers already on the new enum.
+    migrated: list[tuple[str, dict[str, Any], str | None]] = []
+    for hid, doc, body in rows:
+        old_status = doc.get("status", "")
         if old_status in HANDOVER_STATUSES:
             continue
-
+        fm = dict(doc)
         now = datetime.now(timezone.utc).isoformat(timespec="microseconds")
 
         if old_status in _LEGACY_TO_OPEN:
@@ -1991,7 +1797,6 @@ def migrate_handover_statuses(
                 fm["status_changed"] = now
                 fm["status_reason"] = "migrated: had superseded_by"
             else:
-                # Check smart-close eligibility inline (no file writes during check).
                 task_ids: list[str] = fm.get("task_ids") or []
                 next_action: str = (fm.get("next_action") or "").strip()
                 session_kind: str = fm.get("session_kind") or ""
@@ -2008,13 +1813,11 @@ def migrate_handover_statuses(
                     fm["status_reason"] = "migrated: context still relevant"
                 fm["status_changed"] = now
         else:
-            # Unknown status — default to open and flag.
             fm["status"] = "open"
             fm["status_changed"] = now
             fm["status_reason"] = f"migrated from unknown status {old_status!r}"
 
-        write_task_file(path, fm, body)
-        migrated.append(path.stem)
+        migrated.append((hid, fm, body))
 
     backlog_data[_MIGRATION_V2_KEY] = True
     return {"migrated": migrated}
@@ -2032,56 +1835,50 @@ def _handover_index_entry(fm: dict[str, Any]) -> dict[str, Any]:
     return {f: fm.get(f) for f in _HANDOVER_INDEX_FIELDS if fm.get(f) is not None}
 
 
-def archive_handover(backlog_path: Path, handover_id: str) -> Path:
-    """Move a handover file from handovers/ to handovers/_archive/<year>/.
+def sort_handover_rows(
+    rows: "Iterable[tuple[str, Mapping[str, Any], str | None]]",
+) -> list[tuple[str, Mapping[str, Any], str | None]]:
+    """Handover rows newest-first — the row-based twin of `list_handover_ids`.
 
-    The year is parsed from the id prefix (YYYY-...). If the id doesn't
-    follow that pattern, archive under handovers/_archive/unknown/.
-    Returns the new path.
+    Sort key: (id date-prefix, `created`, id), descending. The id's YYYY-MM-DD
+    prefix is the authoritative user-supplied date and leads the sort so batch
+    writes sharing a `created` timestamp still order by intended date. The old
+    file-mtime tiebreaker has no row equivalent and the id is a total order
+    already, so it is dropped rather than approximated.
     """
-    src = handover_path(backlog_path, handover_id)
-    if not src.exists():
-        raise FileNotFoundError(handover_id)
-    year = handover_id[:4] if re.match(r"^\d{4}", handover_id) else "unknown"
-    dest_dir = handover_dir(backlog_path) / "_archive" / year
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest = dest_dir / src.name
-    os.replace(src, dest)
-    return dest
+    return sorted(
+        rows,
+        key=lambda row: (row[0][:10], str((row[1] or {}).get("created") or ""), row[0]),
+        reverse=True,
+    )
 
 
 def sync_handover_index(
     backlog_data: dict[str, Any],
-    backlog_path: Path,
+    rows: "Iterable[tuple[str, Mapping[str, Any], str | None]]",
+    *,
+    tx: Any = None,
     cap: int = HANDOVER_INDEX_CAP,
 ) -> dict[str, Any]:
-    """Populate backlog_data['handovers'] from disk; archive overflow.
+    """Rebuild `backlog_data['handovers']` from live handover rows; archive overflow.
 
-    Reads all handover files (excluding _archive/), sorts newest-first,
-    keeps the first `cap` as index entries in backlog_data, and archives
-    the rest. Mutates backlog_data in place and returns it for chaining.
+    `rows` is `Transaction.list("handover")` output — the store, not a directory
+    glob, so the index and the rows it summarises come from one snapshot. Newest
+    first, first `cap` kept as index entries; the rest are archived through
+    `tx.archive("handover", id)` when a transaction is supplied (the move to
+    `handovers/_archive/<year>/` is the exporter's job). Mutates in place.
     """
-    ids = list_handover_ids(backlog_path)
-    keep_ids = ids[:cap]
-    overflow_ids = ids[cap:]
+    ordered = sort_handover_rows(rows)
+    keep = ordered[:cap]
+    overflow = ordered[cap:]
 
-    entries: list[dict[str, Any]] = []
-    for hid in keep_ids:
-        try:
-            fm, _ = read_handover(backlog_path, hid)
-        except (OSError, ValueError):
-            continue
-        entries.append(_handover_index_entry(fm))
+    backlog_data["handovers"] = [_handover_index_entry(dict(doc)) for _hid, doc, _b in keep]
 
-    backlog_data["handovers"] = entries
+    if tx is not None:
+        for hid, _doc, _body in overflow:
+            tx.archive("handover", hid)
 
-    for hid in overflow_ids:
-        try:
-            archive_handover(backlog_path, hid)
-        except (OSError, FileNotFoundError):
-            continue
-
-    sync_thread_registry(backlog_data, backlog_path)
+    sync_thread_registry(backlog_data, keep)
 
     return backlog_data
 
@@ -2090,8 +1887,7 @@ def sync_handover_index(
 # A thread is a named chain of handovers — the stable resume token.
 # `threads:` in backlog.yaml is a rebuildable projection of handover
 # frontmatter; `thread_meta:` holds user-set status overrides that expire
-# when a newer handover lands (auto-reopen). See the handover-threads design
-# spec (specs/2026-07-13-handover-threads-design.md).
+# when a newer handover lands (auto-reopen).
 
 THREAD_STATUSES = ("open", "parked", "closed")
 
@@ -2106,23 +1902,19 @@ def _ts_or_min(raw: str):
 
 def sync_thread_registry(
     backlog_data: dict[str, Any],
-    backlog_path: Path,
+    rows: "Iterable[tuple[str, Mapping[str, Any], str | None]]",
 ) -> dict[str, Any]:
-    """Rebuild backlog_data['threads'] from non-archived handover files.
+    """Rebuild `backlog_data['threads']` from live (non-archived) handover rows.
 
     Derived status: open if any member handover is open, else closed.
     A `thread_meta` override (parked/closed/open) is honoured only while no
     member handover is newer than the override's set_at; stale overrides and
-    overrides for vanished threads are pruned. Mutates in place, returns
-    backlog_data for chaining.
+    overrides for vanished threads are pruned. Mutates in place.
     """
-    ids = list_handover_ids(backlog_path)  # newest-first
+    ordered = sort_handover_rows(rows)  # newest-first
     threads: dict[str, dict[str, Any]] = {}
-    for hid in reversed(ids):              # oldest-first → chronological chains
-        try:
-            fm, _ = read_handover(backlog_path, hid)
-        except (OSError, ValueError):
-            continue
+    for hid, doc, _body in reversed(ordered):   # oldest-first -> chronological chains
+        fm = doc or {}
         name = fm.get("thread")
         if not name:
             continue
@@ -2141,10 +1933,8 @@ def sync_thread_registry(
         for tid in fm.get("task_ids") or []:
             if tid not in t["task_ids"]:
                 t["task_ids"].append(tid)
-        # `ids` (and thus this reversed loop) is already ordered oldest → newest
-        # per list_handover_ids — so the last-iterated member of each thread is
-        # the newest by definition. Assign unconditionally so "newest member"
-        # agrees with handover_ids[-1] rather than a separate `created` compare.
+        # `ordered` is newest-first, so this reversed loop is oldest-first: the
+        # last-iterated member of each thread is the newest by definition.
         t["last_touched"] = fm.get("created") or fm.get("date") or ""
         t["tldr"] = fm.get("tldr", "")
         t["next_action"] = fm.get("next_action", "")
@@ -2265,28 +2055,26 @@ def list_threads(backlog_data: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def backfill_threads(
-    backlog_path: Path,
+    rows: "Iterable[tuple[str, Mapping[str, Any], str | None]]",
     backlog_data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Stamp `thread:` frontmatter onto non-archived handovers that lack it.
+    """Plan `thread:` stamps for live handover rows that lack one. Pure.
 
     Union-find grouping: an edge joins two handovers when one supersedes the
     other, or when they share a task id. Name precedence per group: epic id
-    containing any member task → first member task id → newest member's id
-    with the date prefix stripped. Idempotent; files already carrying
-    `thread` are untouched. Returns {"stamped": [...], "groups": N}.
+    containing any member task -> first member task id -> newest member's id
+    with the date prefix stripped. Idempotent; rows already carrying `thread`
+    are untouched. Returns {"stamped": [(id, doc, body)], "groups": N} for the
+    caller to commit; each row's body rides along so committing the stamp
+    cannot erase the narrative.
     """
-    ids = list_handover_ids(backlog_path)
+    ordered = sort_handover_rows(rows)
     fms: dict[str, dict[str, Any]] = {}
-    bodies: dict[str, str] = {}
-    for hid in ids:
-        try:
-            fm, body = read_handover(backlog_path, hid)
-        except (OSError, ValueError):
+    bodies: dict[str, str | None] = {}
+    for hid, doc, body in ordered:
+        if (doc or {}).get("thread"):
             continue
-        if fm.get("thread"):
-            continue
-        fms[hid] = fm
+        fms[hid] = dict(doc or {})
         bodies[hid] = body
     if not fms:
         return {"stamped": [], "groups": 0}
@@ -2326,7 +2114,7 @@ def backfill_threads(
             if t.get("id") and epic.get("id"):
                 task_to_epic[t["id"]] = epic["id"]
 
-    stamped: list[str] = []
+    stamped: list[tuple[str, dict[str, Any], str | None]] = []
     for members in groups.values():
         members.sort(key=lambda h: str(fms[h].get("created") or fms[h].get("date") or ""))
         newest = members[-1]
@@ -2344,8 +2132,7 @@ def backfill_threads(
             name = normalize_thread_name(re.sub(r"^\d{4}-\d{2}-\d{2}-", "", newest))
         for hid in members:
             fms[hid]["thread"] = name
-            write_task_file(handover_path(backlog_path, hid), fms[hid], bodies[hid])
-            stamped.append(hid)
+            stamped.append((hid, fms[hid], bodies[hid]))
 
     return {"stamped": stamped, "groups": len(groups)}
 
@@ -2409,18 +2196,6 @@ def list_issue_ids(backlog_path: Path) -> list[str]:
     return [p.stem for p in files]
 
 
-def next_issue_id(backlog_path: Path) -> str:
-    """Allocate the next ISS-NNN id (zero-padded, 3+ digits)."""
-    existing = list_issue_ids(backlog_path)
-    nums = []
-    for ident in existing:
-        m = re.search(r"(\d+)$", ident)
-        if m:
-            nums.append(int(m.group(1)))
-    n = (max(nums) + 1) if nums else 1
-    return f"ISS-{n:03d}"
-
-
 # ── Bugs ───────────────────────────────────────────────────────
 
 BUG_STATUSES = ("open", "fixed", "shelved", "adopted", "promoted")
@@ -2465,21 +2240,6 @@ def list_bug_ids(backlog_path: Path, include_archive: bool = False) -> list[str]
     return [p.stem for p in active] + [p.stem for p in archived]
 
 
-def next_bug_id(backlog_path: Path) -> str:
-    """Allocate the next B-NNN id (zero-padded, 3+ digits).
-
-    Counts both active and archive when allocating so IDs are never reused.
-    """
-    existing = list_bug_ids(backlog_path, include_archive=True)
-    nums = []
-    for ident in existing:
-        m = re.search(r"(\d+)$", ident)
-        if m:
-            nums.append(int(m.group(1)))
-    n = (max(nums) + 1) if nums else 1
-    return f"B-{n:03d}"
-
-
 def _validate_bug(fm: dict[str, Any]) -> None:
     """Raise ValueError if frontmatter violates Bug invariants."""
     status = fm.get("status")
@@ -2499,8 +2259,7 @@ def _validate_bug(fm: dict[str, Any]) -> None:
         raise ValueError("status=promoted requires promoted_to to be set")
 
 
-def write_bug(
-    backlog_path: Path,
+def build_bug_doc(
     *,
     title: str,
     found_in: str | None = None,
@@ -2508,16 +2267,18 @@ def write_bug(
     severity: str | None = None,
     components: list[str] | None = None,
     location: list[str] | None = None,
-    body: str = "",
     bug_id: str | None = None,
     status: str = "open",
-) -> tuple[str, Path]:
-    """Create a new Bug file. Returns (id, path)."""
+) -> dict[str, Any]:
+    """Assemble and validate a new Bug frontmatter document. Pure — no id, no write.
+
+    The id is allocated by the store inside the creating transaction; pass
+    `bug_id` only when the caller genuinely owns the id.
+    """
     if not title or not title.strip():
         raise ValueError("bug title is required")
-    bid = bug_id or next_bug_id(backlog_path)
     fm: dict[str, Any] = {
-        "id": bid,
+        "id": bug_id,
         "title": title.strip(),
         "status": status,
         "severity": severity,
@@ -2532,10 +2293,28 @@ def write_bug(
         "links": [],
     }
     _validate_bug(fm)
-    bug_dir(backlog_path).mkdir(parents=True, exist_ok=True)
-    target = bug_path(backlog_path, bid)
-    write_task_file(target, fm, body)
-    return bid, target
+    return fm
+
+
+def apply_bug_updates(doc: Mapping[str, Any], **updates: Any) -> dict[str, Any]:
+    """Merge partial updates into a Bug document and validate. Pure."""
+    fm = dict(doc)
+    fm.update({k: v for k, v in updates.items() if v is not None})
+    _validate_bug(fm)
+    return fm
+
+
+def assert_bug_archivable(doc: Mapping[str, Any]) -> None:
+    """Raise ValueError unless a Bug is in a terminal-resolved state.
+
+    Archive is only for fixed/adopted/promoted — an open or shelved bug that
+    vanished from the active list is a lost bug, not a filed one.
+    """
+    status = doc.get("status")
+    if status in ("open", "shelved"):
+        raise ValueError(
+            f"cannot archive bug with status={status} (must be fixed/adopted/promoted)"
+        )
 
 
 def read_bug(backlog_path: Path, bug_id: str) -> tuple[dict[str, Any], str]:
@@ -2546,63 +2325,22 @@ def read_bug(backlog_path: Path, bug_id: str) -> tuple[dict[str, Any], str]:
     return read_task_file(p)
 
 
-def update_bug(
-    backlog_path: Path,
-    bug_id: str,
-    **updates: Any,
-) -> tuple[dict[str, Any], str]:
-    """Apply partial updates to a Bug's frontmatter, validate, and rewrite."""
-    fm, body = read_bug(backlog_path, bug_id)
-    new_body = updates.pop("body", body)
-    fm.update({k: v for k, v in updates.items() if v is not None})
-    _validate_bug(fm)
-    # Determine target — preserve archive vs active based on where it lives.
-    target = bug_path(backlog_path, bug_id)
-    if not target.exists():
-        target = bug_path(backlog_path, bug_id, archived=True)
-    write_task_file(target, fm, new_body)
-    return fm, new_body
-
-
-def archive_bug(backlog_path: Path, bug_id: str) -> Path:
-    """Move bugs/B-NNN.md → bugs/archive/B-NNN.md.
-
-    Idempotent (no-op if already in archive). Refuses if status=open or shelved —
-    archive is only for terminal-resolved bugs (fixed/adopted/promoted).
-    """
-    active = bug_path(backlog_path, bug_id)
-    archived = bug_path(backlog_path, bug_id, archived=True)
-    if archived.exists() and not active.exists():
-        return archived  # already there
-    fm, _ = read_bug(backlog_path, bug_id)
-    if fm["status"] in ("open", "shelved"):
-        raise ValueError(f"cannot archive bug with status={fm['status']} (must be fixed/adopted/promoted)")
-    archived.parent.mkdir(parents=True, exist_ok=True)
-    active.rename(archived)
-    return archived
-
-
 def _bug_index_entry(fm: dict[str, Any]) -> dict[str, Any]:
     return {f: fm.get(f) for f in _BUG_INDEX_FIELDS if fm.get(f) is not None}
 
 
 def sync_bug_index(
     backlog_data: dict[str, Any],
-    backlog_path: Path,
+    rows: "Iterable[tuple[str, Mapping[str, Any], str | None]]",
 ) -> dict[str, Any]:
-    """Rebuild backlog_data['bugs'] from disk (active only — archive is opaque).
+    """Rebuild `backlog_data['bugs']` from live bug rows (archive stays opaque).
 
-    Sorted by (status weight ascending, discovered descending) so open ones
-    surface first and most-recent within a status group.
+    `rows` is `Transaction.list("bug")` output. Sorted by (status weight
+    ascending, discovered descending) so open ones surface first and the most
+    recent within a status group leads.
     """
     status_weight = {"open": 0, "shelved": 1, "adopted": 2, "promoted": 3, "fixed": 4}
-    entries: list[dict[str, Any]] = []
-    for bid in list_bug_ids(backlog_path, include_archive=False):
-        try:
-            fm, _ = read_bug(backlog_path, bid)
-        except (OSError, ValueError):
-            continue
-        entries.append(_bug_index_entry(fm))
+    entries = [_bug_index_entry(dict(doc)) for _bid, doc, _body in rows]
     entries.sort(key=lambda e: (status_weight.get(e.get("status", "open"), 99), -1 * _discovered_rank(e)))
     backlog_data["bugs"] = entries
     return backlog_data
@@ -2634,14 +2372,20 @@ def _bug_signature(fm: dict[str, Any]) -> tuple | None:
 
 
 def scan_bug_patterns(
-    backlog_path: Path,
-    include_archive: bool = True,
+    rows: "Iterable[tuple[str, Mapping[str, Any], str | None]]",
     open_only: bool = False,
 ) -> list[dict[str, Any]]:
     """Return a list of pattern groups: [{signature, bug_ids: [B-001, B-007, ...]}, ...].
 
-    Only groups with ≥2 bugs are returned. Includes archive by default so that
-    historical resolved bugs contribute to recurrence counts.
+    `rows` is `Transaction.list("bug")` output — the committed bug documents.
+    This used to glob `bugs/*.md`, which described the export rather than the
+    store: a bug whose file write failed its retry was invisible to the
+    scanner, and a stale file clustered on text nobody wrote any more. The
+    recurrence signal here is what promotes bugs to an Issue, so it has to be
+    computed from what the store holds. The caller decides whether archived
+    rows are in scope, since that is a row filter now, not a second directory.
+
+    Only groups with ≥2 bugs are returned.
 
     Two bugs cluster together when they share the same component set AND their
     title token sets overlap by Jaccard ≥ 0.5. The canonical signature for a
@@ -2649,18 +2393,15 @@ def scan_bug_patterns(
     """
     # Collect (bid, comps_tuple, tokens_frozenset) for each bug with a valid sig.
     entries: list[tuple[str, tuple, frozenset]] = []
-    for bid in list_bug_ids(backlog_path, include_archive=include_archive):
-        try:
-            fm, _ = read_bug(backlog_path, bid)
-        except (OSError, ValueError):
-            continue
+    for bid, doc, _body in rows:
+        fm = dict(doc)
         if open_only and fm.get("status") != "open":
             continue
         sig = _bug_signature(fm)
         if sig is None:
             continue
         comps, tokens_tuple = sig
-        entries.append((bid, comps, frozenset(tokens_tuple)))
+        entries.append((str(fm.get("id") or bid), comps, frozenset(tokens_tuple)))
 
     # Union-Find clustering by component equality + Jaccard ≥ 0.5.
     parent: dict[int, int] = {i: i for i in range(len(entries))}
@@ -2709,58 +2450,6 @@ def scan_bug_patterns(
     return result
 
 
-def promote_bugs_to_issue(
-    backlog_path: Path,
-    *,
-    bug_ids: list[str],
-    title: str,
-    severity: str,
-    evidence_text: str,
-    components: list[str] | None = None,
-    body: str = "",
-) -> str:
-    """Atomic: create an Issue from N Bugs, mark each Bug as promoted.
-
-    The new Issue gets a `promoted_from: [B-NNN, ...]` frontmatter field
-    in addition to the standard fields. The matched Bugs each get
-    status=promoted and promoted_to=<the new Issue ID>.
-    """
-    if not bug_ids:
-        raise ValueError("bug_ids must be non-empty")
-    if not evidence_text or not evidence_text.strip():
-        raise ValueError("evidence_text is required (cite recurrence/systemic/outstanding)")
-
-    # Aggregate components from source bugs if not given.
-    if components is None:
-        comps_set: set[str] = set()
-        for bid in bug_ids:
-            fm, _ = read_bug(backlog_path, bid)
-            for c in fm.get("components") or []:
-                comps_set.add(c)
-        components = sorted(comps_set)
-
-    iss_id, _ = write_issue(
-        backlog_path,
-        title=title,
-        severity=severity,
-        impact=evidence_text,  # repurpose impact field as evidence narrative
-        components=components,
-        body=body,
-    )
-    # Backfill the new evidence and promoted_from fields on the issue file.
-    fm, b = read_issue(backlog_path, iss_id)
-    fm["evidence"] = evidence_text.strip()
-    fm["promoted_from"] = list(bug_ids)
-    _validate_issue(fm)
-    write_task_file(issue_path(backlog_path, iss_id), fm, b)
-
-    # Mark each source bug as promoted.
-    for bid in bug_ids:
-        update_bug(backlog_path, bid, status="promoted", promoted_to=iss_id)
-
-    return iss_id
-
-
 DECISION_STATUSES = ("open", "resolved", "dropped")
 
 
@@ -2781,15 +2470,6 @@ def list_decision_ids(backlog_path: Path) -> list[str]:
 
     files = sorted(d.glob("DEC-*.md"), key=_rank)
     return [p.stem for p in files]
-
-
-def next_decision_id(backlog_path: Path) -> str:
-    """Allocate the next DEC-NNN id (zero-padded, 3+ digits)."""
-    existing = list_decision_ids(backlog_path)
-    nums = [int(re.search(r"(\d+)$", x).group(1)) for x in existing
-            if re.search(r"(\d+)$", x)]
-    n = (max(nums) + 1) if nums else 1
-    return f"DEC-{n:03d}"
 
 
 def decision_path(backlog_path: Path, decision_id: str) -> Path:
@@ -2821,8 +2501,7 @@ def _validate_decision(fm: dict[str, Any]) -> None:
         raise ValueError("status=dropped requires dropped_reason")
 
 
-def write_decision(
-    backlog_path: Path,
+def build_decision_doc(
     *,
     title: str,
     options: list[str],
@@ -2831,16 +2510,14 @@ def write_decision(
     related_issues: list[str] | None = None,
     branch: str | None = None,
     raised_in: str | None = None,
-    body: str = "",
     decision_id: str | None = None,
     status: str = "open",
-) -> tuple[str, Path]:
-    """Create a new decision file. Returns (id, path)."""
+) -> dict[str, Any]:
+    """Assemble and validate a new decision document. Pure — no id, no write."""
     if not title or not title.strip():
         raise ValueError("decision title is required")
-    did = decision_id or next_decision_id(backlog_path)
     fm: dict[str, Any] = {
-        "id": did,
+        "id": decision_id,
         "title": title.strip(),
         "status": status,
         "options": list(options),
@@ -2858,9 +2535,7 @@ def write_decision(
         "resolved_in": None,
     }
     _validate_decision(fm)
-    target = decision_path(backlog_path, did)
-    write_task_file(target, fm, body)
-    return did, target
+    return fm
 
 
 def read_decision(backlog_path: Path, decision_id: str) -> tuple[dict[str, Any], str]:
@@ -2868,34 +2543,30 @@ def read_decision(backlog_path: Path, decision_id: str) -> tuple[dict[str, Any],
     return read_task_file(decision_path(backlog_path, decision_id))
 
 
-def update_decision(
-    backlog_path: Path,
-    decision_id: str,
-    patch: dict[str, Any],
+def apply_decision_patch(
+    doc: Mapping[str, Any], patch: Mapping[str, Any]
 ) -> dict[str, Any]:
-    """Apply a field-level patch to a decision. Returns the new frontmatter."""
-    fm, body = read_decision(backlog_path, decision_id)
-    if fm["status"] in ("resolved", "dropped") and patch.get("status") == "open":
-        raise ValueError(f"cannot reopen terminal decision {decision_id}")
+    """Apply a field-level patch to a decision document and validate. Pure."""
+    fm = dict(doc)
+    if fm.get("status") in ("resolved", "dropped") and patch.get("status") == "open":
+        raise ValueError(f"cannot reopen terminal decision {fm.get('id')}")
     fm.update(patch)
     _validate_decision(fm)
-    write_task_file(decision_path(backlog_path, decision_id), fm, body)
     return fm
 
 
-def resolve_decision(
-    backlog_path: Path,
-    decision_id: str,
+def resolve_decision_doc(
+    doc: Mapping[str, Any],
     *,
     resolved_with: int,
     rationale: str | None = None,
     resolved_in: str | None = None,
 ) -> dict[str, Any]:
-    """Flip a decision to resolved with a chosen option (1-indexed)."""
-    fm, body = read_decision(backlog_path, decision_id)
+    """Flip a decision document to resolved with a chosen option (1-indexed). Pure."""
+    fm = dict(doc)
     if not (1 <= int(resolved_with) <= len(fm.get("options") or [])):
         raise ValueError(
-            f"resolved_with must be 1..{len(fm['options'])}, got {resolved_with}"
+            f"resolved_with must be 1..{len(fm.get('options') or [])}, got {resolved_with}"
         )
     fm["status"] = "resolved"
     fm["resolved_with"] = int(resolved_with)
@@ -2904,40 +2575,31 @@ def resolve_decision(
     if resolved_in:
         fm["resolved_in"] = resolved_in
     _validate_decision(fm)
-    write_task_file(decision_path(backlog_path, decision_id), fm, body)
     return fm
 
 
-def drop_decision(
-    backlog_path: Path,
-    decision_id: str,
-    *,
-    reason: str,
-) -> dict[str, Any]:
-    """Mark a decision as dropped with a reason."""
+def drop_decision_doc(doc: Mapping[str, Any], *, reason: str) -> dict[str, Any]:
+    """Mark a decision document dropped with a reason. Pure."""
     if not reason or not reason.strip():
         raise ValueError("drop reason is required")
-    fm, body = read_decision(backlog_path, decision_id)
+    fm = dict(doc)
     fm["status"] = "dropped"
     fm["dropped_reason"] = reason.strip()
     fm["resolved_at"] = datetime.now(timezone.utc).isoformat(timespec="microseconds")
     _validate_decision(fm)
-    write_task_file(decision_path(backlog_path, decision_id), fm, body)
     return fm
 
 
-def link_decision_to_handover(
-    backlog_path: Path,
-    decision_id: str,
-    handover_id: str,
-) -> dict[str, Any]:
-    """Append a handover id to the decision's referenced_in (idempotent)."""
-    fm, body = read_decision(backlog_path, decision_id)
-    refs = list(fm.get("referenced_in") or [])
-    if handover_id not in refs:
-        refs.append(handover_id)
-        fm["referenced_in"] = refs
-        write_task_file(decision_path(backlog_path, decision_id), fm, body)
+def link_decision_doc_to_handover(
+    doc: Mapping[str, Any], handover_id: str
+) -> dict[str, Any] | None:
+    """Append a handover id to `referenced_in`. Pure; None when already present."""
+    refs = list(doc.get("referenced_in") or [])
+    if handover_id in refs:
+        return None
+    refs.append(handover_id)
+    fm = dict(doc)
+    fm["referenced_in"] = refs
     return fm
 
 
@@ -2959,8 +2621,7 @@ def _validate_issue(fm: dict[str, Any]) -> None:
         raise ValueError("evidence is required — cite recurrence/systemic/outstanding criterion")
 
 
-def write_issue(
-    backlog_path: Path,
+def build_issue_doc(
     *,
     title: str,
     severity: str,
@@ -2971,14 +2632,14 @@ def write_issue(
     related_tasks: list[str] | None = None,
     discovered: str | None = None,
     discovered_by: str = "",
-    body: str = "",
     issue_id: str | None = None,
     status: str = "open",
     tldr: str = "",
     tldr_autogen: bool = False,
     tracker_id: str | None = None,
-) -> tuple[str, Path]:
-    """Create a new issue file. Returns (id, path)."""
+    promoted_from: list[str] | None = None,
+) -> dict[str, Any]:
+    """Assemble and validate a new Issue frontmatter document. Pure — no id, no write."""
     if not title or not title.strip():
         raise ValueError("issue title is required")
     # evidence fallback: legacy callers pass impact only; treat impact as evidence.
@@ -2986,11 +2647,9 @@ def write_issue(
         if not impact or not impact.strip():
             raise ValueError("evidence (or impact) is required for Issue creation")
         evidence = impact
-    iid = issue_id or next_issue_id(backlog_path)
-    from datetime import datetime, timezone
     default_discovered = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     fm: dict[str, Any] = {
-        "id": iid,
+        "id": issue_id,
         "title": title.strip(),
         "status": status,
         "severity": severity,
@@ -3004,38 +2663,31 @@ def write_issue(
         "related_tasks": list(related_tasks or []),
         "fixed_in_task": None,
         "duplicate_of": None,
-        "promoted_from": [],
+        "promoted_from": list(promoted_from or []),
         "tldr": tldr,
         "tracker_id": tracker_id or None,
     }
     if tldr_autogen:
         fm["tldr_autogen"] = True
     _validate_issue(fm)
-    write_task_file(issue_path(backlog_path, iid), fm, body)
-    return iid, issue_path(backlog_path, iid)
+    return fm
 
 
 def read_issue(backlog_path: Path, issue_id: str) -> tuple[dict[str, Any], str]:
     return read_task_file(issue_path(backlog_path, issue_id))
 
 
-def update_issue(
-    backlog_path: Path,
-    issue_id: str,
-    **updates: Any,
-) -> tuple[dict[str, Any], str]:
-    """Apply partial updates to an issue's frontmatter, validate, and rewrite.
+def apply_issue_updates(doc: Mapping[str, Any], **updates: Any) -> dict[str, Any]:
+    """Merge partial updates into an Issue document and validate. Pure.
 
-    Body is preserved unchanged unless `body=` is passed.
+    `resolved` auto-fills the first time the status reaches `fixed`.
     """
-    fm, body = read_issue(backlog_path, issue_id)
-    new_body = updates.pop("body", body)
+    fm = dict(doc)
     fm.update({k: v for k, v in updates.items() if v is not None})
     if fm.get("status") == "fixed" and not fm.get("resolved"):
         fm["resolved"] = date.today().isoformat()
     _validate_issue(fm)
-    write_task_file(issue_path(backlog_path, issue_id), fm, new_body)
-    return fm, new_body
+    return fm
 
 
 def _issue_index_entry(fm: dict[str, Any]) -> dict[str, Any]:
@@ -3044,20 +2696,14 @@ def _issue_index_entry(fm: dict[str, Any]) -> dict[str, Any]:
 
 def sync_issue_index(
     backlog_data: dict[str, Any],
-    backlog_path: Path,
+    rows: "Iterable[tuple[str, Mapping[str, Any], str | None]]",
 ) -> dict[str, Any]:
-    """Rebuild backlog_data['issues'] from disk.
+    """Rebuild `backlog_data['issues']` from live issue rows.
 
-    Sorted by (severity asc, id asc) so P0s float to the top of the list.
-    No archive/cap — issues are bounded by reality, not policy.
+    Sorted by (severity asc, id asc) so P0s float to the top. No archive/cap —
+    issues are bounded by reality, not policy.
     """
-    entries: list[dict[str, Any]] = []
-    for iid in list_issue_ids(backlog_path):
-        try:
-            fm, _ = read_issue(backlog_path, iid)
-        except (OSError, ValueError):
-            continue
-        entries.append(_issue_index_entry(fm))
+    entries = [_issue_index_entry(dict(doc)) for _iid, doc, _body in rows]
     entries.sort(key=lambda e: (_SEVERITY_RANK.get(e.get("severity", "P3"), 99), e.get("id", "")))
     backlog_data["issues"] = entries
     return backlog_data
@@ -3159,8 +2805,7 @@ def _validate_tracker(fm: dict[str, Any]) -> None:
         )
 
 
-def write_tracker(
-    backlog_path: Path,
+def build_tracker_doc(
     *,
     external_system: str,
     instance_alias: str,
@@ -3174,20 +2819,14 @@ def write_tracker(
     last_pushed: str | None = None,
     push_hash: str | None = None,
     sync_direction: str | None = None,
-    body: str = "",
-) -> tuple[str, Path]:
-    """Upsert a tracker file. Returns (id, path).
+) -> dict[str, Any]:
+    """Assemble and validate a tracker document. Pure — the caller upserts it.
 
-    Trackers are upsert-by-id — calling write_tracker with the same
-    (external_system, instance_alias, external_key) triple always overwrites
-    the same path. Callers (e.g. `backlog_jira_pull`) that hash payloads to
-    skip unchanged writes do that gating before calling this.
-
-    `sync_direction` is accepted for signature compatibility but ignored —
-    the on-disk value is always re-derived from `_SYNC_DIRECTION_BY_SYSTEM`
-    so it can never drift from the system's direction policy.
-    `last_pushed` and `push_hash` are populated by push-dominant workers
-    (e.g. Linear) after a successful outbound mutation.
+    Trackers are upsert-by-id: the same (external_system, instance_alias,
+    external_key) triple always yields the same deterministic id.
+    `sync_direction` is accepted for signature compatibility but ignored — the
+    stored value is always re-derived from `_SYNC_DIRECTION_BY_SYSTEM` so it can
+    never drift from the system's direction policy.
     """
     del sync_direction  # always derived from external_system
     if not title or not str(title).strip():
@@ -3210,42 +2849,27 @@ def write_tracker(
         "push_hash": push_hash,
     }
     _validate_tracker(fm)
-    path = tracker_path(backlog_path, tid)
-    write_task_file(path, fm, body)
-    return tid, path
+    return fm
 
 
 def read_tracker(backlog_path: Path, tracker_id: str) -> tuple[dict[str, Any], str]:
     return read_task_file(tracker_path(backlog_path, tracker_id))
 
 
-def update_tracker(
-    backlog_path: Path,
-    tracker_id: str,
-    **updates: Any,
-) -> tuple[dict[str, Any], str]:
-    """Apply partial updates to a tracker's frontmatter, validate, and rewrite.
+def apply_tracker_updates(doc: Mapping[str, Any], **updates: Any) -> dict[str, Any]:
+    """Merge partial updates into a tracker document and validate. Pure.
 
-    Body is preserved unchanged unless `body=` is passed. The id and the three
-    fields it derives from (external_system, external_key, instance_alias) are
-    immutable — passing them in updates is silently ignored.
-
-    Passing a field as None clears it (for nullable fields like assignee, url,
-    last_synced, synced_hash). To leave a field untouched, omit it entirely.
+    The id and the three fields it derives from (external_system, external_key,
+    instance_alias) are immutable — passing them in updates is silently ignored.
+    Passing a field as None clears it; omit a field to leave it untouched.
     """
-    fm, body = read_tracker(backlog_path, tracker_id)
-    if fm.get("id") != tracker_id:
-        raise ValueError(
-            f"on-disk tracker id {fm.get('id')!r} does not match requested {tracker_id!r}"
-        )
+    fm = dict(doc)
     _validate_tracker(fm)
-    new_body = updates.pop("body", body)
     for immutable in ("id", "external_system", "external_key", "instance_alias", "sync_direction"):
         updates.pop(immutable, None)
     fm.update(updates)
     _validate_tracker(fm)
-    write_task_file(tracker_path(backlog_path, tracker_id), fm, new_body)
-    return fm, new_body
+    return fm
 
 
 def _tracker_index_entry(fm: dict[str, Any]) -> dict[str, Any]:
@@ -3254,20 +2878,13 @@ def _tracker_index_entry(fm: dict[str, Any]) -> dict[str, Any]:
 
 def sync_tracker_index(
     backlog_data: dict[str, Any],
-    backlog_path: Path,
+    rows: "Iterable[tuple[str, Mapping[str, Any], str | None]]",
 ) -> dict[str, Any]:
-    """Rebuild backlog_data['trackers'] from disk, sorted by id.
+    """Rebuild `backlog_data['trackers']` from live tracker rows, sorted by id.
 
-    No archive/cap — trackers are bounded by the JQL response. A separate
-    `jira archive` command (V1.5) handles decluttering.
+    No archive/cap — trackers are bounded by the external query's response.
     """
-    entries: list[dict[str, Any]] = []
-    for tid in list_tracker_ids(backlog_path):
-        try:
-            fm, _ = read_tracker(backlog_path, tid)
-        except (OSError, ValueError, yaml.YAMLError):
-            continue
-        entries.append(_tracker_index_entry(fm))
+    entries = [_tracker_index_entry(dict(doc)) for _tid, doc, _body in rows]
     entries.sort(key=lambda e: e.get("id", ""))
     backlog_data["trackers"] = entries
     return backlog_data
@@ -3330,7 +2947,7 @@ def load_linear_config(backlog_path: Path) -> dict[str, Any] | None:
     if not path.exists():
         return None
     with path.open("r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f) or {}
+        cfg = yaml_io.safe_load(f) or {}
     _validate_linear_config(cfg)
     return cfg
 
@@ -3441,18 +3058,6 @@ def list_idea_ids(backlog_path: Path) -> list[str]:
     return [p.stem for p in files]
 
 
-def next_idea_id(backlog_path: Path) -> str:
-    """Allocate the next IDEA-NNN id (zero-padded, 3+ digits)."""
-    existing = list_idea_ids(backlog_path)
-    nums: list[int] = []
-    for ident in existing:
-        m = re.search(r"(\d+)$", ident)
-        if m:
-            nums.append(int(m.group(1)))
-    n = (max(nums) + 1) if nums else 1
-    return f"IDEA-{n:03d}"
-
-
 # Required frontmatter fields validated on every write.
 _IDEA_REQUIRED_FIELDS = ("id", "title", "created", "created_by")
 
@@ -3484,42 +3089,35 @@ def _idea_index_line(fm: dict[str, Any]) -> str:
     return f"- {short} — [{iid}]({iid}.md) — {title}{suffix}"
 
 
-def _read_ideas_index(backlog_path: Path) -> list[str]:
-    """Return the data lines (non-header) of IDEAS.md, newest-first preserved."""
-    p = ideas_index_path(backlog_path)
-    if not p.exists():
-        return []
-    return [line for line in p.read_text(encoding="utf-8").splitlines() if line.startswith("- ")]
+def _ideas_index_text(lines: list[str]) -> str:
+    """Canonical IDEAS.md byte shape: the header plus the supplied data lines."""
+    return "# Ideas\n\n" + "\n".join(lines) + ("\n" if lines else "")
 
 
-def _write_ideas_index(backlog_path: Path, lines: list[str]) -> None:
-    """Write IDEAS.md with the canonical header + the supplied data lines."""
-    p = ideas_index_path(backlog_path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    body = "# Ideas\n\n" + "\n".join(lines) + ("\n" if lines else "")
-    atomic_write(p, body)
+def render_ideas_index(entries: Iterable[Mapping[str, Any]]) -> str:
+    """Render the whole IDEAS.md index from idea frontmatter documents.
+
+    Pure: the store calls this with its own idea rows and owns the write, so the
+    index is derived output rather than a second writer of the same file.
+    Newest first, ties broken by id so the render is deterministic.
+    """
+    # A hand-edited idea file can reach the store without a title; rendering it
+    # blank beats raising out of an exporter that owns unrelated writes too.
+    ordered = sorted(
+        (
+            dict(entry, title=entry.get("title") or "")
+            for entry in entries
+            if entry.get("id")
+        ),
+        key=lambda fm: (str(fm.get("created") or ""), str(fm.get("id") or "")),
+        reverse=True,
+    )
+    return _ideas_index_text([_idea_index_line(fm) for fm in ordered])
 
 
-def _index_upsert_line(lines: list[str], idea_id: str, new_line: str) -> list[str]:
-    """Replace the line for `idea_id` if present; otherwise prepend (newest first)."""
-    out: list[str] = []
-    found = False
-    for line in lines:
-        if f"[{idea_id}](" in line:
-            out.append(new_line)
-            found = True
-        else:
-            out.append(line)
-    if not found:
-        out.insert(0, new_line)
-    return out
-
-
-def write_idea(
-    backlog_path: Path,
+def build_idea_doc(
     *,
     title: str,
-    body: str = "",
     tags: list[str] | None = None,
     status: str = "",
     related_tasks: list[str] | None = None,
@@ -3528,39 +3126,18 @@ def write_idea(
     idea_id: str | None = None,
     tldr: str = "",
     tldr_autogen: bool = False,
-) -> tuple[str, Path]:
-    """Create a new idea file. Returns (id, path).
+) -> dict[str, Any]:
+    """Assemble and validate a new idea document. Pure — no id, no write.
 
-    All fields beyond `title` are optional. `created` is auto-stamped as
-    ISO-8601 UTC. Side effect: appends/updates the IDEAS.md index line.
+    `ideas/IDEAS.md` is derived output the store regenerates from its idea rows,
+    so nothing here touches the index.
     """
     if not title or not title.strip():
         raise ValueError("idea title is required")
-    created = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    if idea_id:
-        # Caller-supplied id — overwrite-friendly, single attempt.
-        iid = idea_id
-        target = idea_path(backlog_path, iid)
-        target.parent.mkdir(parents=True, exist_ok=True)
-    else:
-        # Race-safe id allocation: bump-and-retry until exclusive create
-        # succeeds. Two concurrent writers can't both grab the same IDEA-NNN.
-        idea_dir(backlog_path).mkdir(parents=True, exist_ok=True)
-        for _ in range(64):
-            candidate = next_idea_id(backlog_path)
-            candidate_target = idea_path(backlog_path, candidate)
-            try:
-                candidate_target.touch(exist_ok=False)
-                iid, target = candidate, candidate_target
-                break
-            except FileExistsError:
-                continue
-        else:
-            raise RuntimeError("could not allocate IDEA-NNN id after 64 attempts")
     fm: dict[str, Any] = {
-        "id": iid,
+        "id": idea_id,
         "title": title.strip(),
-        "created": created,
+        "created": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "created_by": created_by or "Claude",
         "status": status or "",
         "tags": list(tags or []),
@@ -3572,42 +3149,25 @@ def write_idea(
     }
     if tldr_autogen:
         fm["tldr_autogen"] = True
+    _validate_idea({**fm, "id": fm.get("id") or "IDEA-PENDING"})
+    return fm
+
+
+def apply_idea_updates(doc: Mapping[str, Any], **updates: Any) -> dict[str, Any]:
+    """Merge updates into an idea document and validate. Pure.
+
+    Pass-through merge — None is a legal value (un-promote clears promoted_to).
+    """
+    fm = dict(doc)
+    for k, v in updates.items():
+        fm[k] = v
     _validate_idea(fm)
-    write_task_file(target, fm, body)
-    lines = _index_upsert_line(_read_ideas_index(backlog_path), iid, _idea_index_line(fm))
-    _write_ideas_index(backlog_path, lines)
-    return iid, target
+    return fm
 
 
 def read_idea(backlog_path: Path, idea_id: str) -> tuple[dict[str, Any], str]:
     fm, body = read_task_file(idea_path(backlog_path, idea_id))
     return fm, body.rstrip("\n")
-
-
-def update_idea(
-    backlog_path: Path,
-    idea_id: str,
-    **updates: Any,
-) -> tuple[dict[str, Any], str]:
-    """Patch an idea's frontmatter and/or body. Returns (fm, body) post-write.
-
-    Body is preserved unchanged unless `body=` is passed. The IDEAS.md line
-    for this idea is rewritten in place to reflect the new title / status /
-    archived flag.
-    """
-    target = idea_path(backlog_path, idea_id)
-    if not target.exists():
-        raise FileNotFoundError(f"Idea not found: {idea_id}")
-    fm, body = read_idea(backlog_path, idea_id)
-    new_body = updates.pop("body", body)
-    # Pass-through merge — accepts None values for promoted_to (un-promote).
-    for k, v in updates.items():
-        fm[k] = v
-    _validate_idea(fm)
-    write_task_file(target, fm, new_body)
-    lines = _index_upsert_line(_read_ideas_index(backlog_path), idea_id, _idea_index_line(fm))
-    _write_ideas_index(backlog_path, lines)
-    return fm, new_body
 
 
 def list_ideas(
@@ -3726,18 +3286,6 @@ def list_note_ids(backlog_path: Path, include_archived: bool = False) -> list[st
     return [p.stem for p in sorted(out, key=_rank)]
 
 
-def next_note_id(backlog_path: Path) -> str:
-    """Allocate the next NOTE-NNN id. Considers live AND archived notes so
-    archiving never causes id reuse."""
-    nums: list[int] = []
-    for ident in list_note_ids(backlog_path, include_archived=True):
-        m = re.search(r"(\d+)$", ident)
-        if m:
-            nums.append(int(m.group(1)))
-    n = (max(nums) + 1) if nums else 1
-    return f"NOTE-{n:03d}"
-
-
 def _validate_note(fm: dict[str, Any], body: str) -> None:
     if not body or not body.strip():
         raise ValueError("note text is required")
@@ -3745,18 +3293,20 @@ def _validate_note(fm: dict[str, Any], body: str) -> None:
         raise ValueError(f"note author must be one of {NOTE_AUTHORS}")
 
 
-def write_note(
-    backlog_path: Path,
+def build_note_doc(
     *,
     text: str,
     author: str = "claude",
     pinned: bool = False,
     note_id: str | None = None,
-) -> tuple[str, Path]:
-    """Create a sticky note. Returns (id, path). Body = the note text."""
+) -> tuple[dict[str, Any], str]:
+    """Assemble and validate a new sticky note. Pure. Returns (doc, body).
+
+    The body *is* the note text; a note has no title and no status.
+    """
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     fm: dict[str, Any] = {
-        "id": "PENDING",
+        "id": note_id,
         "author": author,
         "created": now,
         "updated": now,
@@ -3765,67 +3315,40 @@ def write_note(
         "archived_at": None,
     }
     _validate_note(fm, text)
-    if note_id:
-        nid = note_id
-        target = note_path(backlog_path, nid)
-        target.parent.mkdir(parents=True, exist_ok=True)
-    else:
-        note_dir(backlog_path).mkdir(parents=True, exist_ok=True)
-        for _ in range(64):
-            candidate = next_note_id(backlog_path)
-            candidate_target = note_path(backlog_path, candidate)
-            try:
-                candidate_target.touch(exist_ok=False)
-                nid, target = candidate, candidate_target
-                break
-            except FileExistsError:
-                continue
-        else:
-            raise RuntimeError("could not allocate NOTE-NNN id after 64 attempts")
-    fm["id"] = nid
-    write_task_file(target, fm, text.strip())
-    return nid, target
+    return fm, (text or "").strip()
+
+
+def apply_note_updates(
+    doc: Mapping[str, Any],
+    body: str,
+    *,
+    text: str | None = None,
+    pinned: bool | None = None,
+) -> tuple[dict[str, Any], str]:
+    """Patch a note's text and/or pin state and bump `updated`. Pure.
+
+    Author and created are immutable.
+    """
+    fm = dict(doc)
+    new_body = (body or "").rstrip("\n") if text is None else text.strip()
+    if pinned is not None:
+        fm["pinned"] = bool(pinned)
+    fm["updated"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _validate_note(fm, new_body)
+    return fm, new_body
+
+
+def archive_note_doc(doc: Mapping[str, Any]) -> dict[str, Any]:
+    """Stamp the archive flags on a note document. Pure — the move is the store's."""
+    fm = dict(doc)
+    fm["archived"] = True
+    fm["archived_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return fm
 
 
 def read_note(backlog_path: Path, note_id: str) -> tuple[dict[str, Any], str]:
     fm, body = read_task_file(_resolve_note_path(backlog_path, note_id))
     return fm, body.rstrip("\n")
-
-
-def update_note(
-    backlog_path: Path,
-    note_id: str,
-    *,
-    text: str | None = None,
-    pinned: bool | None = None,
-) -> tuple[dict[str, Any], str]:
-    """Patch a note's text and/or pin state. Bumps `updated`. Author and
-    created are immutable."""
-    target = _resolve_note_path(backlog_path, note_id)
-    fm, body = read_task_file(target)
-    body = body.rstrip("\n")
-    new_body = body if text is None else text.strip()
-    if pinned is not None:
-        fm["pinned"] = bool(pinned)
-    fm["updated"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    _validate_note(fm, new_body)
-    write_task_file(target, fm, new_body)
-    return fm, new_body
-
-
-def archive_note(backlog_path: Path, note_id: str) -> dict[str, Any]:
-    """Archive a note: set flags and move the file to _archive/."""
-    live = note_path(backlog_path, note_id)
-    if not live.exists():
-        raise FileNotFoundError(f"Note not found: {note_id}")
-    fm, body = read_task_file(live)
-    fm["archived"] = True
-    fm["archived_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    dest = note_path(backlog_path, note_id, archived=True)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    write_task_file(dest, fm, body.rstrip("\n"))
-    live.unlink()
-    return fm
 
 
 def list_notes(backlog_path: Path, include_archived: bool = False) -> list[dict[str, Any]]:
@@ -3893,20 +3416,15 @@ def _validate_area(fm: dict[str, Any]) -> None:
         )
 
 
-def write_area(backlog_path: Path, fm: dict[str, Any], body: str = "") -> Path:
-    """Create a new Area sidecar file. Returns the written path.
+def validate_area_doc(fm: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate a fully-assembled Area document and return it. Pure.
 
-    `fm` must already be fully assembled (id, name, description, anchors,
-    created) by the caller. Raises ValueError if invalid or if the id is
-    already taken.
+    `fm` must already carry id, name, description, anchors and created — an
+    area's id is caller-derived kebab-case, never allocated.
     """
-    _validate_area(fm)
-    target = area_path(backlog_path, fm["id"])
-    if target.exists():
-        raise ValueError(f"area `{fm['id']}` already exists")
-    target.parent.mkdir(parents=True, exist_ok=True)
-    write_task_file(target, fm, body)
-    return target
+    doc = dict(fm)
+    _validate_area(doc)
+    return doc
 
 
 def read_area(backlog_path: Path, area_id: str) -> tuple[dict[str, Any], str]:
@@ -3917,27 +3435,18 @@ def read_area(backlog_path: Path, area_id: str) -> tuple[dict[str, Any], str]:
     return fm, body.rstrip("\n")
 
 
-def update_area(
-    backlog_path: Path, area_id: str, updates: dict[str, Any]
-) -> tuple[dict[str, Any], str]:
-    """Patch one or more fields on an Area. `id` and `created` are immutable;
-    `status` is rejected — areas have no status field."""
-    target = area_path(backlog_path, area_id)
-    if not target.exists():
-        raise FileNotFoundError(f"Area not found: {area_id}")
-    fm, body = read_task_file(target)
-    body = body.rstrip("\n")
-    if "status" in updates:
-        raise ValueError(
-            "areas have no status field — they are long-lived subsystems, not lifecycle-tracked"
-        )
-    for key in ("id", "created"):
-        if key in updates:
-            raise ValueError(f"area `{key}` is immutable")
-    fm.update(updates)
+def apply_area_updates(
+    doc: Mapping[str, Any], updates: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Patch one or more fields on an Area document and validate. Pure.
+
+    `id` and `created` are immutable — passing them is silently ignored.
+    """
+    fm = dict(doc)
+    patch = {k: v for k, v in updates.items() if k not in ("id", "created")}
+    fm.update(patch)
     _validate_area(fm)
-    write_task_file(target, fm, body)
-    return fm, body
+    return fm
 
 
 def list_areas(backlog_path: Path) -> list[dict[str, Any]]:
@@ -3998,20 +3507,27 @@ VIEWER_PREFS_DEFAULTS = {
 }
 
 
-def viewer_prefs_path() -> Path:
-    root = _resolve_artifact_root()
+def viewer_prefs_path(backlog_path: Path) -> Path:
+    """Where this backlog's viewer prefs live.
+
+    Takes the backlog path the caller already resolved rather than re-deriving
+    a root from the current working directory: the CWD flavour diverged from
+    the writer on `.claude/`-layout and root-layout projects (ISS-004), which is
+    exactly the class of bug the single store root exists to end.
+    """
+    root = backlog_path.parent
     if _is_v4_project(root):
-        return local_dir(root / "backlog.yaml") / "viewer.json"
+        return local_dir(backlog_path) / "viewer.json"
     return root / "viewer.json"
 
-def load_viewer_prefs() -> dict:
+def load_viewer_prefs(backlog_path: Path) -> dict:
     """Load viewer prefs, creating the file with defaults on first call.
     Unknown top-level keys are preserved across reads (forward-compat).
     Missing keys are filled from VIEWER_PREFS_DEFAULTS (deep-merged).
     """
     import json
     from copy import deepcopy
-    p = viewer_prefs_path()
+    p = viewer_prefs_path(backlog_path)
     if not p.exists():
         prefs = deepcopy(VIEWER_PREFS_DEFAULTS)
         atomic_write(p, json.dumps(prefs, indent=2))
@@ -4046,76 +3562,11 @@ def load_viewer_prefs() -> dict:
 
     return _merge(VIEWER_PREFS_DEFAULTS, raw)
 
-def save_viewer_prefs(prefs: dict) -> None:
+def save_viewer_prefs(backlog_path: Path, prefs: dict) -> None:
     import json
-    p = viewer_prefs_path()
+    p = viewer_prefs_path(backlog_path)
     p.parent.mkdir(parents=True, exist_ok=True)
     atomic_write(p, json.dumps(prefs, indent=2))
-
-
-def save_v3(backlog_path: Path, data: dict[str, Any]) -> None:
-    """Save a v3 backlog: slim index → backlog.yaml; heavy fields → per-task files.
-
-    Per-task files are written only when there is heavy content or a body.
-    A task with all-empty heavy fields gets no file (keeps directory tidy).
-    Existing per-task files for tasks that no longer have heavy content are
-    left alone — explicit task deletion handles cleanup.
-    """
-    slim_data: dict[str, Any] = {**data}
-    slim_data["epics"] = []
-    for epic in data.get("epics", []):
-        tasks = epic.get("tasks", [])
-        epic_meta = {k: v for k, v in epic.items() if k != "tasks"}
-        slim_meta, epic_heavy, epic_body = _split_entity_for_v3(epic_meta, EPIC_HEAVY_FIELDS)
-        eid = slim_meta.get("id")
-        if eid and (any(k in epic_heavy for k in EPIC_HEAVY_FIELDS) or epic_body):
-            write_task_file(epic_file_path(backlog_path, eid), epic_heavy, epic_body)
-            slim_epic = {**slim_meta, "tasks": []}
-        else:
-            # No per-epic file written (no id, or no heavy content): keep the
-            # full meta inline so heavy fields are never silently dropped.
-            # Delete any stale body file so a cleared last heavy field can't
-            # resurrect on the next load. Guard on a truthy id — no None.md.
-            if eid:
-                _remove_entity_file(epic_file_path(backlog_path, eid))
-            slim_epic = {**epic_meta, "tasks": []}
-        for task in tasks:
-            slim_task, heavy_fm, body = _split_task_for_v3(task)
-            slim_epic["tasks"].append(slim_task)
-            tid = slim_task.get("id")
-            if not tid:
-                continue
-            if any(k in heavy_fm for k in HEAVY_FIELDS) or bool(body):
-                write_task_file(task_file_path(backlog_path, tid), heavy_fm, body)
-            else:
-                # No heavy content: delete any stale per-task body file so a
-                # cleared last heavy field can't resurrect on the next load.
-                # tid is truthy here (guarded by `if not tid: continue` above).
-                _remove_entity_file(task_file_path(backlog_path, tid))
-        slim_data["epics"].append(slim_epic)
-
-    if "phases" in slim_data:
-        slim_phases: list[dict[str, Any]] = []
-        for phase in data.get("phases", []):
-            slim_phase, phase_heavy, phase_body = _split_entity_for_v3(phase, PHASE_HEAVY_FIELDS)
-            pid = slim_phase.get("id")
-            if pid and (any(k in phase_heavy for k in PHASE_HEAVY_FIELDS) or phase_body):
-                write_task_file(phase_file_path(backlog_path, pid), phase_heavy, phase_body)
-                slim_phases.append(slim_phase)
-            else:
-                # No per-phase file written: keep the full phase dict inline so
-                # heavy fields are never silently dropped. Delete any stale body
-                # file so a cleared last heavy field can't resurrect on the next
-                # load. Guard on a truthy id — no None.md.
-                if pid:
-                    _remove_entity_file(phase_file_path(backlog_path, pid))
-                slim_phases.append(phase)
-        slim_data["phases"] = slim_phases
-
-    atomic_write(
-        backlog_path,
-        yaml.dump(slim_data, default_flow_style=False, sort_keys=False, allow_unicode=True),
-    )
 
 
 def _v4_strip_private_fields(value: Any, *, preserve_body: bool = False) -> Any:
@@ -4138,101 +3589,6 @@ def _v4_strip_private_fields(value: Any, *, preserve_body: bool = False) -> Any:
     if isinstance(value, list):
         return [_v4_strip_private_fields(child) for child in value]
     return value
-
-
-def save_v4(
-    backlog_path: Path,
-    data: dict[str, Any],
-    snapshot: dict[str, Any] | None = None,
-) -> None:
-    """Save a v4 backlog: every task field -> tasks/<id>.md; backlog.yaml holds
-    only meta (minus `updated`) + phases + epic definitions (no task lists).
-
-    `snapshot` (a deep copy of the dict returned by the matching load) enables
-    dirty-scoped writes: only tasks that differ from the snapshot are written
-    (see _v4_write_task, filled in Task 6). snapshot=None writes every task --
-    the baseline used by migration and by tests.
-    """
-    # 1. Task files.
-    for epic in data.get("epics", []):
-        for task in epic.get("tasks", []):
-            tid = task.get("id")
-            if not tid:
-                continue
-            _v4_write_task(backlog_path, task, snapshot)
-
-    # Delete task files for ids removed since load (never touch archived files --
-    # archival is a move into tasks/archive/, handled by the archive tool).
-    live_ids = {
-        task.get("id")
-        for epic in data.get("epics", [])
-        for task in epic.get("tasks", [])
-    }
-    for tid in _v4_snapshot_tasks(snapshot):
-        if tid not in live_ids:
-            _remove_entity_file(task_file_path(backlog_path, tid))
-
-    # 2. Epic / phase body files (identical policy to save_v3).
-    slim_data: dict[str, Any] = {
-        k: _v4_strip_private_fields(v)
-        for k, v in data.items()
-        if not k.startswith("_")
-    }
-    slim_data["epics"] = []
-    for epic in data.get("epics", []):
-        epic_meta = _v4_strip_private_fields(
-            {k: v for k, v in epic.items() if k != "tasks"},
-            preserve_body=True,
-        )
-        slim_meta, epic_heavy, epic_body = _split_entity_for_v3(epic_meta, EPIC_HEAVY_FIELDS)
-        eid = slim_meta.get("id")
-        if eid and (any(k in epic_heavy for k in EPIC_HEAVY_FIELDS) or epic_body):
-            write_task_file(epic_file_path(backlog_path, eid), epic_heavy, epic_body)
-            slim_data["epics"].append(slim_meta)
-        else:
-            if eid:
-                _remove_entity_file(epic_file_path(backlog_path, eid))
-            slim_data["epics"].append(epic_meta)
-
-    if "phases" in slim_data:
-        slim_phases: list[dict[str, Any]] = []
-        for phase in data.get("phases", []):
-            persistable_phase = _v4_strip_private_fields(phase, preserve_body=True)
-            slim_phase, phase_heavy, phase_body = _split_entity_for_v3(
-                persistable_phase, PHASE_HEAVY_FIELDS
-            )
-            pid = slim_phase.get("id")
-            if pid and (any(k in phase_heavy for k in PHASE_HEAVY_FIELDS) or phase_body):
-                write_task_file(phase_file_path(backlog_path, pid), phase_heavy, phase_body)
-                slim_phases.append(slim_phase)
-            else:
-                if pid:
-                    _remove_entity_file(phase_file_path(backlog_path, pid))
-                slim_phases.append(phase)
-        slim_data["phases"] = slim_phases
-
-    # 3. Slim backlog.yaml -- never carries task lists or `meta.updated`.
-    if isinstance(slim_data.get("meta"), dict):
-        slim_data["meta"] = {k: v for k, v in slim_data["meta"].items() if k != "updated"}
-    atomic_write(
-        backlog_path,
-        yaml.dump(slim_data, default_flow_style=False, sort_keys=False, allow_unicode=True),
-    )
-
-
-def _v4_snapshot_tasks(
-    snapshot: dict[str, Any] | None,
-) -> dict[str, dict[str, Any]]:
-    """Flatten a load snapshot into {task_id: task_dict} for dirty diffing."""
-    index: dict[str, dict[str, Any]] = {}
-    if not snapshot:
-        return index
-    for epic in snapshot.get("epics", []):
-        for task in epic.get("tasks", []):
-            tid = task.get("id")
-            if tid:
-                index[tid] = task
-    return index
 
 
 _MISSING = object()
@@ -4264,46 +3620,6 @@ def _three_way_merge_fields(
     return result
 
 
-def _merge_task_with_disk(
-    base_task: dict[str, Any], mem_task: dict[str, Any], disk_path: Path
-) -> tuple[dict[str, Any], str]:
-    """Three-way merge an in-memory task against its current disk file."""
-    persistable_base = _v4_strip_private_fields(base_task, preserve_body=True)
-    persistable_mem = _v4_strip_private_fields(mem_task, preserve_body=True)
-    base_fm, base_body = task_v4_to_file(persistable_base)
-    mem_fm, mem_body = task_v4_to_file(persistable_mem)
-    disk_fm, disk_body = read_task_file(disk_path)
-    persistable_disk_fm = _v4_strip_private_fields(disk_fm)
-    merged_fm = _three_way_merge_fields(base_fm, mem_fm, persistable_disk_fm)
-    merged_body = mem_body if mem_body != base_body else disk_body
-    return merged_fm, merged_body
-
-
-def _v4_write_task(
-    backlog_path: Path, task: dict[str, Any], snapshot: dict[str, Any] | None
-) -> None:
-    """Write one task file, dirty-scoped and merge-aware."""
-    snap_index = _v4_snapshot_tasks(snapshot)
-    prior = snap_index.get(task["id"])
-    if prior is not None and prior == task:
-        return
-    path = task_file_path(backlog_path, task["id"])
-    if prior is not None and path.exists():
-        disk_fm, disk_body = read_task_file(path)
-        persistable_prior = _v4_strip_private_fields(prior, preserve_body=True)
-        base_fm, base_body = task_v4_to_file(persistable_prior)
-        if (disk_fm, disk_body) != (base_fm, base_body):
-            merged_fm, merged_body = _merge_task_with_disk(prior, task, path)
-            write_task_file(path, merged_fm, merged_body)
-            return
-    persistable_task = _v4_strip_private_fields(task, preserve_body=True)
-    fm, body = task_v4_to_file(persistable_task)
-    write_task_file(path, fm, body)
-
-
-# ---- Sessions ------------------------------------------------------------
-
-
 def _parse_iso8601(s) -> "datetime":
     from datetime import datetime, timezone
     if isinstance(s, datetime):
@@ -4331,30 +3647,28 @@ def _handover_time(h: dict):
     return _parse_iso8601(raw)
 
 
-def list_sessions() -> list[dict]:
-    """One diary lane per thread, synthesised from on-disk handover files.
+def list_sessions(
+    handover_rows: "Iterable[tuple[str, Mapping[str, Any], str | None]]",
+) -> list[dict]:
+    """One diary lane per thread, synthesised from the committed handover rows.
+
+    `handover_rows` is `Transaction.list("handover")` output. Globbing
+    `handovers/*.md` instead reported the export, not the store: a handover
+    whose file write failed its retry, or a project on network storage the
+    store cannot export to at all, simply vanished from the timeline.
 
     Groups handovers by their `thread` frontmatter; threadless (legacy)
     handovers each form a solo lane keyed by their own id. Rows are
     session-shaped for the viewer timeline: overlapping lanes render as
     parallel columns client-side. Newest end-time first.
     """
-    handovers_dir = _resolve_artifact_root() / "handovers"
-    if not handovers_dir.exists():
-        return []
     raw: list[dict] = []
-    for p in sorted(handovers_dir.glob("*.md")):
-        try:
-            text = p.read_text(encoding="utf-8")
-            m = _MD_FRONTMATTER_RE.match(text)
-            if not m:
-                continue
-            fm = yaml.safe_load(m.group(1)) or {}
-            if "id" not in fm or ("date" not in fm and "created" not in fm):
-                continue
-            raw.append(fm)
-        except Exception:
+    for hid, doc, _body in handover_rows:
+        fm = dict(doc)
+        fm.setdefault("id", hid)
+        if "date" not in fm and "created" not in fm:
             continue
+        raw.append(fm)
     raw.sort(key=lambda h: _handover_time(h))
 
     lanes: dict[str, list[dict]] = {}
@@ -4401,65 +3715,40 @@ def list_sessions() -> list[dict]:
     return sessions
 
 
-def _load_handover_full(handover_id: str) -> dict | None:
-    """Load a handover's frontmatter + body_md by id."""
-    p = _resolve_artifact_root() / "handovers" / f"{handover_id}.md"
-    if not p.exists():
-        return None
-    text = p.read_text(encoding="utf-8")
-    m = _MD_FRONTMATTER_RE.match(text)
-    if not m:
-        return None
-    fm = yaml.safe_load(m.group(1)) or {}
-    body = text[m.end():].strip()
-    fm["resume_prompt"] = body          # body is the resume prompt artifact
+def handover_full_from_row(
+    handover_id: str, doc: "Mapping[str, Any]", body: str | None
+) -> dict:
+    """One committed handover row in the shape the session detail view wants."""
+    fm = dict(doc)
+    fm.setdefault("id", handover_id)
+    fm["resume_prompt"] = (body or "").strip()   # body is the resume prompt artifact
     fm["viewer_kind"] = HANDOVER_KIND_TO_VIEWER_KIND.get(
         fm.get("session_kind"), "standalone"
     )
     return fm
 
 
-def get_session_detail(session_id: str) -> dict | None:
-    """Bundle one session with its handovers and task ids."""
-    sessions = list_sessions()
+def get_session_detail(
+    session_id: str,
+    handover_rows: "Iterable[tuple[str, Mapping[str, Any], str | None]]",
+) -> dict | None:
+    """Bundle one session with its handovers and task ids, all from rows."""
+    rows = list(handover_rows)
+    sessions = list_sessions(rows)
     target = next((s for s in sessions if s["id"] == session_id), None)
     if target is None:
         return None
+    by_id = {doc.get("id") or hid: (hid, doc, body) for hid, doc, body in rows}
     handovers = []
     for hid in target["handover_ids"]:
-        h = _load_handover_full(hid)
-        if h is not None:
-            handovers.append(h)
+        row = by_id.get(hid)
+        if row is not None:
+            handovers.append(handover_full_from_row(*row))
     return {
         "session": target,
         "handovers": handovers,
         "task_ids": target["task_ids"],
     }
-
-
-def load_issue(issue_id: str) -> dict:
-    """Load an issue by id from <backlog-parent>/issues/<id>.md in CWD.
-
-    Returns a dict with frontmatter fields plus '_body'.
-    """
-    p = _resolve_artifact_root() / "issues" / f"{issue_id}.md"
-    fm, body = parse_frontmatter(p.read_text(encoding="utf-8"))
-    fm["_body"] = body
-    return fm
-
-
-def list_issue_ids_cwd() -> list[str]:
-    """List issue ids from <backlog-parent>/issues/ in the current working directory."""
-    import re as _re
-    d = _resolve_artifact_root() / "issues"
-    if not d.exists():
-        return []
-
-    def _rank(p: Path) -> int:
-        m = _re.search(r"(\d+)$", p.stem)
-        return int(m.group(1)) if m else -1
-
-    return [p.stem for p in sorted(d.glob("ISS-*.md"), key=_rank)]
 
 
 SEVERITY_LABEL = {"P0": "Critical", "P1": "High", "P2": "Medium", "P3": "Low"}
@@ -4515,130 +3804,15 @@ def compute_issue_aging(issue: dict, aging_cfg: dict, now=None) -> dict:
     return {"percent": pct, "tier": tier}
 
 
-# ── Edit-in-UI write primitives (v3-edit Phase A) ──────────────────
-
-import contextlib
-
-_threadlocal_locks: dict[str, "threading.Lock"] = {}
-
-
-@contextlib.contextmanager
-def with_file_lock(path: Path):
-    """Per-file mutex for write paths.
-
-    Uses a `.lock` sidecar adjacent to the target file. Falls back to a
-    threading-local lock if the `filelock` package isn't available — local
-    use is single-process so this is acceptable; future cross-process
-    safety lands when filelock becomes a hard dep.
-    """
-    try:
-        from filelock import FileLock
-        lock = FileLock(str(path) + ".lock", timeout=5)
-        with lock:
-            yield
-    except ImportError:
-        import threading
-        lock = _threadlocal_locks.setdefault(str(path), threading.Lock())
-        with lock:
-            yield
+# ── Edit-in-UI helpers (v3-edit Phase A) ──────────────────────
+# `with_file_lock`, `create_task`, `update_task` and `archive_task` used to
+# live here and rewrote the projection under a sidecar `.lock`. The store
+# owns those writes now (see `backlog_server._viewer_*`), so only the pure
+# validation helper below remains.
 
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def _find_task_in_yaml(data: dict, task_id: str) -> tuple[dict, dict] | None:
-    """Return (epic_dict, task_dict) for a v2-nested layout, or None."""
-    for epic in data.get("epics") or []:
-        for t in epic.get("tasks") or []:
-            if t.get("id") == task_id:
-                return epic, t
-    return None
-
-
-def update_task(task_id: str, patch: dict, backlog_path: Path | None = None) -> dict:
-    """Apply a partial update to a task. Returns the new task dict.
-
-    - Auto-stamps `started` on first transition into `in-progress` (or any
-      non-todo state from `todo`).
-    - Auto-stamps `completed` on transition into `done`.
-    - Never overwrites `started`/`completed` once set.
-    """
-    bp = backlog_path or _resolve_backlog_path()
-    with with_file_lock(bp):
-        raw = yaml.safe_load(bp.read_text(encoding="utf-8")) or {}
-        version = detect_schema_version(raw)
-        if version >= SCHEMA_V4:
-            from copy import deepcopy
-
-            data = load_v4(bp)
-            snapshot = deepcopy(data)
-        else:
-            data = raw
-            snapshot = None
-        found = _find_task_in_yaml(data, task_id)
-        if found is None:
-            raise KeyError(f"task {task_id} not found")
-        epic, task = found
-        before_status = task.get("status")
-        for k, v in patch.items():
-            task[k] = v
-        after_status = task.get("status")
-        if after_status != before_status:
-            if after_status == "in-progress" and not task.get("started"):
-                task["started"] = _now_iso()
-            if after_status == "done" and not task.get("completed"):
-                task["completed"] = _now_iso()
-        # done clears the human-only blocker (parity with every other done path).
-        if after_status == "done":
-            task.pop("human_action", None)
-        task["last_referenced"] = _now_iso()
-        if version >= SCHEMA_V4:
-            save_v4(bp, data, snapshot=snapshot)
-        else:
-            atomic_write(bp, yaml.safe_dump(data, sort_keys=False))
-        return dict(task)
-
-
-def create_task(payload: dict, backlog_path: Path | None = None) -> str:
-    """Create a new task under the given epic. Returns assigned id."""
-    bp = backlog_path or _resolve_backlog_path()
-    epic_id = payload.get("epic")
-    if not epic_id:
-        raise ValueError("epic is required")
-    with with_file_lock(bp):
-        data = yaml.safe_load(bp.read_text(encoding="utf-8")) or {}
-        epic = next((e for e in (data.get("epics") or []) if e.get("id") == epic_id), None)
-        if epic is None:
-            raise KeyError(f"epic {epic_id} not found")
-        existing_ids = {t.get("id") for t in (epic.get("tasks") or [])}
-        # Generate next id like e1-002.
-        n = 1
-        while f"{epic_id}-{n:03d}" in existing_ids:
-            n += 1
-        new_id = f"{epic_id}-{n:03d}"
-        new_task = {
-            "id": new_id,
-            "title": payload.get("title", ""),
-            "status": payload.get("status", "todo"),
-            "priority": payload.get("priority", "medium"),
-            "created": _now_iso(),
-            "last_referenced": _now_iso(),
-        }
-        # Pass through other supplied fields (phase, anchors, depends_on, etc).
-        for k, v in payload.items():
-            if k not in ("epic", "id"):
-                new_task[k] = v
-        epic.setdefault("tasks", []).append(new_task)
-        atomic_write(bp, yaml.safe_dump(data, sort_keys=False))
-        return new_id
-
-
-def archive_task(task_id: str, backlog_path: Path | None = None) -> None:
-    """Soft-delete: set status to 'archived'. The existing
-    backlog_archive_task MCP tool already does this for v2 backlogs;
-    we mirror the behavior here so HTTP shares the code path."""
-    update_task(task_id, {"status": "archived"}, backlog_path=backlog_path)
 
 
 def _resolve_backlog_path() -> Path:
@@ -4647,14 +3821,30 @@ def _resolve_backlog_path() -> Path:
     return _backlog_path()
 
 
-def validate_task_write(task_id: str, patch: dict, backlog_path: Path | None = None) -> dict[str, str]:
+def validate_task_write(
+    task_id: str,
+    patch: dict,
+    backlog_path: Path | None = None,
+    *,
+    data: dict | None = None,
+) -> dict[str, str]:
     """Run cross-entity validation for a proposed task write.
 
     Returns a dict { field: error_message }. Empty dict means valid.
     Pure function — does not persist.
+
+    Pass `data` to validate against state the caller already holds. Every
+    production caller does: the store is authoritative, so a gate that read the
+    projection files itself could not see a concurrent committed write and
+    would decide on stale state. The file read below is the fallback for tests
+    and tools that have no store transaction open.
     """
     bp = backlog_path or _resolve_backlog_path()
-    data = yaml.safe_load(bp.read_text(encoding="utf-8")) or {}
+    if data is None:
+        # Read through the schema-appropriate loader: the v4 projection keeps
+        # the task index in tasks/<id>.md, so a raw backlog.yaml read finds no
+        # tasks and every patch is rejected as "task not found".
+        data, _is_v4 = _load_task_entities(bp)
     errors: dict[str, str] = {}
 
     # Build helper maps.
@@ -4675,9 +3865,20 @@ def validate_task_write(task_id: str, patch: dict, backlog_path: Path | None = N
     # Compose the proposed state.
     proposed = {**(me or {}), **patch}  # noqa: F841 — kept for future cross-field rules
 
-    # Epic must exist.
-    if "epic" in patch and patch["epic"] and patch["epic"] not in epic_ids:
-        errors["epic"] = f"unknown epic: {patch['epic']}"
+    # Identity is immutable.  A patch that renamed a task used to commit a copy
+    # under the new id while the original row survived, so the board showed the
+    # task twice and later edits went to whichever one the reader found first.
+    if "id" in patch and task_id != "<new>" and str(patch["id"]) != task_id:
+        errors["id"] = f"task id is immutable: {task_id} cannot become {patch['id']}"
+
+    # Epic must exist, and a task must always have one: an epic-less task is
+    # unreachable through every compatibility read, which is data loss dressed
+    # up as a successful update.
+    if "epic" in patch:
+        if not patch["epic"]:
+            errors["epic"] = "epic is required — a task cannot be left without one"
+        elif patch["epic"] not in epic_ids:
+            errors["epic"] = f"unknown epic: {patch['epic']}"
 
     # Area must exist (areas live in files, not `data`).
     if "area" in patch and patch["area"] and patch["area"] not in list_area_ids(bp):
@@ -4733,22 +3934,6 @@ def _has_cycle_to(adj: dict, target: str) -> bool:
         seen.add(cur)
         stack.extend(adj.get(cur, []))
     return False
-
-
-def compute_etag(path: Path) -> str:
-    """Stable, cheap ETag derived from file mtime + content hash.
-
-    Returns an 16-hex-char string suitable for HTTP ETag headers.
-    """
-    if not path.exists():
-        return ""
-    st = path.stat()
-    h = hashlib.sha1()
-    h.update(str(st.st_mtime_ns).encode())
-    # Also hash content so two writes with identical content (e.g. same byte
-    # body) collapse to the same etag — desirable for cache stability.
-    h.update(path.read_bytes())
-    return h.hexdigest()[:16]
 
 
 # ----------------------------------------------------------------------------
@@ -4903,26 +4088,64 @@ def _idea_to_item(idea: dict[str, Any], now: datetime | None = None) -> dict[str
     }
 
 
+def _rows_of(data: "Mapping[str, Any] | None", kind: str):
+    """`(id, doc, body)` rows of one kind out of a loaded compatibility dict.
+
+    `None` when the caller passed no dict, which is what selects the directory
+    scan. Archived rows carry `archived: True` and are dropped here, the same
+    filter `backlog_server._dict_rows` applies.
+    """
+    if data is None:
+        return None
+    rows = (data.get("_rows") or {}).get(kind)
+    if rows is None:
+        return None
+    return [
+        (ident, rows[ident][0], rows[ident][1])
+        for ident in sorted(rows)
+        if not rows[ident][0].get("archived")
+    ]
+
+
 def continuity_items(
     backlog_path: Path,
     *,
     include_auto_stage: bool = False,
     now: datetime | None = None,
+    handover_rows: "Iterable[tuple[str, Mapping[str, Any], str | None]] | None" = None,
+    data: "Mapping[str, Any] | None" = None,
 ) -> list[dict[str, Any]]:
-    """Project all backlog entities to a unified ContinuityItem list."""
+    """Project all backlog entities to a unified ContinuityItem list.
+
+    `handover_rows` is `Transaction.list("handover")` output and `data` is the
+    store's compatibility dict. A caller that holds either passes it so the rail
+    reports what the store committed (design spec decision 1: nothing parses
+    files to answer a query on a warm store); the directory scan is the fallback
+    for a caller with no store.
+
+    Tasks in particular *have* to come from `data`: the v4 exporter strips
+    `tasks` from every epic in `backlog.yaml`, so reading them from the file
+    yielded nothing at all and the rail showed no task items on any v4 project.
+    """
     items: list[dict[str, Any]] = []
 
     # Handovers. Promote the most-recent N done handovers to 'resume' so the
     # rail surfaces useful recent history alongside currently-open ones.
     handover_items: list[dict[str, Any]] = []
-    for hid in list_handover_ids(backlog_path):
-        try:
-            fm, _ = read_handover(backlog_path, hid)
-        except (OSError, ValueError):
-            continue
+    if handover_rows is None:
+        rows: list[tuple[str, Mapping[str, Any], str | None]] = []
+        for hid in list_handover_ids(backlog_path):
+            try:
+                fm, body = read_handover(backlog_path, hid)
+            except (OSError, ValueError):
+                continue
+            rows.append((hid, fm, body))
+    else:
+        rows = sort_handover_rows(handover_rows)
+    for _hid, fm, _body in rows:
         if not include_auto_stage and fm.get("session_kind") == "auto-stage":
             continue
-        handover_items.append(_handover_to_item(fm, now))
+        handover_items.append(_handover_to_item(dict(fm), now))
     handover_items.sort(key=lambda it: it.get("timestamp") or "", reverse=True)
     done_promoted = 0
     for it in handover_items:
@@ -4932,19 +4155,27 @@ def continuity_items(
     items.extend(handover_items)
 
     # Decisions.
-    for did in list_decision_ids(backlog_path):
-        try:
-            fm, _ = read_decision(backlog_path, did)
-        except (OSError, ValueError):
-            continue
-        items.append(_decision_to_item(fm, now))
+    decision_rows = _rows_of(data, "decision")
+    if decision_rows is None:
+        for did in list_decision_ids(backlog_path):
+            try:
+                fm, _ = read_decision(backlog_path, did)
+            except (OSError, ValueError):
+                continue
+            items.append(_decision_to_item(fm, now))
+    else:
+        for _did, doc, _body in decision_rows:
+            items.append(_decision_to_item(dict(doc), now))
 
-    # Tasks (from backlog.yaml epics).
-    try:
-        data = yaml.safe_load(backlog_path.read_text(encoding="utf-8")) or {}
-    except (OSError, yaml.YAMLError):
-        data = {}
-    for epic in data.get("epics", []) or []:
+    # Tasks.
+    if data is None:
+        try:
+            tree = yaml_io.safe_load(backlog_path.read_text(encoding="utf-8")) or {}
+        except (OSError, yaml.YAMLError):
+            tree = {}
+    else:
+        tree = data
+    for epic in tree.get("epics", []) or []:
         for t in epic.get("tasks", []) or []:
             tid = t.get("id")
             if not tid:
@@ -4952,20 +4183,30 @@ def continuity_items(
             items.append(_task_to_item(t, tid, now))
 
     # Issues.
-    for iid in list_issue_ids(backlog_path):
-        try:
-            fm, _ = read_issue(backlog_path, iid)
-        except (OSError, ValueError):
-            continue
-        items.append(_issue_to_item(fm, now))
+    issue_rows = _rows_of(data, "issue")
+    if issue_rows is None:
+        for iid in list_issue_ids(backlog_path):
+            try:
+                fm, _ = read_issue(backlog_path, iid)
+            except (OSError, ValueError):
+                continue
+            items.append(_issue_to_item(fm, now))
+    else:
+        for _iid, doc, _body in issue_rows:
+            items.append(_issue_to_item(dict(doc), now))
 
     # Ideas.
-    for idid in list_idea_ids(backlog_path):
-        try:
-            fm, _ = read_idea(backlog_path, idid)
-        except (OSError, ValueError):
-            continue
-        items.append(_idea_to_item(fm, now))
+    idea_rows = _rows_of(data, "idea")
+    if idea_rows is None:
+        for idid in list_idea_ids(backlog_path):
+            try:
+                fm, _ = read_idea(backlog_path, idid)
+            except (OSError, ValueError):
+                continue
+            items.append(_idea_to_item(fm, now))
+    else:
+        for _idid, doc, _body in idea_rows:
+            items.append(_idea_to_item(dict(doc), now))
 
     return items
 
@@ -4974,18 +4215,44 @@ def continuity_items(
 
 # Per-kind path helpers used by the dispatcher. They all live next to
 # backlog.yaml under <kind>s/<id>.md.
-_ENTITY_PATH_HELPERS: dict[str, Any] = {
-    "handover": handover_path,
-    "issue":    issue_path,
-    "idea":     idea_path,
-}
-
-
 def _load_task_entities(backlog_path: Path) -> tuple[dict[str, Any], bool]:
     """Load task entities through the schema-appropriate storage reader."""
-    raw = yaml.safe_load(backlog_path.read_text(encoding="utf-8")) or {}
+    raw = yaml_io.safe_load(backlog_path.read_text(encoding="utf-8")) or {}
     is_v4 = detect_schema_version(raw) >= SCHEMA_V4
     return (load_v4(backlog_path) if is_v4 else load_v3(backlog_path), is_v4)
+
+# Tasks, epics and phases are owned by `taskmaster.store`; this module keeps
+# only the parsers, renderers, path helpers and merge logic. `backlog_server`
+# installs the store-backed task reader/writer here at import time so the shared
+# link and auto-link engine below never writes `tasks/<id>.md` itself.
+_ENTITY_IO: dict[str, Any] = {"read": None, "write": None}
+
+
+def configure_entity_io(*, read, write) -> None:
+    """Point the entity dispatcher at the store's reader/writer.
+
+    Every kind goes through these hooks, not only tasks: the store owns the
+    whole projection now, so a link written onto a handover or an issue has to
+    commit through the same transaction as the link on its peer.
+    """
+    _ENTITY_IO["read"] = read
+    _ENTITY_IO["write"] = write
+
+
+def _entity_io(name: str):
+    handler = _ENTITY_IO[name]
+    if handler is None:
+        # Importing the server installs the hooks; do it lazily to stay free of
+        # an import cycle.
+        from taskmaster import backlog_server  # noqa: PLC0415,F401
+
+        handler = _ENTITY_IO[name]
+    if handler is None:  # pragma: no cover - defensive
+        raise RuntimeError(
+            "entity IO is owned by taskmaster.store; call configure_entity_io first"
+        )
+    return handler
+
 
 def read_entity_anywhere(
     backlog_path: Path,
@@ -5007,69 +4274,27 @@ def read_entity_anywhere(
     kind = entity_kind_of(entity_id)
     if kind is None:
         return None
-    if kind == "task":
-        data, _ = _load_task_entities(backlog_path)
-        for epic in data.get("epics", []):
-            for task in epic.get("tasks", []):
-                if task.get("id") == entity_id:
-                    if fallback:
-                        _fallback_links_if_absent(task, "task")
-                    return task
+    entity = _entity_io("read")(backlog_path, kind, entity_id)
+    if entity is None:
         return None
-    reader = {
-        "handover": read_handover,
-        "issue":    read_issue,
-        "idea":     read_idea,
-    }[kind]
-    try:
-        fm, body = reader(backlog_path, entity_id)
-    except FileNotFoundError:
-        return None
-    fm = dict(fm)
-    if body:
-        fm[BODY_KEY] = body
+    entity = dict(entity)
     if fallback:
-        _fallback_links_if_absent(fm, kind)
-    return fm
+        _fallback_links_if_absent(entity, kind)
+    return entity
 
 
 def write_entity_anywhere(backlog_path: Path, entity: dict) -> None:
-    """Persist an entity's frontmatter + body via the right writer.
+    """Persist an entity's frontmatter + body through the store.
 
-    For tasks: round-trips through load_v3/save_v3 so the slim index stays
-    consistent. For non-task entities: writes the per-entity markdown file
-    via write_task_file (path lookup by kind). The body is read from
-    entity[BODY_KEY] (popped to avoid persisting that key as frontmatter).
+    Every kind — task, handover, issue, idea — hands the whole document to the
+    configured store hook, which commits it inside the caller's transaction.
+    The body travels under BODY_KEY and the hook splits it out.
     """
     entity_id = entity.get("id")
     kind = entity_kind_of(entity_id)
     if kind is None:
         raise ValueError(f"unknown entity kind for id={entity_id!r}")
-    if kind == "task":
-        data, is_v4 = _load_task_entities(backlog_path)
-        if is_v4:
-            from copy import deepcopy
-
-            snapshot = deepcopy(data)
-        for epic in data.get("epics", []):
-            tasks = epic.get("tasks", [])
-            for i, task in enumerate(tasks):
-                if task.get("id") == entity_id:
-                    # Strip body-key before persisting (save_v3 routes it through
-                    # _split_task_for_v3 which already understands BODY_KEY).
-                    tasks[i] = dict(entity)
-                    if is_v4:
-                        save_v4(backlog_path, data, snapshot=snapshot)
-                    else:
-                        save_v3(backlog_path, data)
-                    return
-        raise KeyError(f"task {entity_id!r} not found")
-    # Non-task: split frontmatter vs body, then write via the path helper.
-    fm = dict(entity)
-    body = fm.pop(BODY_KEY, "") or ""
-    path_helper = _ENTITY_PATH_HELPERS[kind]
-    target = path_helper(backlog_path, entity_id)
-    write_task_file(target, fm, body)
+    _entity_io("write")(backlog_path, kind, dict(entity))
 
 
 def sync_inverse(

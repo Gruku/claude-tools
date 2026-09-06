@@ -9,13 +9,14 @@ import json
 import os
 import re
 import socket
+import sqlite3
 import subprocess
 import sys
 import threading
 import urllib.request
 import uuid
 import webbrowser
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from functools import partial
 from http import HTTPStatus
 from copy import deepcopy
@@ -25,6 +26,12 @@ from typing import Any, Literal
 
 import yaml
 from fastmcp import FastMCP
+
+from contextlib import contextmanager
+from functools import wraps
+
+from taskmaster import store
+from taskmaster import yaml_io
 from taskmaster.blast_radius import (
     BlastRadiusConfig,
     load_config,
@@ -32,7 +39,48 @@ from taskmaster.blast_radius import (
     analyze_evidence,
 )
 
-mcp = FastMCP("taskmaster")
+def _guard_legacy_layout(fn):
+    """Turn a refused legacy layout into a tool result, never a traceback.
+
+    `store.open_store` refuses any backlog directory that is not `.taskmaster`
+    (there is exactly one store location).  Every MCP tool goes through this
+    wrapper so the caller reads the actionable message instead of a stack trace
+    or, worse, an empty backlog.
+    """
+
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except store.LegacyLayoutError as exc:
+            return f"Error: {exc}"
+
+    return wrapper
+
+
+class _GuardedToolRegistrar:
+    """`FastMCP`, with the legacy-layout guard applied to every tool it registers.
+
+    Wrapping at registration is the only chokepoint that cannot be forgotten
+    when a new tool is added; everything else on the server is delegated.
+    """
+
+    def __init__(self, inner):
+        self._inner = inner
+
+    def tool(self, *args, **kwargs):
+        decorator = self._inner.tool(*args, **kwargs)
+
+        def register(fn):
+            return decorator(_guard_legacy_layout(fn))
+
+        return register
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+
+mcp = _GuardedToolRegistrar(FastMCP("taskmaster"))
 
 # Repo/plugin root — this module lives in the taskmaster/ package, one level down.
 SCRIPT_DIR = Path(__file__).resolve().parent.parent
@@ -74,34 +122,30 @@ from taskmaster.taskmaster_v3 import (
     HANDOVER_KINDS,
     HEAVY_FIELDS as _HEAVY_FIELDS,
     detect_schema_version as _detect_schema_version,
-    atomic_write as _atomic_write,
-    load_v3 as _load_v3,
-    save_v3 as _save_v3,
-    load_v4 as _load_v4,
-    save_v4 as _save_v4,
-    next_task_id,
-    next_task_order,
-    migrate_v2_to_v3 as _migrate_v2_to_v3,
-    migrate_v3_to_v4 as _migrate_v3_to_v4,
-    write_handover as _write_handover,
-    read_handover as _read_handover,
-    apply_supersession as _apply_supersession,
-    apply_handover_review_flag as _apply_handover_review_flag,
-    update_handover_status as _update_handover_status,
-    list_handover_ids as _list_handover_ids,
+    build_handover_doc as _build_handover_doc,
+    handover_path as _handover_path,
+    supersede_handover_doc as _supersede_handover_doc,
+    flag_handover_doc_for_review as _flag_handover_doc_for_review,
+    set_handover_status_doc as _set_handover_status_doc,
     sync_handover_index as _sync_handover_index,
+    sort_handover_rows as _sort_handover_rows,
     derive_thread_name as _derive_thread_name,
     ISSUE_STATUSES,
     ISSUE_SEVERITIES,
-    write_issue as _write_issue,
-    read_issue as _read_issue,
-    update_issue as _update_issue,
-    list_issue_ids as _list_issue_ids,
+    BUG_STATUSES,
+    build_bug_doc as _build_bug_doc,
+    apply_bug_updates as _apply_bug_updates,
+    assert_bug_archivable as _assert_bug_archivable,
+    bug_path as _bug_path,
+    sync_bug_index as _sync_bug_index,
+    build_issue_doc as _build_issue_doc,
+    issue_path as _issue_path,
+    apply_issue_updates as _apply_issue_updates,
     sync_issue_index as _sync_issue_index,
     EXTERNAL_SYSTEMS,
-    write_tracker as _write_tracker,
+    build_tracker_doc as _build_tracker_doc,
     read_tracker as _read_tracker,
-    update_tracker as _update_tracker,
+    apply_tracker_updates as _apply_tracker_updates,
     list_tracker_ids as _list_tracker_ids,
     sync_tracker_index as _sync_tracker_index,
     make_tracker_id as _make_tracker_id,
@@ -111,19 +155,16 @@ from taskmaster.taskmaster_v3 import (
     linked_issues_for_tracker as _linked_issues_for_tracker,
     _validate_tracker as _validate_tracker_fm,
     load_linear_config as _load_linear_config,
-    write_idea as _write_idea,
-    read_idea as _read_idea,
-    update_idea as _update_idea,
-    list_ideas as _list_ideas,
-    write_decision as _write_decision,
-    read_decision as _read_decision,
-    update_decision as _update_decision,
-    resolve_decision as _resolve_decision,
-    drop_decision as _drop_decision,
-    list_decision_ids as _list_decision_ids,
+    build_idea_doc as _build_idea_doc,
+    idea_path as _idea_path,
+    apply_idea_updates as _apply_idea_updates,
+    build_decision_doc as _build_decision_doc,
+    apply_decision_patch as _apply_decision_patch,
+    resolve_decision_doc as _resolve_decision_doc,
+    drop_decision_doc as _drop_decision_doc,
+    link_decision_doc_to_handover as _link_decision_doc_to_handover,
     decision_path as _decision_path,
     continuity_items as _continuity_items,
-    write_task_file as _write_task_file,
     load_viewer_prefs,
     save_viewer_prefs,
     list_sessions,
@@ -144,40 +185,72 @@ _HANDOVER_STATUS_BACKFILL_RAN = False
 
 
 def _ensure_handover_status_backfilled() -> None:
+    """One-shot legacy backfill, at most one write transaction per project."""
     global _HANDOVER_STATUS_BACKFILL_RAN
     if _HANDOVER_STATUS_BACKFILL_RAN:
         return
     bp = _backlog_path()
     if not bp.exists():
         return
+
+    owns_transaction = _active_tx() is None
+    if owns_transaction:
+        # Read first. A project backfilled in an earlier run must not open
+        # BEGIN IMMEDIATE on every handover list and get just to learn that.
+        # Only committed state can answer, so this shortcut is skipped when a
+        # caller's transaction is open — its dict may hold an uncommitted marker.
+        try:
+            if _load().get("handover_status_backfilled"):
+                _HANDOVER_STATUS_BACKFILL_RAN = True
+                return
+        except Exception:
+            return
+
+    latched = False
     try:
-        data = _load()
-    except Exception:
+        with _transaction(tool="_ensure_handover_status_backfilled") as data:
+            try:
+                if not data.get("handover_status_backfilled"):
+                    from taskmaster.taskmaster_v3 import backfill_handover_status as _bf
+                    tx = _store_tx()
+                    flipped = _bf(data, tx.list("handover", include_archived=True))
+                    for handover_id, document, body in flipped:
+                        tx.put("handover", handover_id, document, body=body)
+                    _sync_handover_index_tx(data)
+                    _mutate_and_save(data)
+                    latched = True
+            except Exception:
+                # A backfill that cannot read its own inputs stays a no-op, as
+                # before. Commit and export failures are raised by the context
+                # exit below, outside this guard, so they are never discarded.
+                latched = False
+    except Exception as exc:
+        # The store could not commit or export. This runs from several handover
+        # tools, so it must not block them - but it must leave a trace.
+        _log_swallowed_error("handover status backfill", exc)
         return
-    if data.get("handover_status_backfilled"):
+
+    # Only a transaction this call owned *and* latched proves the durable marker
+    # survived. A nested run rides on a caller transaction that can still roll
+    # back, so it never sets the flag; the read above is what spares that case
+    # the repeated writer lock.
+    if owns_transaction and latched:
         _HANDOVER_STATUS_BACKFILL_RAN = True
-        return
-    from taskmaster.taskmaster_v3 import backfill_handover_status as _bf
-    flipped = _bf(data, bp)
-    if flipped or "handover_status_backfilled" in data:
-        _sync_handover_index(data, bp)
-        _save(data)
-    _HANDOVER_STATUS_BACKFILL_RAN = True
 
 
 def _get_open_handovers_for_task(bp: Path, task_id: str) -> list[str]:
-    """Scan handovers dir for open handovers referencing task_id."""
-    hdir = bp.parent / "handovers"
-    if not hdir.exists():
-        return []
+    """Open handovers referencing `task_id`, read from the store rows.
+
+    Globbing `handovers/*.md` under-reported whenever the projection was behind
+    the rows -- an export that failed its retry, or network storage the store
+    cannot export to at all -- so a task looked free of open handovers while
+    the store held them.
+    """
+    rows = _tx_rows("handover") if _active_tx() is not None else _dict_rows(_load(), "handover")
     result = []
-    for path in sorted(hdir.glob("*.md")):
-        try:
-            fm, _ = _read_handover(bp, path.stem)
-        except Exception:
-            continue
+    for hid, fm, _body in rows:
         if fm.get("status") == "open" and task_id in (fm.get("task_ids") or []):
-            result.append(fm.get("id") or path.stem)
+            result.append(fm.get("id") or hid)
     return result
 
 
@@ -303,7 +376,7 @@ def _backlog_path() -> Path:
 def _progress_path() -> Path:
     backlog, legacy_progress = _resolve_paths()
     try:
-        raw = yaml.safe_load(backlog.read_text(encoding="utf-8")) or {}
+        raw = yaml_io.safe_load(backlog.read_text(encoding="utf-8")) or {}
     except (OSError, yaml.YAMLError):
         return legacy_progress
     if _detect_schema_version(raw) >= SCHEMA_V4:
@@ -314,14 +387,461 @@ def _progress_path() -> Path:
 # ── Session identity (unique per MCP server process) ─────
 SESSION_ID = f"{socket.gethostname()}-{os.getpid()}-{uuid.uuid4().hex[:8]}"
 
-# ── File-level lock for backlog.yaml writes ──────────────
-_backlog_lock = threading.Lock()
-
 import copy as _copy
 
-# Deep copy of the last v4 _load() result, used as the diff baseline for
-# dirty-scoped save_v4 (None for v2/v3, which write whole-file).
-_LOAD_SNAPSHOT: dict | None = None
+
+# ── Store-backed transaction boundary ────────────────────
+# SQLite is the runtime authority (see docs/specs/2026-09-04-sqlite-store-design.md).
+# One public tool call owns exactly one store transaction; `_load()` hands out the
+# transaction's dict, and `_mutate_and_save()` latches it for commit. There is no
+# module-level snapshot or file lock any more — those lost writes across threads
+# and processes because two callers could read the same baseline and both write.
+
+
+class _TxFrame:
+    """The active transaction for one thread: its dict, latch, renderers and result."""
+
+    __slots__ = (
+        "data",
+        "latched",
+        "renderers",
+        "backlog_path",
+        "tx",
+        "committed",
+        "export_warnings",
+    )
+
+    def __init__(self, data: dict, backlog_path: "Path"):
+        self.data = data
+        self.backlog_path = backlog_path
+        self.latched = False
+        # A stack, not a slot: nested tool calls share this frame, and a nested
+        # body's renderer must never become the outer tool's response.
+        self.renderers: list = []
+        # `export pending: …` notices this transaction raised, appended to the
+        # tool result so a caller is never told a write landed when it did not.
+        self.export_warnings: list[str] = []
+        self.tx = None
+        # Filled once the transaction commits: the documents this writer itself
+        # committed, keyed by (kind, id).  A response rendered from these can
+        # never be spoiled by a later writer, which a fresh re-read could.
+        self.committed: dict = {}
+
+
+class _UnlatchedTransaction(Exception):
+    """Internal signal: leave the store transaction without committing."""
+
+
+# FastMCP runs sync tools in a thread pool, so the active transaction is
+# per-thread, never per-module.
+_TX_STATE = threading.local()
+
+
+def _active_tx() -> "_TxFrame | None":
+    return getattr(_TX_STATE, "frame", None)
+
+
+def _configure_store_derivers() -> None:
+    """Point the store at this module's pure derivation helpers.
+
+    `store.py` must not import this module (cycle), and `store.reset_for_tests()`
+    clears the hooks, so this is re-applied on every store access.
+    """
+    store.configure_derivers(
+        context_builder=_derive_context,
+        progress_renderer=_render_progress_dashboard,
+    )
+
+
+def _store_for(backlog_path: "Path | None" = None) -> "store.Store":
+    """The store for one backlog path (the resolved project's when omitted)."""
+    _configure_store_derivers()
+    return store.open_store(backlog_path or _backlog_path())
+
+
+def _store() -> "store.Store":
+    return _store_for()
+
+
+def _normalize_task(task: dict) -> dict:
+    """Backfill `created` and normalize legacy P-code priorities on one task."""
+    if not task.get("created"):
+        task["created"] = (
+            task.get("started") or task.get("completed") or "2025-01-01T00:00"
+        )
+    priority = task.get("priority", "")
+    if priority in _LEGACY_TO_NAME:
+        task["priority"] = _LEGACY_TO_NAME[priority]
+    return task
+
+
+_MISSING = object()
+
+_NORMALIZED_FIELDS = ("created", "priority")
+
+
+def _normalize_loaded(data: dict) -> list[tuple[dict, str, object, object]]:
+    """Backfill `created` and normalize legacy P-code priorities in place.
+
+    Returns `(task, field, synthesized, prior)` for every value it invented, so
+    a mutating caller can put the entity back the way it found it before the
+    write-back diff runs. These are display values, not facts: `created` falls
+    back to a fixed sentinel date the task never had.
+    """
+    invented: list[tuple[dict, str, object, object]] = []
+    for epic in data.get("epics", []) or []:
+        for task in epic.get("tasks", []) or []:
+            prior = {
+                field: task.get(field, _MISSING) for field in _NORMALIZED_FIELDS
+            }
+            _normalize_task(task)
+            for field, was in prior.items():
+                now = task.get(field, _MISSING)
+                if now is not was and now != was:
+                    invented.append((task, field, now, was))
+    return invented
+
+
+def _drop_normalization(invented: list[tuple[dict, str, object, object]]) -> None:
+    """Undo `_normalize_loaded`'s backfills that nothing else has overwritten.
+
+    The dict write-back diffs against a snapshot taken *before* normalization
+    ran, so without this every task the backfill touched counted as edited: one
+    `backlog_update_task` produced a second `changes` row and rewrote an
+    unrelated task's file, stamping it with a `created` date it never had. On a
+    backlog with hundreds of pre-`created` tasks the first write of a session
+    rewrote all of them, and "exactly the touched file changed" was false.
+
+    A field the tool itself set no longer holds the synthesized value, so it is
+    left alone and persists.
+    """
+    for task, field, synthesized, prior in invented:
+        if task.get(field, _MISSING) != synthesized:
+            continue
+        if prior is _MISSING:
+            task.pop(field, None)
+        else:
+            task[field] = prior
+
+
+@contextmanager
+def _transaction(*, tool: str, backlog_path: "Path | None" = None):
+    """Own one store transaction for the whole of one public tool call.
+
+    Nested calls reuse the active transaction so `_load()` stays identity-stable.
+    Leaving the block without `_mutate_and_save()` rolls back, so an early return
+    or a validation error can never persist a half-applied mutation.
+    """
+    prior = _active_tx()
+    if prior is not None:
+        yield prior.data
+        return
+    frame = None
+    try:
+        instance = _store_for(backlog_path)
+        with instance.transaction_dict(tool=tool) as data:
+            frame = _TxFrame(data, instance.backlog_path / "backlog.yaml")
+            frame.tx = store.active_transaction()
+            _TX_STATE.frame = frame
+            # Cleared up front so a rolled-back transaction cannot leave the
+            # previous call's sequence looking like this one's result.
+            _TX_STATE.last_seq = None
+            _TX_STATE.export_warnings = []
+            try:
+                invented = _normalize_loaded(data)
+                # No context rebuild here: the store's dict loader already
+                # derived it, and `_mutate_and_save` re-derives it once on the
+                # latch. Doing it on entry as well cost a third full pass over
+                # every task for every tool call, mutating or not.
+                yield data
+                # …and out again before the write-back diff: a backfill is a
+                # display value, and persisting it turned one tool call into a
+                # rewrite of every task that happened to lack a `created`.
+                _drop_normalization(invented)
+                if not frame.latched:
+                    raise _UnlatchedTransaction
+            finally:
+                _TX_STATE.frame = None
+        if frame is not None and frame.tx is not None:
+            frame.committed = dict(frame.tx.committed)
+            _TX_STATE.last_seq = frame.tx.seq
+            frame.export_warnings = [
+                warning
+                for warning in frame.tx.warnings
+                if warning.startswith("export pending:")
+            ]
+            _TX_STATE.export_warnings = list(frame.export_warnings)
+    except _UnlatchedTransaction:
+        pass
+
+
+def _last_commit_seq() -> int | None:
+    """The `changes.seq` this thread's most recent commit ended at.
+
+    The viewer's JSON answers carry it for the same reason tool strings do: a
+    caller can tie the response to the exact commit, and a stale reply is
+    recognisable instead of merely looking plausible.
+    """
+    return getattr(_TX_STATE, "last_seq", None)
+
+
+def _json_with_seq(payload: dict) -> dict:
+    seq = _last_commit_seq()
+    if seq is not None:
+        payload.setdefault("seq", seq)
+    notices = getattr(_TX_STATE, "export_warnings", None)
+    if notices:
+        payload.setdefault("export_pending", list(notices))
+    return payload
+
+
+def _store_tx() -> "store.Transaction":
+    """The store transaction behind the active compatibility dict.
+
+    The write-back deliberately ignores entities missing from the dict, so an
+    archive can never be expressed by editing the dict alone — every intended
+    removal has to go through the transaction explicitly.
+    """
+    tx = store.active_transaction()
+    if tx is None:
+        raise RuntimeError(
+            "no active store transaction — an explicit archive/delete must run "
+            "inside _transaction()"
+        )
+    return tx
+
+
+class _AliasExists(Exception):
+    """A workspace alias already present when the config lock was taken."""
+
+
+def _archive_entity(kind: str, ident: str, entity: dict | None = None) -> None:
+    """Archive one task/epic/phase in the store, not just in the dict.
+
+    The store row's archive flag is what decides where the projection file
+    lives, so a status flip on the dict document is not an archive.
+    """
+    _store_tx().archive(kind, ident)
+
+
+def _unarchive_entity(kind: str, ident: str, entity: dict | None = None) -> None:
+    """Undo an archive, clearing the dict's `archived` marker as well.
+
+    `put` re-derives the flag from the document when it carries one, so a stale
+    `archived` timestamp left in the dict would immediately re-archive the row.
+    """
+    _store_tx().unarchive(kind, ident)
+    if entity is not None:
+        entity.pop("archived", None)
+        entity.pop("archive_reason", None)
+
+
+def _apply_archive_transition(
+    kind: str, ident: str, entity: dict, *, before: str, after: str
+) -> None:
+    """Mirror a status transition into or out of `archived` onto the store row."""
+    if after == before:
+        return
+    if after == "archived":
+        _archive_entity(kind, ident, entity)
+    elif before == "archived":
+        _unarchive_entity(kind, ident, entity)
+
+
+# ── Row access for the non-task kinds ────────────────────────────
+# Bugs, issues, handovers, decisions, ideas, notes, areas and trackers live in
+# the store like everything else. Reads take their rows off the compatibility
+# dict's private `_rows` map; writes take them off the open transaction, so a
+# list and the write that follows it always see one snapshot.
+
+_ROW_INDEX_SYNCERS = {
+    "bug": ("bugs", _sync_bug_index),
+    "issue": ("issues", _sync_issue_index),
+    "tracker": ("trackers", _sync_tracker_index),
+}
+
+
+def _dict_rows(data: dict, kind: str, *, include_archived: bool = False) -> list:
+    """`(id, doc, body)` rows of one kind from a loaded compatibility dict.
+
+    Archived rows carry `archived: True` on the document itself, so a caller
+    that wants only the live set filters here rather than re-globbing a
+    directory the store already owns.
+    """
+    rows = (data.get("_rows") or {}).get(kind) or {}
+    out = []
+    for ident in sorted(rows):
+        doc, body = rows[ident]
+        if not include_archived and doc.get("archived"):
+            continue
+        out.append((ident, doc, body))
+    return out
+
+
+def _dict_row(data: dict, kind: str, ident: str):
+    """One `(doc, body)` row, or None. Archived rows are visible."""
+    return ((data.get("_rows") or {}).get(kind) or {}).get(ident)
+
+
+def _tx_rows(kind: str, *, include_archived: bool = False) -> list:
+    """`(id, doc, body)` rows of one kind from the open transaction."""
+    return _store_tx().list(kind, include_archived=include_archived)
+
+
+def _tx_doc(kind: str, ident: str) -> tuple[dict, str]:
+    """The open transaction's `(document, body)` for one entity.
+
+    Raises KeyError when the entity does not exist, which every caller turns
+    into its own not-found message.
+    """
+    doc = _store_tx().get(kind, ident)
+    body = doc.pop(_BODY_KEY, "") or ""
+    return doc, body
+
+
+def _derived_index(kind: str, rows: list) -> list:
+    """The index array a kind's rows would produce, without touching the dict.
+
+    Read tools render from this instead of re-syncing the live transaction
+    dict — a list is a read and must not leave a mutation behind.
+    """
+    field, syncer = _ROW_INDEX_SYNCERS[kind]
+    holder: dict = {}
+    syncer(holder, rows)
+    return holder[field]
+
+
+def _sync_bug_index_tx(data: dict) -> None:
+    _sync_bug_index(data, _tx_rows("bug"))
+
+
+def _sync_issue_index_tx(data: dict) -> None:
+    _sync_issue_index(data, _tx_rows("issue"))
+
+
+def _sync_tracker_index_tx(data: dict) -> None:
+    _sync_tracker_index(data, _tx_rows("tracker"))
+
+
+def _sync_handover_index_tx(data: dict) -> None:
+    """Rebuild the handover index and thread registry from the store's rows.
+
+    The transaction is handed in so overflow past the 30-entry cap is archived
+    with an explicit `tx.archive` — the file move to `handovers/_archive/<year>/`
+    is the exporter's, not a rename behind the store's back.
+    """
+    tx = _store_tx()
+    _sync_handover_index(data, tx.list("handover"), tx=tx)
+
+
+def _render_after_commit(renderer) -> None:
+    """Register a response renderer that runs against this writer's own commit.
+
+    `renderer(committed)` is called after the transaction commits, with the
+    `{(kind, id): document}` map the store captured while this writer still held
+    the lock.  A fresh re-read would instead show whatever the *next* writer
+    left, which reported a perfectly good write as "(not persisted)".
+    """
+    frame = _active_tx()
+    if frame is not None:
+        frame.renderers.append(renderer)
+
+
+def _append_seq(result: str, seq: int | None) -> str:
+    """`result [seq N]`, the suffix `_with_seq` puts on a string answer."""
+    return f"{result} [seq {seq}]" if seq is not None else result
+
+
+def _with_seq(result, frame: "_TxFrame"):
+    """Stamp the committed `changes.seq` and any export notice onto a result.
+
+    Every mutation is a row in `changes`; naming that row in the response is
+    what lets a caller (or a reviewer reading a transcript) tie the answer to
+    the exact commit that produced it instead of trusting the prose. An
+    `export pending: …` notice rides along for the opposite reason: the commit
+    landed but a file the caller can see did not, and silence would read as
+    success (spec §3.6).
+    """
+    seq = getattr(frame.tx, "seq", None) if frame.tx is not None else None
+    notices = list(frame.export_warnings)
+    if seq is None and not notices:
+        return result
+    if isinstance(result, dict):
+        if seq is not None:
+            result.setdefault("seq", seq)
+        if notices:
+            result.setdefault("export_pending", notices)
+        return result
+    if not isinstance(result, str):
+        return result
+    payload = _as_json_result(result)
+    if payload is not None:
+        # A tool whose result is itself JSON carries both as fields. Appending
+        # text would corrupt the payload for every caller that parses it — the
+        # Linear tools do exactly that.
+        if isinstance(payload, dict):
+            if seq is not None:
+                payload.setdefault("seq", seq)
+            if notices:
+                payload.setdefault("export_pending", notices)
+            return json.dumps(payload)
+        # A JSON array has nowhere to put a field and nowhere safe to put a
+        # suffix, so it is left exactly as the tool produced it.
+        return result
+    for notice in notices:
+        result = f"{result} ({notice})"
+    return _append_seq(result, seq)
+
+
+def _as_json_result(result: str):
+    """The parsed payload when a tool's string result is itself JSON, else None."""
+    stripped = result.lstrip()
+    if not stripped[:1] in ("{", "["):
+        return None
+    try:
+        parsed = json.loads(result)
+    except ValueError:
+        return None
+    return parsed if isinstance(parsed, (dict, list)) else None
+
+
+def _transactional(tool: str):
+    """Wrap a public tool so its whole body runs in one named transaction."""
+
+    def decorate(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            outer = _active_tx()
+            if outer is not None:
+                # Nested: the outermost tool owns the response. Anything this
+                # body registers is discarded when it returns, so a nested
+                # renderer can no longer overwrite the outer tool's own.
+                depth = len(outer.renderers)
+                try:
+                    return fn(*args, **kwargs)
+                finally:
+                    del outer.renderers[depth:]
+            if not _backlog_path().exists():
+                # No projection yet: behave exactly as before rather than
+                # bootstrapping a database next to a missing backlog.
+                return fn(*args, **kwargs)
+            committed_frame = None
+            renderer = None
+            with _transaction(tool=tool) as _data:
+                result = fn(*args, **kwargs)
+                frame = _active_tx()
+                if frame is not None and frame.latched:
+                    renderer = frame.renderers[-1] if frame.renderers else None
+                    committed_frame = frame
+            if committed_frame is None:
+                return result
+            if renderer is not None:
+                result = renderer(committed_frame.committed)
+            return _with_seq(result, committed_frame)
+
+        return wrapper
+
+    return decorate
 
 
 def _today() -> str:
@@ -389,53 +909,60 @@ def _normalize_priority(value: str) -> str:
     return _LEGACY_TO_NAME.get(value, value)
 
 
+def _log_swallowed_error(what: str, exc: BaseException) -> None:
+    """Report a failure a tool deliberately survives. Never raises.
+
+    These are best-effort side tasks — a handover backfill, a Linear enqueue —
+    whose failure must not break the mutation that triggered them. A bare `pass`
+    made them invisible, and the store is the only writer allowed under
+    `.taskmaster/`, so the trace goes to stderr, where the MCP host logs it.
+    """
+    try:
+        stamp = datetime.now(timezone.utc).isoformat()
+        print(f"{stamp} taskmaster: {what} failed: {exc!r}", file=sys.stderr, flush=True)
+    except Exception:  # logging must never break the tool call either
+        pass
+
+
 def _load() -> dict:
-    global _LOAD_SNAPSHOT
+    """The compatibility read: the store's dict, or the active transaction's.
+
+    Inside a transaction this returns the very same object every time, so the
+    nested loads in complete_task / link expansion / Linear enqueue all mutate
+    one shared tree instead of forking a second, stale copy.
+    """
+    return _load_snapshot()[0]
+
+
+def _load_snapshot() -> tuple[dict, str]:
+    """`_load()` plus the ETag of the snapshot the payload came from.
+
+    A GET that reads the payload and the revision separately can hand out an old
+    payload under a newer ETag, and the edit that follows then passes its
+    precondition while overwriting the newer state.
+    """
     bp = _backlog_path()
-    # Peek at version without per-file enrichment so we can dispatch.
-    raw = yaml.safe_load(bp.read_text(encoding="utf-8")) or {}
-    version = _detect_schema_version(raw)
-    if version >= SCHEMA_V4:
-        data = _load_v4(bp)
-    elif version >= SCHEMA_V3:
-        data = _load_v3(bp)
-    else:
-        data = raw
-    # Backfill missing 'created' on tasks + normalize legacy priorities.
-    for epic in data.get("epics", []):
-        for t in epic.get("tasks", []):
-            if not t.get("created"):
-                t["created"] = t.get("started") or t.get("completed") or "2025-01-01T00:00"
-            pri = t.get("priority", "")
-            if pri in _LEGACY_TO_NAME:
-                t["priority"] = _LEGACY_TO_NAME[pri]
-    _LOAD_SNAPSHOT = _copy.deepcopy(data) if version >= SCHEMA_V4 else None
-    return data
-
-
-def _save(data: dict) -> None:
-    with _backlog_lock:
-        bp = _backlog_path()
-        version = _detect_schema_version(data)
-        if version >= SCHEMA_V4:
-            _write_local_meta_cache(bp, {"updated": _today()})
-            _save_v4(bp, data, snapshot=_LOAD_SNAPSHOT)
-        elif version >= SCHEMA_V3:
-            data["meta"]["updated"] = _today()
-            _save_v3(bp, data)
-        else:
-            data["meta"]["updated"] = _today()
-            _atomic_write(
-                bp,
-                yaml.dump(data, default_flow_style=False, sort_keys=False, allow_unicode=True),
-            )
+    if not bp.exists():
+        raise FileNotFoundError(bp)
+    data, token, max_seq = _store().load_dict_with_identity()
+    _normalize_loaded(data)
+    if not data.get("context"):
+        regenerate_context(data)
+    return data, f"{token}:{max_seq}"
 
 
 def _write_local_meta_cache(backlog_path: Path, payload: dict) -> None:
-    """Persist derived metadata without churning the shared v4 index."""
-    cache_dir = backlog_path.parent / "local" / "cache"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    _atomic_write(cache_dir / "meta.json", json.dumps(payload, indent=2) + "\n")
+    """Write the derived `local/cache/meta.json` convenience file.
+
+    Purely derived and unversioned: nothing in the server, the store or the
+    viewer reads it back, and no code path treats it as a source of truth for
+    `meta.updated` or anything else. It exists so an external tool can cheaply
+    see when the backlog last changed. The bytes leave through the store because
+    `store.py` is the only module allowed to write under `.taskmaster/`.
+    """
+    payload_bytes = (json.dumps(payload, indent=2) + chr(10)).encode("utf-8")
+    _store_for(backlog_path).write_local_cache("meta.json", payload_bytes)
+
 
 def _has_v3_content(data: dict) -> bool:
     """True when the backlog has any v3 narrative-continuity entity content.
@@ -463,30 +990,336 @@ def _effective_schema_version(data: dict) -> int:
     return declared
 
 
-def _ensure_v3_marker(bp: Path) -> None:
-    """Set `meta.schema_version: 3` in backlog.yaml when missing.
-
-    Marker-only — does NOT split tasks into per-task files. Called from
-    v3 entity-write paths so the marker stays consistent with reality.
-    Idempotent. Subsequent saves may migrate task storage via the normal
-    v3 dispatch.
-    """
-    raw = yaml.safe_load(bp.read_text(encoding="utf-8")) or {}
-    if _detect_schema_version(raw) >= SCHEMA_V3:
-        return
-    raw.setdefault("meta", {})["schema_version"] = SCHEMA_V3
-    _atomic_write(
-        bp,
-        yaml.dump(raw, default_flow_style=False, sort_keys=False, allow_unicode=True),
-    )
-
-
 def _find_task(data: dict, task_id: str) -> tuple[dict, dict] | None:
     """Returns (task, epic) or None."""
     for epic in data["epics"]:
         for task in epic.get("tasks", []):
             if task["id"] == task_id:
                 return task, epic
+    return None
+
+
+# ── Hot-path task rows ───────────────────────────────────
+# The nine task-mutating tools read and write the `("task", id)` row rather
+# than relying on the compatibility dict's end-of-transaction diff, so the
+# document a tool mutates is the document the store holds, and the response is
+# rendered from what the store actually committed.
+
+
+def _tx_task(data: dict, task_id: str) -> tuple[dict, dict] | None:
+    """`(task, epic)` for a hot-path tool, with the task read from its row.
+
+    The dict node is refreshed from the row in place, so navigation helpers
+    that walk `data` and the row about to be written cannot disagree — even
+    when an earlier writer in this same transaction already touched the task.
+    """
+    found = _find_task(data, task_id)
+    if not found:
+        return None
+    node, epic = found
+    try:
+        document = _store_tx().get("task", task_id)
+    except (KeyError, RuntimeError):
+        # No row yet (a legacy projection, or no transaction at all): the dict
+        # node is the only copy there is.
+        return node, epic
+    document.setdefault("epic", str(epic.get("id") or ""))
+    node.clear()
+    node.update(document)
+    return _normalize_task(node), epic
+
+
+def _tx_put_task(task: dict, epic: dict | None = None) -> None:
+    """Write one task row through the open transaction."""
+    document = dict(task)
+    if epic is not None:
+        document.setdefault("epic", str(epic.get("id") or ""))
+    _store_tx().put("task", str(document.get("id") or ""), document)
+
+
+def _committed_task_field(committed: dict, task_id: str, field: str, default: str = "") -> str:
+    """One field of the task this writer committed, as plain text."""
+    document = committed.get(("task", task_id))
+    if not document or field not in document:
+        return default
+    return _format_task_field(document[field])
+
+
+# ── Store-owned entity IO for the generic link/auto-link engine ────────────
+# `taskmaster_v3.read_entity_anywhere` / `write_entity_anywhere` dispatch every
+# *task* through these two hooks, so the shared link, inverse-sync and
+# auto-link machinery commits through a store transaction instead of
+# rewriting `tasks/<id>.md` behind the store's back.
+
+
+def _store_read_entity(backlog_path: Path | None, kind: str, entity_id: str) -> dict | None:
+    """A *copy* of the committed (or in-flight) entity document, or None.
+
+    Tasks come off the transaction dict (identity-stable); every other kind
+    comes off its store row. Never the live object: `read_entity_anywhere`
+    mutates what it returns (it synthesizes a legacy `links` array for
+    unmigrated projects) and documents that as read-only, so handing out the
+    live document would let the next commit persist that synthesis.
+    """
+    if kind == "task":
+        return _store_read_task(backlog_path, entity_id)
+    if _active_tx() is not None:
+        try:
+            return _store_tx().get(kind, entity_id)
+        except KeyError:
+            return None
+    bp = Path(backlog_path) if backlog_path else _backlog_path()
+    if not bp.exists():
+        return None
+    rows = (_store_for(bp).load_dict().get("_rows") or {}).get(kind) or {}
+    row = rows.get(entity_id)
+    if row is None:
+        return None
+    doc, body = row
+    entity = deepcopy(doc)
+    if body:
+        entity[_BODY_KEY] = body
+    return entity
+
+
+def _store_write_entity(backlog_path: Path | None, kind: str, entity: dict) -> None:
+    """Persist a whole entity document through the store.
+
+    Joins the caller's transaction when there is one so a link and its inverse
+    land in a single commit; opens its own otherwise. Every kind goes through
+    here now, so the shared link engine can no longer rewrite an entity file
+    behind the store's back.
+    """
+    if kind == "task":
+        _store_write_task(backlog_path, entity)
+        return
+    document = dict(entity)
+    entity_id = document.get("id")
+    body = document.pop(_BODY_KEY, None)
+
+    def apply() -> None:
+        tx = _store_tx()
+        # Upsert, matching the writer this replaced: the link engine and the
+        # migration script both hand over whole documents for ids that may not
+        # have a row yet.
+        try:
+            tx.put(kind, entity_id, document, body=body or "")
+        except KeyError:
+            tx.create(kind, document, body=body or "", requested_id=entity_id)
+
+    if _active_tx() is not None:
+        apply()
+        return
+    with _transaction(
+        tool=f"store:write-{kind}",
+        backlog_path=Path(backlog_path) if backlog_path else None,
+    ) as data:
+        apply()
+        _mutate_and_save(data)
+
+
+def _store_read_task(backlog_path: Path | None, task_id: str) -> dict | None:
+    """A *copy* of the committed (or in-flight) task document, or None.
+
+    Never the live transaction dict: `read_entity_anywhere` mutates what it
+    returns (it synthesizes a legacy `links` array for unmigrated projects) and
+    documents that as read-only, so handing out the live document would let the
+    next `_mutate_and_save` in the same transaction commit that synthesis.
+    `_store_write_task` replaces the whole document, so nothing needs identity.
+    """
+    frame = _active_tx()
+    if frame is not None:
+        found = _find_task(frame.data, task_id)
+        return deepcopy(found[0]) if found else None
+    bp = Path(backlog_path) if backlog_path else _backlog_path()
+    if not bp.exists():
+        return None
+    data = _store_for(bp).load_dict()
+    _normalize_loaded(data)
+    found = _find_task(data, task_id)
+    return deepcopy(found[0]) if found else None
+
+
+def _store_write_task(backlog_path: Path | None, entity: dict) -> None:
+    """Persist a whole task document through the store.
+
+    Joins the caller's transaction when there is one so a link and its inverse
+    land in a single commit; opens its own otherwise.
+    """
+    task_id = entity.get("id")
+
+    def apply(data: dict) -> None:
+        found = _find_task(data, task_id)
+        if found is None:
+            raise KeyError(f"task {task_id!r} not found")
+        task = found[0]
+        task.clear()
+        task.update(entity)
+        _mutate_and_save(data)
+
+    frame = _active_tx()
+    if frame is not None:
+        apply(frame.data)
+        return
+    with _transaction(
+        tool="store:write-task",
+        backlog_path=Path(backlog_path) if backlog_path else None,
+    ) as data:
+        apply(data)
+
+
+def _auto_link_entity(backlog_path: Path, entity_id: str) -> list[str]:
+    """Run inline-mention auto-linking inside one store transaction.
+
+    The inverse `referenced_by` link lands on a *task*, so the target's read and
+    write have to share a transaction: reading committed state, letting a peer
+    commit, then writing the whole stale document back reverted that peer's
+    branch or status change while the link itself survived.
+    """
+    from taskmaster.taskmaster_v3 import auto_link_on_save  # noqa: PLC0415
+
+    added: list[str] = []
+    with _transaction(tool="auto-link") as _data:
+        added = auto_link_on_save(backlog_path, entity_id)
+    return added
+
+
+def _configure_entity_io() -> None:
+    """Install the task read/write hooks on the shared entity dispatcher."""
+    from taskmaster import taskmaster_v3 as _v3  # noqa: PLC0415
+
+    _v3.configure_entity_io(read=_store_read_entity, write=_store_write_entity)
+
+
+def _auto_link_task_in_tx(data: dict, task_id: str) -> list[str]:
+    """Add `references` links for inline ID mentions, inside the open transaction.
+
+    Store-owned entities (tasks, epics, phases) are edited on the transaction
+    dict so the link commits atomically with the text that produced it. Targets
+    the store does not yet own still round-trip through their own files; spec
+    step 3 moves those onto the store too.
+    """
+    from taskmaster.taskmaster_v3 import (  # noqa: PLC0415 - link helpers
+        add_link as _add_link,
+        entity_links as _entity_links,
+        extract_inline_refs as _extract_inline_refs,
+        read_entity_anywhere as _read_entity_anywhere,
+        sync_inverse as _sync_inverse,
+    )
+
+    found = _find_task(data, task_id)
+    if not found:
+        return []
+    task, _epic = found
+    if task.get("auto_link") is False:
+        return []
+    body = "\n\n".join(
+        filter(
+            None,
+            [
+                task.get(_BODY_KEY) or "",
+                task.get("notes") or "",
+                task.get("review_instructions") or "",
+            ],
+        )
+    )
+    refs = _extract_inline_refs(body, self_id=task_id)
+    if not refs:
+        return []
+
+    bp = _backlog_path()
+    existing = {link["target"] for link in _entity_links(task)}
+    pending: list[tuple[str, dict | None]] = []
+    for target_id in refs:
+        if target_id in existing:
+            # Any link to this target already exists; auto-detection only adds
+            # new targets, so a stronger explicit relation is never downgraded.
+            continue
+        in_tx_target = _find_in_transaction(data, target_id)
+        if in_tx_target is None and _read_entity_anywhere(bp, target_id) is None:
+            continue
+        _add_link(task, "references", target_id)
+        pending.append((target_id, in_tx_target))
+
+    for target_id, in_tx_target in pending:
+        if in_tx_target is not None:
+            _add_link(in_tx_target, "referenced_by", task_id)
+            continue
+        try:
+            _sync_inverse(bp, source=task_id, target=target_id, type="references")
+        except KeyError:
+            pass
+    return [target_id for target_id, _ in pending]
+
+
+_MISSING_FIELD = object()
+NOT_PERSISTED = "(not persisted)"
+
+
+def _format_task_field(value) -> str:
+    """Render a stored field the way the caller wrote it.
+
+    Structured fields are stored parsed (depends_on and anchors as lists, docs
+    as a dict, design_change as a bool) but the tool's response has always
+    echoed the caller's flat representation, so keep that shape.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, list):
+        return ",".join(str(item) for item in value)
+    if isinstance(value, dict):
+        return ", ".join(f"{key}:{item}" for key, item in sorted(value.items()))
+    return str(value)
+
+
+def _expected_field(entity: dict, field: str):
+    """Snapshot what a tool just wrote, for comparison against the commit.
+
+    The sentinel must keep its identity: deep-copying it produced a different
+    object, so a deliberately cleared field compared unequal to itself and a
+    successful removal rendered as "(not persisted)".
+    """
+    stored = entity.get(field, _MISSING_FIELD)
+    return stored if stored is _MISSING_FIELD else deepcopy(stored)
+
+
+def _committed_field_display(
+    committed_docs, task_id: str, field: str, expected, kind: str = "task"
+) -> str:
+    """Render `field` from this writer's own commit, or say it did not land.
+
+    `committed_docs` is the `{(kind, id): document}` map the store captured
+    inside the committing transaction.  This never falls back to the caller's
+    requested value: echoing a write the store did not keep is exactly the
+    failure the committed-state rule exists to catch.  A field the tool
+    deliberately removed reads back as an empty string, matching the old
+    response for a cleared field.
+    """
+    document = committed_docs.get((kind, task_id))
+    if document is None:
+        return NOT_PERSISTED
+    committed = document.get(field, _MISSING_FIELD)
+    if committed is _MISSING_FIELD or expected is _MISSING_FIELD:
+        return "" if committed is expected else NOT_PERSISTED
+    if committed != expected:
+        return NOT_PERSISTED
+    return _format_task_field(committed)
+
+
+def _find_in_transaction(data: dict, entity_id: str) -> dict | None:
+    """The store-owned entity dict for `entity_id`, or None if the store does
+    not own that kind yet (bugs, issues, handovers, ideas, ...)."""
+    found = _find_task(data, entity_id)
+    if found:
+        return found[0]
+    epic = _find_epic(data, entity_id)
+    if epic is not None:
+        return epic
+    for phase in data.get("phases", []) or []:
+        if phase.get("id") == entity_id:
+            return phase
     return None
 
 
@@ -648,6 +1481,16 @@ def _epic_status_label(status: str) -> str:
 
 
 def regenerate_context(data: dict) -> None:
+    """Derive `data["context"]` for one tool call.
+
+    Named separately from `_derive_context` so the server-side derivation can be
+    counted on its own: the store calls the implementation directly when it
+    builds a dict, and that is not a tool-call cost.
+    """
+    _derive_context(data)
+
+
+def _derive_context(data: dict) -> None:
     all_tasks = []
     for epic in data["epics"]:
         for t in epic.get("tasks", []):
@@ -662,11 +1505,14 @@ def regenerate_context(data: dict) -> None:
         s = t.get("status", "todo")
         status_counts[s] = status_counts.get(s, 0) + 1
 
+        # A hand-edited or half-recovered entity can be missing any of these.
+        # The context block is built on every load, so an unguarded index here
+        # took down every tool that reads the backlog, not just the dashboard.
         if s in ("in-progress", "in-review"):
             entry = {
-                "id": t["id"],
-                "title": t["title"],
-                "epic": epic["id"],
+                "id": t.get("id", ""),
+                "title": t.get("title", ""),
+                "epic": epic.get("id", ""),
                 "branch": t.get("branch", ""),
             }
             if t.get("locked_by"):
@@ -674,9 +1520,9 @@ def regenerate_context(data: dict) -> None:
             in_progress.append(entry)
         elif s == "blocked":
             blocked.append({
-                "id": t["id"],
-                "title": t["title"],
-                "epic": epic["id"],
+                "id": t.get("id", ""),
+                "title": t.get("title", ""),
+                "epic": epic.get("id", ""),
                 "blockers": t.get("blockers", ""),
             })
         elif s == "done" and t.get("completed"):
@@ -685,13 +1531,16 @@ def regenerate_context(data: dict) -> None:
     # recent_completed: last 5 by completed date
     done_tasks.sort(key=lambda t: str(t.get("completed", "")), reverse=True)
     recent_completed = [
-        {"id": t["id"], "title": t["title"], "completed": str(t["completed"])}
+        {"id": t.get("id", ""), "title": t.get("title", ""),
+         "completed": str(t.get("completed", ""))}
         for t in done_tasks[:5]
     ]
 
     # next_up: top 3 priority todo across active epics, filtered to active phase
     active_ph = _active_phase(data)
-    task_statuses: dict[str, str] = {t["id"]: t.get("status", "todo") for t, _ in all_tasks}
+    task_statuses: dict[str, str] = {
+        t.get("id", ""): t.get("status", "todo") for t, _ in all_tasks
+    }
     todo_tasks = []
     for t, epic in all_tasks:
         if t.get("status") != "todo" or epic.get("status") != "active":
@@ -778,18 +1627,70 @@ def regenerate_context(data: dict) -> None:
     data["context"]["stale"] = stale[:10]
 
 
-def regenerate_progress_dashboard(data: dict) -> None:
-    """Rewrite PROGRESS.md above the '## Changelog' line."""
-    path = _progress_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    progress_text = path.read_text(encoding="utf-8") if path.exists() else "## Changelog\n"
+SESSION_LOG_BEGIN = "<!-- taskmaster:session-log -->"
+SESSION_LOG_END = "<!-- /taskmaster:session-log -->"
 
+
+def _render_session_log(entries: list) -> str:
+    """The marker-delimited block the store owns inside the changelog section.
+
+    Regenerated whole from the applied log every time, never appended to. The
+    export writes PROGRESS.md before its SQL transaction commits, so a failure
+    between the two used to leave a paragraph on disk that the retry appended a
+    second time; rewriting a delimited region from durable rows makes the retry
+    produce the identical file instead.
+    """
+    paragraphs = []
+    for entry in reversed(entries):
+        text = (entry.get("text") if isinstance(entry, dict) else entry) or ""
+        text = str(text).strip("\n")
+        if text:
+            paragraphs.append(text)
+    body = "\n\n".join(paragraphs)
+    return f"{SESSION_LOG_BEGIN}\n\n{body}\n\n{SESSION_LOG_END}\n" if body else (
+        f"{SESSION_LOG_BEGIN}\n{SESSION_LOG_END}\n"
+    )
+
+
+def _changelog_section(existing_tail: str, entries: list) -> str:
+    """`existing_tail` with the session-log region replaced by `entries`.
+
+    Anything outside the two markers — a hand-written entry, history from
+    before the store owned this file — is left exactly as it was found.
+    """
+    marker = "## Changelog"
+    tail = existing_tail[len(marker):] if existing_tail.startswith(marker) else existing_tail
+    block = _render_session_log(entries)
+    begin = tail.find(SESSION_LOG_BEGIN)
+    end = tail.find(SESSION_LOG_END)
+    if begin != -1 and end > begin:
+        rest = tail[end + len(SESSION_LOG_END):].lstrip("\n")
+        suffix = "\n" + rest if rest else ""
+        return marker + tail[:begin] + block + suffix
+    if not entries:
+        return existing_tail or (marker + "\n")
+    rest = tail.lstrip("\n")
+    suffix = "\n" + rest if rest else ""
+    return marker + "\n\n" + block + suffix
+
+
+def _render_progress_dashboard(
+    data: dict, progress_text: str, entries: "list | None" = None
+) -> str:
+    """Pure renderer: the dashboard for `data` above the changelog section.
+
+    The store calls this after a commit, so PROGRESS.md always reflects
+    committed state rather than a caller's in-flight dict.  `entries` is the
+    store's applied session log; the region it owns inside the changelog is
+    rebuilt from it, so running the export twice writes the same file.
+    """
     changelog_marker = "## Changelog"
     idx = progress_text.find(changelog_marker)
-    if idx == -1:
-        changelog_section = ""
+    existing_tail = "" if idx == -1 else progress_text[idx:]
+    if entries is None:
+        changelog_section = existing_tail
     else:
-        changelog_section = progress_text[idx:]
+        changelog_section = _changelog_section(existing_tail, entries)
 
     project_name = data["meta"].get("project", "Project")
 
@@ -867,14 +1768,36 @@ def regenerate_progress_dashboard(data: dict) -> None:
     lines.append("\n---\n")
 
     dashboard = "\n".join(lines) + "\n"
-    path.write_text(dashboard + changelog_section, encoding="utf-8")
+    return dashboard + changelog_section
 
 
 def _mutate_and_save(data: dict) -> None:
-    """Regenerate context, save YAML, regenerate PROGRESS.md dashboard."""
+    """Latch the active store transaction so its dict is committed on exit.
+
+    Raises outside a transaction, and refuses any dict that is not the active
+    transaction's - a foreign dict would be silently dropped, which is exactly
+    the write-loss class this migration exists to remove. Projection export and
+    the PROGRESS.md dashboard are the store's job once the commit lands.
+    """
+    frame = _active_tx()
+    if frame is None:
+        raise RuntimeError(
+            "_mutate_and_save() called outside a store transaction; wrap the "
+            "mutation in _transaction(tool=...) or @_transactional(...)"
+        )
+    if data is not frame.data:
+        raise RuntimeError(
+            "_mutate_and_save() was handed a dict that is not the active store "
+            "transaction dict; mutate the dict returned by _load()"
+        )
     regenerate_context(data)
-    _save(data)
-    regenerate_progress_dashboard(data)
+    # Derived, unversioned convenience cache the viewer reads; not part of the
+    # projection the store owns, so it stays on the server side.
+    try:
+        _write_local_meta_cache(frame.backlog_path, {"updated": _today()})
+    except OSError:
+        pass
+    frame.latched = True
 
 
 def _enqueue_linear_push_if_synced(task_id: str, task: dict | None = None) -> None:
@@ -903,11 +1826,18 @@ def _enqueue_linear_push_if_synced(task_id: str, task: dict | None = None) -> No
         tracker_id = task.get("tracker_id")
         if not tracker_id or not str(tracker_id).startswith("linear-"):
             return
-        from taskmaster.integrations.linear.worker import enqueue as _linear_enqueue
-        _linear_enqueue(bp, op="task_upsert", target_id=task_id, tracker_id=tracker_id)
-    except Exception:
-        # Sync failures must not break the local mutation.
-        pass
+        from taskmaster.integrations.linear import worker as _worker
+        # Inside the caller's transaction: the queue row and the mutation that
+        # produced it commit together, so a rolled-back edit cannot leave a
+        # push queued and a committed edit cannot lose one.
+        _worker.enqueue(
+            _store_tx(), op="task_upsert", target_id=task_id, tracker_id=tracker_id
+        )
+    except Exception as exc:
+        # Sync failures must not break the local mutation -- but a bare `pass`
+        # made a broken enqueue invisible: the task changes, no push is queued,
+        # and nothing anywhere says why.
+        _log_swallowed_error("Linear enqueue", exc)
 
 
 def _deep_merge(dst: dict, src: dict) -> dict:
@@ -989,10 +1919,14 @@ def backlog_status(verbose: bool = False) -> str:
         focus = "—"
         for t in active_tasks:
             if t.get("status") in ("in-progress", "in-review"):
-                focus = t["title"]
+                focus = t.get("title") or t.get("id") or "—"
                 break
-        name = epic["name"]
-        if _epic_stats(data, epic["id"])["closeable"]:
+        # The dashboard is the first call of every session. One epic with no
+        # `name` used to take it down with a KeyError while every neighbouring
+        # access here already used `.get`; an unnamed epic is a thing to show,
+        # not a reason to show nothing.
+        name = epic.get("name") or epic.get("id") or "(unnamed epic)"
+        if _epic_stats(data, epic.get("id"))["closeable"]:
             name = f"{name} [closeable]"
         lines.append(f"| {name} | {_epic_status_label(epic.get('status', 'planned'))} | {done_count}/{total} | {focus} |")
 
@@ -1415,14 +2349,316 @@ def backlog_get_task(
     return "\n".join(lines)
 
 
+# A leftover `local/index.db` from a 5.2.x install, plus the log that shipped
+# with it. They are read by nothing now; a rebuild is the one moment we are
+# already touching derived state, so it is where they get swept up.
+_LEGACY_INDEX_RELPATHS = (Path("local") / "index.db", Path("local") / "index.log")
+
+
+def _render_derived_report(status: dict, db_file: Path) -> str:
+    """Format `Store.derived_status()` as the `backlog_index_status` body."""
+    counts = status.get("row_counts") or {}
+    rows = " ".join(f"{table}={counts.get(table, 0)}" for table in
+                    ("entities", *store.DERIVED_TABLES))
+    rebuilt = status.get("rebuilt_at") or "never (kept current per transaction)"
+    return "\n".join([
+        f"Store: {db_file}",
+        f"Rebuilt: {rebuilt}  (loader={yaml_io.LOADER_NAME})",
+        f"Rows: {rows}",
+    ])
+
+
 @mcp.tool()
-def backlog_search(query: str) -> str:
-    """Full-text search across task IDs, titles, notes, branches, and doc paths. Returns matching tasks ranked by relevance.
+def backlog_index_status(rebuild: bool = False) -> str:
+    """Report the state of the store's derived tables (FTS, paths, links, related).
+
+    They live in `.taskmaster/local/store.db` beside the authoritative rows and are
+    refreshed inside the transaction of every tool call, so they are never stale.
 
     Args:
-        query: Search text (case-insensitive). Matches against id, title, notes, branch, epic name, and doc paths.
+        rebuild: Recompute every derived table from the entity rows before reporting.
+            The authoritative tables are not touched and no file is re-read.
     """
+    bp = _backlog_path()
+    if not bp.exists():
+        # Same answer as `backlog_store_status`: a diagnostic must report on a
+        # project that has no backlog yet, and must not open a store beside one
+        # that does not exist. `rebuild=True` has nothing to rebuild either.
+        return f"no backlog found at {bp}"
+    st = _store()
+    if rebuild:
+        # Derived rows only: `entities`, `changes` and `projection` are the
+        # authority and a rebuild must never be able to lose one of them.
+        st.rebuild_derived()
+        for relpath in _LEGACY_INDEX_RELPATHS:
+            (bp.parent / relpath).unlink(missing_ok=True)
+    return _render_derived_report(st.derived_status(), st.db_path)
+
+
+def _render_store_report(status: "store.StoreStatus") -> str:
+    """Format a `store.StoreStatus` as the `backlog_store_status` body.
+
+    Every field spec §3.8 names gets a line even when it is empty, so a reader
+    comparing two reports never has to work out whether a missing line means
+    "none" or "this build does not report it".
+    """
+    def listing(label: str, names) -> str:
+        names = list(names)
+        shown = f"  {', '.join(names[:10])}" if names else ""
+        more = f" (+{len(names) - 10} more)" if len(names) > 10 else ""
+        return f"{label}: {len(names)}{shown}{more}"
+
+    lines = [
+        f"Store: {status.db_path}",
+        f"Root: {status.root}  (resolved via {status.resolution_source or 'unknown'}, "
+        f"schema v{status.schema_version}, token {status.creation_token or 'none'})",
+        f"Size: db={status.db_size} B  wal={status.wal_size} B  max seq={status.max_seq}",
+        listing("Dirty", status.dirty_files),
+        listing("Quarantined", status.quarantined_files),
+        listing("Corrupt", status.corrupt_files),
+        f"Merge conflicts (24 h): {status.merge_conflicts_24h}",
+        f"Linear queue: {status.linear_pending} pending",
+        f"Warning: {status.warning or 'none'}",
+    ]
+
+    lines.append(f"Sessions: {len(status.live_sessions)} live")
+    for session in status.live_sessions:
+        lines.append(
+            f"  {session.get('session')}  pid={session.get('pid')}"
+            f"@{session.get('host')}  last_seen={session.get('last_seen')}"
+            f"  tool={session.get('current_tool') or '-'}"
+        )
+
+    lines.append(f"Changes (last {len(status.recent_changes)}):")
+    for change in status.recent_changes:
+        lines.append(
+            f"  [{change.get('seq')}] {change.get('ts')}  {change.get('tool') or '-'}"
+            f"  {change.get('op')} {change.get('kind')}/{change.get('id')}"
+        )
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def backlog_store_status() -> str:
+    """Report the state of the SQLite store (`.taskmaster/local/store.db`).
+
+    The store is the authority: root and how it was resolved, schema version,
+    database and WAL size, the last 20 changes, dirty and quarantined
+    projection files, live sessions, any filesystem warning, merge conflicts in
+    the last 24 hours, databases an earlier recovery moved aside, and the
+    pending Linear push count.
+
+    Genuinely read-only: it will not create a store that does not exist yet, and
+    it will not move a damaged one aside. Either is reported on the `Warning:`
+    line and left for you to act on, because a diagnostic that repairs the
+    evidence is worse than one that says nothing.
+    """
+    bp = _backlog_path()
+    if not bp.exists():
+        return f"no backlog found at {bp}"
+    # No `_configure_store_derivers()`: nothing here exports or regenerates, so
+    # the read does not need the derivation hooks and does not install them.
+    return _render_store_report(store.read_only_status(bp))
+
+
+def _render_query_table(description, rows: list, limit: int) -> str:
+    """Aligned text table plus the row-count footer `backlog_query` returns."""
+    headers = [col[0] for col in description]
+    capped = len(rows) > limit
+    rows = rows[:limit]
+    cells = [[("" if v is None else str(v))[:80] for v in row] for row in rows]
+    widths = [len(h) for h in headers]
+    for row in cells:
+        for i, cell in enumerate(row):
+            widths[i] = max(widths[i], len(cell))
+
+    def line(values: list[str]) -> str:
+        return "  ".join(v.ljust(widths[i]) for i, v in enumerate(values)).rstrip()
+
+    body = "\n".join([line(headers)] + [line(row) for row in cells])
+    footer = f"{limit} rows (capped)" if capped else f"{len(cells)} rows"
+    return f"{body}\n{footer}"
+
+
+@mcp.tool()
+def backlog_query(sql: str, limit: int = 50) -> str:
+    """Read-only SQL over the backlog store (.taskmaster/local/store.db). Use it to dig deeper
+    than the one-line edit hook: closed history for a path, titles, related entities, FTS.
+
+    Tables: entities(kind,id,epic,status,archived,deleted,doc,body,rev,updated_seq) — `doc` is the
+      whole document as JSON, so titles and other fields come from json_extract(doc,'$.title')
+      entity_paths(kind,id,path,match_kind,source) links(src_kind,src_id,type,dst_kind,dst_id,derived)
+      related(a_kind,a_id,b_kind,b_id,via,weight) handover_tasks(handover_id,task_id)
+      entity_fts(kind,id,title,body) changes(seq,ts,session,tool,kind,id,op,fields,before,after)
+      projection(file,kind,id,content_hash,mtime,size,dirty,quarantined,exported_seq)
+      sessions(session,pid,host,started,last_seen,cwd,current_tool)
+      linear_queue(seq,op,target_id,tracker_id,payload,state,attempts,last_error,claimed_by,claimed_at)
+    kind: task|epic|phase|bug|issue|handover|decision|idea|note|area|tracker. Open statuses: task
+    todo|in-progress|blocked|in-review, bug open|adopted, issue open|investigating, handover open.
+    Rows with deleted=1 are tombstones — filter them out unless you are reading history.
+    Examples:
+      SELECT id,status,json_extract(doc,'$.title') AS title FROM entities WHERE kind='bug' AND deleted=0 AND status IN ('open','adopted')
+      SELECT e.kind,e.id,e.status FROM entity_paths p JOIN entities e ON e.kind=p.kind AND e.id=p.id WHERE p.path LIKE '%ModelUsageService.cs'
+      SELECT id,title FROM entity_fts WHERE entity_fts MATCH 'credit exhaustion' AND kind='handover' ORDER BY bm25(entity_fts) LIMIT 10
+
+    Args:
+        sql: one SELECT (or WITH ... SELECT, recursive CTEs allowed). Writes, PRAGMA, ATTACH and
+            multiple statements are rejected, as is a forbidden keyword inside a double-quoted
+            identifier — quote string values with single quotes. Queries are cut off after 5 s.
+        limit: row cap, 1..500 (default 50).
+    """
+    from taskmaster import query_guard  # noqa: PLC0415
+
+    limit = max(1, min(500, limit))
+    con = None
+    guard = None
+    deadline = None
+    started = False
+    try:
+        statement = query_guard.validate(sql)
+        guard = query_guard.Authorizer(query_guard.declared_names(statement))
+        st = _store()
+        # The tables are the answer here, so nothing else on this path adopts a
+        # hand-edited file the way `_load()` does for every other read tool.
+        st.scan_for_read()
+        con = st.connection
+        if con.in_transaction:
+            raise ValueError("backlog_query cannot run inside another store transaction")
+        # A plain BEGIN takes a read snapshot and no write lock, so a concurrent
+        # writer is never blocked by a long query, and the query never sees a
+        # half-applied transaction. Every row is fetched before the tool returns:
+        # no cursor and no snapshot outlives this call.
+        #
+        # This is the store's read/write connection -- `store.py` is the only
+        # module that opens the database, so there is no `mode=ro` handle to
+        # borrow. The authorizer below is therefore load-bearing, not defence in
+        # depth: it is the only thing between a crafted statement and a write.
+        con.execute("BEGIN")
+        started = True
+        deadline = query_guard.Deadline(query_guard.QUERY_TIMEOUT_S)
+        con.set_authorizer(guard)
+        con.set_progress_handler(deadline, query_guard.PROGRESS_INSTRUCTIONS)
+        cur = con.execute(f"SELECT * FROM ({statement}) LIMIT {limit + 1}")
+        rows = cur.fetchall()
+        description = cur.description
+        cur.close()
+        return _render_query_table(description, rows, limit)
+    except (sqlite3.Error, ValueError, OSError, store.LegacyLayoutError) as exc:
+        # SQLite reports both an abort and a denial as a bare message with no object,
+        # so prefer what the handler and the authorizer actually recorded.
+        if deadline is not None and deadline.expired:
+            reason = deadline.message
+        elif guard is not None and guard.denial:
+            reason = f"not authorized: {guard.denial}"
+        else:
+            reason = str(exc)
+        return f"Error: {reason}\n\nSchema: {query_guard.SCHEMA_SUMMARY}"
+    finally:
+        if con is not None:
+            # Both must come off before the rollback: the authorizer would deny
+            # the transaction statement, and the handler would abort it.
+            con.set_authorizer(None)
+            con.set_progress_handler(None, 0)
+            if started and con.in_transaction:
+                con.rollback()
+
+
+# Entity kinds `backlog_search` reports; anything else passed in `kinds` is ignored.
+_SEARCH_KINDS = ("task", "epic", "bug", "issue", "handover", "decision", "idea")
+_SEARCH_LIMIT = 15
+
+
+def _fts_match_expression(query: str) -> str:
+    """Turn free text into a safe FTS5 MATCH expression.
+
+    Every whitespace-separated token becomes a quoted phrase (an embedded `"` is doubled), so
+    punctuation like `-`, `:` or a stray quote is data rather than MATCH grammar. Tokens are
+    joined by spaces, which FTS5 reads as implicit AND.
+    """
+    return " ".join('"' + tok.replace('"', '""') + '"' for tok in query.split())
+
+
+def _render_search_row(row) -> str:
+    """One result line. Tasks keep their historic `(priority, epic, status)` tail."""
+    eid, kind, status, title, priority, epic = row
+    status = status or "todo"
+    if kind == "task":
+        return f"`{eid}` — {title or ''} ({priority or 'medium'}, {epic or '—'}, {status})"
+    return f"`{eid}` — {title or ''} ({kind}, {status})"
+
+
+def _search_via_index(query: str, kinds: list[str] | None) -> str | None:
+    """FTS5 search across every entity kind, or None to tell the caller to fall back.
+
+    Returns None when the store is unreadable or any SQLite error occurs — the substring scan
+    can always answer for tasks, so search must never surface an error from here. It reads the
+    store's `entity_fts` table and builds nothing: the table is maintained per transaction.
+    """
+    match = _fts_match_expression(query)
+    if not match:
+        return None
+    # A filter of only unknown kinds searches everything, as it always has.
+    selected = [k for k in kinds or () if k in _SEARCH_KINDS] or list(_SEARCH_KINDS)
+    con = None
+    owns_snapshot = False
+    try:
+        con = _store().connection
+        # The count and the rows are one answer and must come from one snapshot.
+        # `_load()` has already released its own, so a commit landing between
+        # the two queries produced "1 match" above an empty list.
+        owns_snapshot = not con.in_transaction
+        if owns_snapshot:
+            con.execute("BEGIN")
+        # `backlog` and `project` are whole-file documents, not work items: they
+        # are indexed so `backlog_query` can reach them, and excluded here so a
+        # common word cannot return the entire backlog as one result row.
+        where = ("WHERE entity_fts MATCH ? AND e.deleted=0 AND e.kind IN ("
+                 + ",".join("?" * len(selected)) + ")")
+        params: list[str] = [match, *selected]
+        source = ("FROM entity_fts JOIN entities e "
+                  f"ON e.kind = entity_fts.kind AND e.id = entity_fts.id {where}")
+        total = con.execute(f"SELECT COUNT(*) {source}", params).fetchone()[0]
+        if not total:
+            # Not "No tasks": this path searches every kind, and `kinds` may
+            # have excluded tasks entirely.
+            return f"No matches for `{query}`"
+        rows = con.execute(
+            "SELECT entity_fts.id, e.kind, e.status, entity_fts.title, "
+            "json_extract(e.doc,'$.priority') AS priority, e.epic, "
+            "bm25(entity_fts) AS rank "
+            f"{source} ORDER BY rank LIMIT {int(_SEARCH_LIMIT)}", params).fetchall()
+    except (sqlite3.Error, OSError, ValueError, store.LegacyLayoutError):
+        return None
+    finally:
+        if owns_snapshot and con is not None and con.in_transaction:
+            con.rollback()
+
+    body = "\n".join(f"- {_render_search_row(tuple(r)[:6])}" for r in rows)
+    return f"**{total} match{'es' if total != 1 else ''}** for `{query}`:\n" + body
+
+
+@mcp.tool()
+def backlog_search(query: str, kinds: list[str] | None = None) -> str:
+    """Full-text search across every backlog entity — tasks, epics, bugs, issues, handovers,
+    decisions and ideas — ranked by relevance (bm25) over the store's FTS index.
+
+    Args:
+        query: Search text (case-insensitive). Matched against titles and bodies (notes,
+            descriptions, evidence, handover prose). Multiple words are ANDed together.
+        kinds: Optional filter, e.g. ["bug", "issue"]. Unknown kinds are ignored; omit for all.
+            Valid kinds: task, epic, bug, issue, handover, decision, idea.
+    """
+    if isinstance(kinds, str):  # tolerate kinds="bug" from a loose caller
+        kinds = [kinds]
+    # _load() opens the store, which adopts any out-of-band file edit and refreshes the
+    # derived tables in the same transaction, so the FTS path below is never behind the files.
     data = _load()
+
+    indexed = _search_via_index(query, kinds)
+    if indexed is not None:
+        return indexed
+
+    # Fallback: the store is unreadable. Substring scan over tasks only, unchanged.
     q = query.lower()
     scored: list[tuple[int, str]] = []
 
@@ -1461,7 +2697,7 @@ def backlog_search(query: str) -> str:
         return f"No tasks matching `{query}`"
 
     scored.sort(key=lambda x: -x[0])
-    results = [item for _, item in scored[:15]]
+    results = [item for _, item in scored[:_SEARCH_LIMIT]]
     return f"**{len(scored)} match{'es' if len(scored) != 1 else ''}** for `{query}`:\n" + "\n".join(f"- {r}" for r in results)
 
 
@@ -1927,66 +3163,115 @@ def backlog_init(project_name: str = "", location: str = "tracked", schema_versi
     )
 
 
-@mcp.tool()
-def backlog_migrate_v3() -> str:
-    """Migrate this project's backlog to v3 layout (slim index + per-task files).
+# The row kinds the compatibility dict carries under `_rows`. Tasks, epics and
+# phases are not among them — they are counted off the dict's own tree.
+_MIGRATION_ROW_KINDS = (
+    "bug", "issue", "handover", "decision", "idea", "note", "area", "tracker",
+)
 
-    v3 introduces narrative-continuity features (handovers, issues,
-    auto modes). The on-disk shape changes: heavy task fields (description, notes,
-    docs, review_instructions) move out of `backlog.yaml` into per-task files at
-    `tasks/<id>.md`. Slim metadata (id, title, status, priority, etc.) stays in
-    `backlog.yaml` as the index.
 
-    The migration is idempotent — running on a v3 backlog is a no-op. The in-memory
-    shape is identical across versions, so existing tools/skills keep working.
+def _adopt_project_into_store(tool: str) -> str:
+    """Canonicalize the layout if needed, open the store, report what it holds.
+
+    There is no separate v2->v3->v4 file rewrite any more: the store adopts
+    whatever schema it finds on first open (design spec decision 9) and every
+    later read serves rows, so a migration tool that wrote the projection
+    itself would be a second writer racing the one that owns it. What is left
+    for these tools to do is the one thing the store cannot do for itself —
+    move a `.claude/` or root-layout project to `<root>/.taskmaster`, which the
+    store refuses to open — and then report the adopted counts.
     """
+    from taskmaster.taskmaster_v3 import canonicalize_layout  # noqa: PLC0415
+
+    unsafe = store.unsafe_storage_reason(ROOT)
+    if unsafe:
+        return (
+            f"Error: refusing to migrate on this storage — {unsafe}. "
+            f"Move the project to local disk first."
+        )
+    summary = canonicalize_layout(ROOT, dry_run=False)
+    status = summary["status"]
+    if status == "no_backlog":
+        return f"Error: no backlog found under {ROOT}. Run `backlog_init` first."
+    if status == "ambiguous":
+        srcs = ", ".join(summary.get("sources_found", []))
+        return (
+            f"Error: multiple backlog.yaml files exist ({srcs}). Keep one before "
+            f"migrating."
+        )
+    if status == "conflicts":
+        rows = "\n".join(f"  {c['src']}  →  {c['dst']}" for c in summary["conflicts"])
+        return (
+            "Error: the canonical layout already holds different content. Nothing "
+            f"moved. Resolve manually:\n{rows}"
+        )
+    moved = len(summary.get("moved") or []) if status == "migrated" else 0
+
     bp = _backlog_path()
     if not bp.exists():
         return f"Error: no backlog found at {bp}. Run `backlog_init` first."
-    summary = _migrate_v2_to_v3(bp)
+    # Opening the store *is* the migration: the scan imports the projection and
+    # the schema is rewritten to v4 under the writer lock.
+    data = _load()
+    rows = data.get("_rows") or {}
+    st = _store().status()
 
-    if summary["status"] == "already_v3":
-        return (
-            f"Already on v3 — {summary['tasks_total']} tasks, no changes made.\n"
-            f"Backlog at: {bp.relative_to(ROOT)}"
-        )
-    files = summary["task_files_written"]
-    files_msg = (
-        f"Wrote {len(files)} per-task files under `tasks/`."
-        if files
-        else "No tasks had heavy content — only the index was rewritten."
-    )
-    return (
-        f"Migrated v2 → v3.\n"
-        f"- Tasks: {summary['tasks_total']}\n"
-        f"- {files_msg}\n"
-        f"- Index: {bp.relative_to(ROOT)}\n"
-        f"\nv3 features (handovers, issues, auto modes) will land in "
-        f"subsequent slices."
-    )
+    epics = data.get("epics") or []
+    counts = [
+        f"task: {sum(len(e.get('tasks') or []) for e in epics)}",
+        f"epic: {len(epics)}",
+        f"phase: {len(data.get('phases') or [])}",
+    ]
+    for kind in _MIGRATION_ROW_KINDS:
+        total = len(rows.get(kind) or {})
+        if total:
+            counts.append(f"{kind}: {total}")
+
+    lines = [
+        f"Adopted into the store ({tool}).",
+        f"- Store: {st.db_path}  (store schema v{st.schema_version}, max seq {st.max_seq})",
+        f"- Rows — {', '.join(counts)}",
+    ]
+    if moved:
+        lines.insert(1, f"- Canonicalized `{summary['source']}` → `.taskmaster/`: {moved} file(s) moved.")
+    if st.quarantined_files:
+        lines.append(f"- Quarantined: {len(st.quarantined_files)} file(s) — {', '.join(st.quarantined_files[:10])}")
+    if st.dirty_files:
+        lines.append(f"- Dirty: {len(st.dirty_files)} file(s) awaiting export")
+    if st.warning:
+        lines.append(f"- Warning: {st.warning}")
+    lines.append("Run `backlog_store_status` any time for the full report.")
+    # Adoption mutates, so its answer names the commit it produced, like every
+    # other mutating tool (R6, decision 7). It is not `@_transactional` — the
+    # adoption happens inside the store's own bootstrap transaction, which is
+    # already closed by the time `_load()` returns — so the seq is taken from
+    # the committed state rather than from a frame.
+    return _append_seq("\n".join(lines), st.max_seq)
+
+
+@mcp.tool()
+def backlog_migrate_v3() -> str:
+    """Adopt this project's backlog into the SQLite store.
+
+    Kept under its historical name so existing skills and docs keep working.
+    There is no longer a v2/v3/v4 file rewrite step: the store adopts whatever
+    schema it finds when it first opens the project, so this tool moves a
+    legacy `.claude/` or root layout into `.taskmaster/` (the only place a store
+    may live) and then opens it. Idempotent — running it on an adopted project
+    just reports the counts.
+    """
+    return _adopt_project_into_store("backlog_migrate_v3")
 
 
 @mcp.tool()
 def backlog_migrate_v4() -> str:
-    """Migrate this project to v4 sharded per-task storage."""
-    backlog_path = _backlog_path()
-    if not backlog_path.exists():
-        return f"Error: no backlog found at {backlog_path}. Run `backlog_init` first."
-    summary = _migrate_v3_to_v4(backlog_path)
-    if summary["status"] == "already_v4":
-        return (
-            f"Already on v4 — {summary['tasks_total']} tasks, no changes made.\n"
-            f"Backlog at: {backlog_path.relative_to(ROOT)}"
-        )
-    return (
-        "Migrated v3 -> v4.\n"
-        f"- Tasks: {summary['tasks_total']} (all fields now in tasks/<id>.md)\n"
-        f"- Index: {backlog_path.relative_to(ROOT)} (slim — no task lists)\n"
-        "- Local state moved into local/; snapshots/ removed.\n"
-        "- Restart the MCP server to pick up the new schema."
-    )
+    """Adopt this project's backlog into the SQLite store (alias of
+    `backlog_migrate_v3` — one adoption path, two historical names)."""
+    return _adopt_project_into_store("backlog_migrate_v4")
+
 
 @mcp.tool()
+@_transactional("backlog_backfill_lanes")
 def backlog_backfill_lanes(grandfather_active: bool = True) -> str:
     """One-time optional migration: assign a `lane` (by priority) to every task that
     lacks one. For tasks already in-progress/in-review/done, mark their lane's required
@@ -2035,6 +3320,14 @@ def backlog_canonicalize_layout(dry_run: bool = False) -> str:
         dry_run: When true, returns the move plan without modifying anything.
     """
     from taskmaster.taskmaster_v3 import canonicalize_layout
+    # Projection-only (network) storage has no store to migrate into and no
+    # writer lock to serialize this move; refuse rather than half-migrate.
+    unsafe = store.unsafe_storage_reason(ROOT)
+    if unsafe:
+        return (
+            f"Error: refusing to canonicalize the layout on this storage — "
+            f"{unsafe}. Move the project to local disk first."
+        )
     summary = canonicalize_layout(ROOT, dry_run=dry_run)
     status = summary["status"]
 
@@ -2085,7 +3378,93 @@ def backlog_canonicalize_layout(dry_run: bool = False) -> str:
     return "\n".join(out)
 
 
+def _handover_create_in_tx(
+    *,
+    tldr: str,
+    next_action: str = "",
+    body: str = "",
+    task_ids: list | None = None,
+    session_kind: str = "continuity",
+    thread: str | None = None,
+    when: str | None = None,
+    context_size_at_write: str | None = None,
+    supersedes: str | None = None,
+    branch: str | None = None,
+    tip_commit: str | None = None,
+    flag_for_review: bool = False,
+    review_reason: str = "",
+    open_decisions: list | None = None,
+    resolved_this_session: list | None = None,
+):
+    """Create one handover row and everything that must commit with it.
+
+    Returns `(handover_id, superseded_warning | None)`, or an error string. The
+    supersession, the review flag and the `open_decisions` back-references all
+    ride the caller's transaction, so a handover that names a decision can never
+    half-land. Shared with the test seeding shim so both drive one code path.
+    """
+    tx = _store_tx()
+    try:
+        document, handover_body = _build_handover_doc(
+            tldr=tldr,
+            next_action=next_action,
+            body=body,
+            task_ids=task_ids or [],
+            session_kind=session_kind,
+            thread=thread,
+            when=when,
+            context_size_at_write=context_size_at_write,
+            supersedes=supersedes,
+            branch=branch,
+            tip_commit=tip_commit,
+            open_decisions=open_decisions,
+            resolved_this_session=resolved_this_session,
+        )
+        hid = tx.create("handover", document, body=handover_body)
+    except ValueError as exc:
+        return str(exc)
+
+    superseded_warning = None
+    if supersedes:
+        try:
+            old_doc, old_body = _tx_doc("handover", supersedes)
+        except KeyError:
+            superseded_warning = (
+                f"WARNING: supersedes={supersedes} not found on disk; old "
+                f"handover not updated."
+            )
+        else:
+            new_doc, new_body = _supersede_handover_doc(old_doc, old_body, new_id=hid)
+            tx.put("handover", supersedes, new_doc, body=new_body)
+
+    if flag_for_review:
+        flagged_doc, flagged_body = _tx_doc("handover", hid)
+        tx.put(
+            "handover",
+            hid,
+            _flag_handover_doc_for_review(flagged_doc, review_reason=review_reason or ""),
+            body=flagged_body,
+        )
+
+    # A handover that names open decisions back-references itself on each one,
+    # inside this same transaction so the pair can never half-land.
+    for decision_id in document.get("open_decisions") or []:
+        try:
+            decision_doc, decision_body = _tx_doc("decision", decision_id)
+        except KeyError:
+            continue  # decision was deleted; don't fail the handover write
+        linked = _link_decision_doc_to_handover(decision_doc, hid)
+        if linked is not None:
+            tx.put("decision", decision_id, linked, body=decision_body)
+
+    data = _load()
+    _sync_handover_index_tx(data)
+    _mutate_and_save(data)
+    return hid, superseded_warning
+
+
 @mcp.tool()
+@_transactional("backlog_handover_create")
 def backlog_handover_create(
     tldr: str,
     next_action: str = "",
@@ -2132,55 +3511,36 @@ def backlog_handover_create(
         thread_name = _derive_thread_name(
             task_ids or [], tldr, data, bundle_slug=bundle.get("slug", "") or ""
         )
-    try:
-        hid, target = _write_handover(
-            bp,
-            tldr=tldr,
-            next_action=next_action,
-            body=body,
-            task_ids=task_ids or [],
-            session_kind=session_kind,
-            thread=thread_name,
-            context_size_at_write=context_size_at_write or None,
-            supersedes=supersedes or None,
-            branch=branch or None,
-            tip_commit=tip_commit or None,
-        )
-    except ValueError as exc:
-        return f"Error: {exc}"
-
-    superseded_warning = None
-    if supersedes:
-        try:
-            _apply_supersession(bp, old_id=supersedes, new_id=hid)
-        except FileNotFoundError:
-            superseded_warning = (
-                f"WARNING: supersedes={supersedes} not found on disk; old "
-                f"handover not updated."
-            )
-
-    if flag_for_review:
-        try:
-            _apply_handover_review_flag(
-                bp, handover_id=hid, review_reason=review_reason or ""
-            )
-        except FileNotFoundError as exc:
-            return f"Error: handover not found: {exc}."
-
-    _sync_handover_index(data, bp)
-    _save(data)
-    _ensure_v3_marker(bp)
+    outcome = _handover_create_in_tx(
+        tldr=tldr,
+        next_action=next_action,
+        body=body,
+        task_ids=task_ids or [],
+        session_kind=session_kind,
+        thread=thread_name,
+        context_size_at_write=context_size_at_write or None,
+        supersedes=supersedes or None,
+        branch=branch or None,
+        tip_commit=tip_commit or None,
+        flag_for_review=flag_for_review,
+        review_reason=review_reason,
+    )
+    if isinstance(outcome, str):
+        return f"Error: {outcome}"
+    hid, superseded_warning = outcome
+    target = _handover_path(bp, hid)
+    data = _load()
 
     # Plan C: auto-detect inline ID mentions, materialize as `references` links.
-    from taskmaster.taskmaster_v3 import auto_link_on_save as _auto_link_on_save
     try:
-        _auto_link_on_save(bp, hid)
+        _auto_link_entity(bp, hid)
     except Exception:
         pass
 
     lines = [
         f"Handover written: {hid}",
         f"- File: {target.relative_to(ROOT)}",
+        f"- Path: {target.resolve()}",
         f"- Index entries: {len(data.get('handovers') or [])}",
     ]
     if supersedes and not superseded_warning:
@@ -2302,16 +3662,12 @@ def backlog_handover_get(
     if not bp.exists():
         return "No backlog found."
     _ensure_handover_status_backfilled()
-    try:
-        fm, body = _read_handover(bp, handover_id)
-    except FileNotFoundError:
-        # Maybe it's archived?
-        archive_root = bp.parent / "handovers" / "_archive"
-        candidates = list(archive_root.rglob(f"{handover_id}.md")) if archive_root.exists() else []
-        if not candidates:
-            return f"Handover not found: {handover_id}"
-        from taskmaster.taskmaster_v3 import read_task_file as _read_task_file
-        fm, body = _read_task_file(candidates[0])
+    # The row map carries archived handovers too, so the old `_archive/` rglob
+    # fallback is gone with the file read it backed up.
+    row = _dict_row(_load(), "handover", handover_id)
+    if row is None:
+        return f"Handover not found: {handover_id}"
+    fm, body = row[0], row[1] or ""
 
     # ── sections-only mode ───────────────────────────────────────────────────
     if sections is not None and not sections:
@@ -2351,6 +3707,7 @@ def backlog_handover_get(
 
 
 @mcp.tool()
+@_transactional("backlog_handover_resync")
 def backlog_handover_resync() -> str:
     """Rebuild the handover index in backlog.yaml from disk.
 
@@ -2363,12 +3720,39 @@ def backlog_handover_resync() -> str:
     _ensure_handover_status_backfilled()
     data = _load()
     from taskmaster.taskmaster_v3 import backfill_threads as _backfill_threads
-    backfill = _backfill_threads(bp, backlog_data=data)
-    _sync_handover_index(data, bp)
-    _save(data)
+    tx = _store_tx()
+    backfill = _backfill_threads(tx.list("handover"), backlog_data=data)
+    for handover_id, document, body in backfill["stamped"]:
+        tx.put("handover", handover_id, document, body=body)
+    _sync_handover_index_tx(data)
+    _mutate_and_save(data)
     n = len(data.get("handovers") or [])
     extra = f" Backfilled thread on {len(backfill['stamped'])} legacy handover(s)." if backfill["stamped"] else ""
     return f"Handover index resynced — {n} entries in `backlog.yaml`.{extra}"
+
+
+def _threads_data(bp: Path) -> dict:
+    """Backlog state with the thread index present, taking no writer lock to read.
+
+    Listing threads is a read.  Entering a transaction unconditionally queued
+    every listing behind the writer and, on projection-only (network) storage
+    where the store refuses to write at all, failed outright.  The one-off
+    backfill still commits when it is genuinely missing; on a read-only store it
+    is derived in memory and left uncommitted.
+    """
+    data = _load()
+    if "threads" in data:
+        return data
+    try:
+        with _transaction(tool="backlog_thread_index_backfill") as tx_data:
+            if "threads" not in tx_data:
+                _sync_handover_index_tx(tx_data)
+                _mutate_and_save(tx_data)
+    except RuntimeError:
+        # Projection-only storage: serve the derived index without persisting it.
+        _sync_handover_index(data, _dict_rows(data, "handover"))
+        return data
+    return _load()
 
 
 @mcp.tool()
@@ -2382,10 +3766,7 @@ def backlog_thread_list(include_closed: bool = False) -> str:
     bp = _backlog_path()
     if not bp.exists():
         return "No backlog found."
-    data = _load()
-    if "threads" not in data:
-        _sync_handover_index(data, bp)
-        _save(data)
+    data = _threads_data(bp)
     from taskmaster.taskmaster_v3 import list_threads as _list_threads
     rows = _list_threads(data)
     if not include_closed:
@@ -2415,20 +3796,19 @@ def backlog_thread_resume(ref: str) -> str:
     bp = _backlog_path()
     if not bp.exists():
         return "No backlog found."
-    data = _load()
-    if "threads" not in data:
-        _sync_handover_index(data, bp)
-        _save(data)
+    data = _threads_data(bp)
     from taskmaster.taskmaster_v3 import resolve_thread as _resolve_thread
     try:
         tname, hid = _resolve_thread(data, bp, ref)
     except KeyError:
         return (f"No thread or handover matches {ref!r}. "
                 f"See `backlog_thread_list()` for open threads.")
-    try:
-        fm, body = _read_handover(bp, hid)
-    except FileNotFoundError:
-        return f"Thread {tname!r} resolved to {hid}, but the file is missing — run `backlog_handover_resync`."
+    row = _dict_row(data, "handover", hid)
+    if row is None:
+        return f"Thread {tname!r} resolved to {hid}, but no such handover exists."
+    fm, body = row
+    fm = {key: value for key, value in fm.items() if key != _BODY_KEY}
+    body = body or ""
     t = (data.get("threads") or {}).get(tname) or {}
     header = [
         f"# Thread: {tname or '(none — standalone handover)'}",
@@ -2442,6 +3822,7 @@ def backlog_thread_resume(ref: str) -> str:
 
 
 @mcp.tool()
+@_transactional("backlog_thread_update")
 def backlog_thread_update(name: str, status: str, reason: str = "") -> str:
     """Set a thread's status: open / parked / closed. Writing a new handover
     into the thread later auto-reopens it (override expires)."""
@@ -2450,7 +3831,7 @@ def backlog_thread_update(name: str, status: str, reason: str = "") -> str:
         return "No backlog found."
     data = _load()
     if "threads" not in data:
-        _sync_handover_index(data, bp)
+        _sync_handover_index_tx(data)
     from taskmaster.taskmaster_v3 import update_thread_status as _update_thread_status
     try:
         _update_thread_status(data, bp, name=name, status=status, reason=reason)
@@ -2458,7 +3839,7 @@ def backlog_thread_update(name: str, status: str, reason: str = "") -> str:
         return f"Error: {exc}"
     except KeyError:
         return f"Error: no thread named {name!r}. See `backlog_thread_list()`."
-    _save(data)
+    _mutate_and_save(data)
     return f"Thread {name} → {status}." + (f" ({reason})" if reason else "")
 
 
@@ -2495,6 +3876,7 @@ def backlog_link(
     return json.dumps({"error": f"unknown action {action!r}"})
 
 
+@_transactional("backlog_link_create")
 def backlog_link_create(source: str, target: str, type: str, note: str = "") -> str:
     """Create a typed link from `source` to `target`. Server writes the inverse
     on the target side automatically (see spec §6A/§6B).
@@ -2567,6 +3949,7 @@ def backlog_link_create(source: str, target: str, type: str, note: str = "") -> 
     return f"ok: linked {source} -[{type}]-> {target}{suffix}{note_part}"
 
 
+@_transactional("backlog_link_remove")
 def backlog_link_remove(source: str, target: str, type: str = "") -> str:
     """Remove a link (and its inverse) between `source` and `target`.
 
@@ -2775,6 +4158,7 @@ def backlog_link_validate() -> str:
                         "cycles": cycles, "archived_targets": archived_targets})
 
 
+@_transactional("backlog_link_reconcile")
 def backlog_link_reconcile() -> str:
     """Add missing inverse links on peers. Reports unfixable drift.
 
@@ -2803,6 +4187,7 @@ def backlog_link_reconcile() -> str:
 
 
 @mcp.tool()
+@_transactional("backlog_handover_supersede")
 def backlog_handover_supersede(old_id: str, new_id: str) -> str:
     """Mark an existing handover as superseded by another.
 
@@ -2819,14 +4204,23 @@ def backlog_handover_supersede(old_id: str, new_id: str) -> str:
     if not bp.exists():
         return "No backlog found."
     _ensure_handover_status_backfilled()
+    tx = _store_tx()
+    if not tx.id_taken("handover", new_id):
+        return f"Error: handover not found: {new_id}."
     try:
-        old_path = _apply_supersession(bp, old_id=old_id, new_id=new_id)
-    except FileNotFoundError as exc:
-        return f"Error: handover not found: {exc}."
-    return f"Superseded {old_id} → {new_id} ({old_path.name} updated)."
+        old_doc, old_body = _tx_doc("handover", old_id)
+    except KeyError:
+        return f"Error: handover not found: {old_id}."
+    document, new_body = _supersede_handover_doc(old_doc, old_body, new_id=new_id)
+    tx.put("handover", old_id, document, body=new_body)
+    data = _load()
+    _sync_handover_index_tx(data)
+    _mutate_and_save(data)
+    return f"Superseded {old_id} \u2192 {new_id} ({old_id}.md updated)."
 
 
 @mcp.tool()
+@_transactional("backlog_handover_update_status")
 def backlog_handover_update_status(
     handover_id: str,
     status: str,
@@ -2846,19 +4240,35 @@ def backlog_handover_update_status(
     if not bp.exists():
         return "No backlog found."
     _ensure_handover_status_backfilled()
+    fm = _handover_set_status(handover_id, status=status, reason=reason)
+    if isinstance(fm, str):
+        return fm
+    data = _load()
+    _sync_handover_index_tx(data)
+    _mutate_and_save(data)
+    return f"Handover {handover_id} \u2192 status={fm['status']} (user-set)."
+
+
+def _handover_set_status(handover_id: str, *, status: str, reason: str = ""):
+    """Apply a user-set status to one handover inside the open transaction.
+
+    Returns the new document, or an error string. Shared by the MCP tool and
+    the viewer's POST handler so both run exactly one code path.
+    """
     try:
-        fm, _ = _update_handover_status(bp, handover_id=handover_id, status=status, reason=reason)
+        document, body = _tx_doc("handover", handover_id)
+    except KeyError:
+        return f"Handover not found: {handover_id}"
+    try:
+        updated = _set_handover_status_doc(document, status=status, reason=reason)
     except ValueError as exc:
         return f"Error: {exc}"
-    except FileNotFoundError:
-        return f"Handover not found: {handover_id}"
-    data = _load()
-    _sync_handover_index(data, bp)
-    _save(data)
-    return f"Handover {handover_id} → status={fm['status']} (user-set)."
+    _store_tx().put("handover", handover_id, updated, body=body)
+    return updated
 
 
 @mcp.tool()
+@_transactional("backlog_issue_create")
 def backlog_issue_create(
     title: str,
     severity: str,
@@ -2902,8 +4312,7 @@ def backlog_issue_create(
         tldr = extract_tldr(impact) or title[:TLDR_MAX_CHARS]
         tldr_autogen = True
     try:
-        iid, target = _write_issue(
-            bp,
+        document = _build_issue_doc(
             title=title,
             severity=severity,
             evidence=evidence,
@@ -2912,22 +4321,21 @@ def backlog_issue_create(
             location=location or [],
             related_tasks=related_tasks or [],
             discovered_by=discovered_by,
-            body=body,
             tldr=tldr,
             tldr_autogen=tldr_autogen,
         )
+        iid = _store_tx().create("issue", document, body=body)
     except ValueError as exc:
         return f"Error: {exc}"
+    target = _issue_path(bp, iid)
 
     data = _load()
-    _sync_issue_index(data, bp)
-    _save(data)
-    _ensure_v3_marker(bp)
+    _sync_issue_index_tx(data)
+    _mutate_and_save(data)
 
     # Plan C: auto-detect inline ID mentions, materialize as `references` links.
-    from taskmaster.taskmaster_v3 import auto_link_on_save as _auto_link_on_save
     try:
-        _auto_link_on_save(bp, iid)
+        _auto_link_entity(bp, iid)
     except Exception:
         pass
 
@@ -2959,7 +4367,10 @@ def backlog_issue_list(
     if not bp.exists():
         return "No backlog found."
     data = _load()
-    entries = data.get("issues") or []
+    rows = _dict_rows(data, "issue")
+    docs = {ident: doc for ident, doc, _body in rows}
+    bodies = {ident: (body or "") for ident, _doc, body in rows}
+    entries = _derived_index("issue", rows)
     if severity:
         entries = [e for e in entries if e.get("severity") == severity]
     if status:
@@ -2975,25 +4386,19 @@ def backlog_issue_list(
             f"- {e['id']} {e.get('severity', '?')} {e.get('status', '?'):14} "
             f"— {e.get('title', '')}{comps_tag}"
         )
-        # In slim mode, enrich with tldr from file (index omits tldr)
+        # In slim mode, enrich with tldr from the row (the index omits tldr).
+        fm = docs.get(e["id"]) or {}
         if not verbose:
-            try:
-                fm, _ = _read_issue(bp, e["id"])
-                tldr = fm.get("tldr", "")
-                if tldr:
-                    line += f" — {tldr}"
-            except (FileNotFoundError, OSError):
-                pass
+            tldr = fm.get("tldr", "")
+            if tldr:
+                line += f" \u2014 {tldr}"
         lines.append(line)
         if verbose:
-            try:
-                fm, body = _read_issue(bp, e["id"])
-                if fm.get("tldr"):
-                    lines.append(f"  tldr: {fm['tldr']}")
-                if body and body.strip():
-                    lines.append(f"  body: {body.strip()[:200]}")
-            except (FileNotFoundError, OSError):
-                pass
+            if fm.get("tldr"):
+                lines.append(f"  tldr: {fm['tldr']}")
+            body = bodies.get(e["id"]) or ""
+            if body.strip():
+                lines.append(f"  body: {body.strip()[:200]}")
     footer = _overflow_footer(overflow, "issues")
     if footer:
         lines.append(footer)
@@ -3019,10 +4424,10 @@ def backlog_issue_get(
     bp = _backlog_path()
     if not bp.exists():
         return "No backlog found."
-    try:
-        fm, body = _read_issue(bp, issue_id)
-    except FileNotFoundError:
+    row = _dict_row(_load(), "issue", issue_id)
+    if row is None:
         return f"Issue not found: {issue_id}"
+    fm, body = row[0], row[1] or ""
 
     # ── sections-only mode ───────────────────────────────────────────────────
     if sections is not None and not sections:
@@ -3073,6 +4478,7 @@ ISSUE_UPDATE_FIELDS = ISSUE_UPDATE_LIST_FIELDS | ISSUE_UPDATE_SCALAR_FIELDS
 
 
 @mcp.tool()
+@_transactional("backlog_issue_update")
 def backlog_issue_update(issue_id: str, field: str, value: str = "") -> str:
     """Set one field on an issue. List fields take a comma-separated value; an
     empty value clears the field.
@@ -3098,21 +4504,24 @@ def backlog_issue_update(issue_id: str, field: str, value: str = "") -> str:
     body = value if field == "body" else ""
 
     try:
-        fm, _ = _update_issue(bp, issue_id, **updates)
-    except FileNotFoundError:
+        document, stored_body = _tx_doc("issue", issue_id)
+    except KeyError:
         return f"Issue not found: {issue_id}"
+    new_body = updates.pop("body", stored_body)
+    try:
+        fm = _apply_issue_updates(document, **updates)
     except ValueError as exc:
         return f"Error: {exc}"
+    _store_tx().put("issue", issue_id, fm, body=new_body)
 
     data = _load()
-    _sync_issue_index(data, bp)
-    _save(data)
+    _sync_issue_index_tx(data)
+    _mutate_and_save(data)
 
     # Plan C: auto-detect inline ID mentions on body updates.
     if body:
-        from taskmaster.taskmaster_v3 import auto_link_on_save as _auto_link_on_save
         try:
-            _auto_link_on_save(bp, issue_id)
+            _auto_link_entity(bp, issue_id)
         except Exception:
             pass
 
@@ -3120,22 +4529,24 @@ def backlog_issue_update(issue_id: str, field: str, value: str = "") -> str:
 
 
 @mcp.tool()
+@_transactional("backlog_issue_resync")
 def backlog_issue_resync() -> str:
     """Rebuild the issue index in backlog.yaml from disk."""
     bp = _backlog_path()
     if not bp.exists():
         return "No backlog found."
     data = _load()
-    _sync_issue_index(data, bp)
-    _save(data)
+    _sync_issue_index_tx(data)
+    _mutate_and_save(data)
     n = len(data.get("issues") or [])
-    return f"Issue index resynced — {n} entries."
+    return f"Issue index resynced \u2014 {n} entries."
 
 
 # ── Bug MCP tools ─────────────────────────────────────────────────────────────
 
 
 @mcp.tool()
+@_transactional("backlog_bug_create")
 def backlog_bug_create(
     title: str,
     found_in: str = "",
@@ -3162,27 +4573,56 @@ def backlog_bug_create(
         location: file:line refs.
         body: Markdown body for repro/notes.
     """
-    from taskmaster.taskmaster_v3 import write_bug as _write_bug, sync_bug_index as _sync_bug_index
     bp = _backlog_path()
     if not bp.exists():
         return f"Error: no backlog found at {bp}. Run `backlog_init` first."
+    result = _bug_create_in_tx(
+        title=title,
+        found_in=found_in or None,
+        discovered_by=discovered_by,
+        severity=severity or None,
+        components=components or [],
+        location=location or [],
+        body=body,
+    )
+    if isinstance(result, str):
+        return f"Error: {result}"
+    bid, target = result
+    return f"Bug created: {bid} \u2014 {title}\nFile: {target.relative_to(ROOT)}"
+
+
+def _bug_create_in_tx(
+    *,
+    title: str,
+    found_in: str | None,
+    discovered_by: str,
+    severity: str | None,
+    components: list,
+    location: list,
+    body: str,
+):
+    """Create one Bug row and refresh the index inside the open transaction.
+
+    Returns `(id, path)` or an error string. Shared by the MCP tool and the
+    viewer's POST handler so both run exactly one code path.
+    """
+    from taskmaster.taskmaster_v3 import build_bug_doc as _build_bug_doc, bug_path as _bug_path
     try:
-        bid, target = _write_bug(
-            bp,
+        document = _build_bug_doc(
             title=title,
-            found_in=found_in or None,
+            found_in=found_in,
             discovered_by=discovered_by,
-            severity=severity or None,
-            components=components or [],
-            location=location or [],
-            body=body,
+            severity=severity,
+            components=components,
+            location=location,
         )
+        bid = _store_tx().create("bug", document, body=body)
     except ValueError as exc:
-        return f"Error: {exc}"
+        return str(exc)
     data = _load()
-    _sync_bug_index(data, bp)
-    _save(data)
-    return f"Bug created: {bid} — {title}\nFile: {target.relative_to(ROOT)}"
+    _sync_bug_index_tx(data)
+    _mutate_and_save(data)
+    return bid, _bug_path(_backlog_path(), bid)
 
 
 @mcp.tool()
@@ -3203,30 +4643,22 @@ def backlog_bug_list(
             reports how many were hidden.
         include_archive: If True, also include archived bugs.
     """
-    from taskmaster.taskmaster_v3 import (
-        sync_bug_index as _sync_bug_index,
-        list_bug_ids as _list_bug_ids,
-        read_bug as _read_bug,
-    )
     bp = _backlog_path()
     if not bp.exists():
         return "No backlog found."
     data = _load()
-    _sync_bug_index(data, bp)
-    entries = list(data.get("bugs") or [])
+    # A list is a read: derive the index from the rows rather than re-syncing
+    # (and thereby mutating) the caller's dict.
+    entries = list(_derived_index("bug", _dict_rows(data, "bug")))
     if include_archive:
         active_ids = {e["id"] for e in entries}
-        for bid in _list_bug_ids(bp, include_archive=True):
+        for bid, fm, _body in _dict_rows(data, "bug", include_archived=True):
             if bid in active_ids:
                 continue
-            try:
-                fm, _ = _read_bug(bp, bid)
-            except (OSError, ValueError):
-                continue
             entries.append({
-                "id": fm["id"],
-                "title": fm["title"],
-                "status": fm["status"],
+                "id": fm.get("id", bid),
+                "title": fm.get("title"),
+                "status": fm.get("status"),
                 "components": fm.get("components"),
                 "found_in": fm.get("found_in"),
                 "discovered": fm.get("discovered"),
@@ -3260,14 +4692,13 @@ def backlog_bug_get(bug_id: str, verbose: bool = False) -> str:
         bug_id: Bug ID (e.g. B-001).
         verbose: If True, return full frontmatter + body. Default is slim view.
     """
-    from taskmaster.taskmaster_v3 import read_bug as _read_bug
     bp = _backlog_path()
     if not bp.exists():
         return "No backlog found."
-    try:
-        fm, body = _read_bug(bp, bug_id)
-    except FileNotFoundError:
+    row = _dict_row(_load(), "bug", bug_id)
+    if row is None:
         return f"Bug not found: {bug_id}"
+    fm, body = row[0], row[1] or ""
     if verbose:
         fm_lines = [f"  {k}: {v}" for k, v in fm.items()]
         return "---\n" + "\n".join(fm_lines) + "\n---\n" + body
@@ -3286,6 +4717,7 @@ BUG_UPDATE_FIELDS = BUG_UPDATE_LIST_FIELDS | BUG_UPDATE_SCALAR_FIELDS
 
 
 @mcp.tool()
+@_transactional("backlog_bug_update")
 def backlog_bug_update(bug_id: str, field: str, value: str = "") -> str:
     """Set one field on a Bug. List fields take a comma-separated value; an
     empty value clears the field.
@@ -3295,7 +4727,7 @@ def backlog_bug_update(bug_id: str, field: str, value: str = "") -> str:
     in a prior call): status=fixed needs fix_commit, status=adopted needs
     adopted_into, status=promoted needs promoted_to.
     """
-    from taskmaster.taskmaster_v3 import update_bug as _update_bug, sync_bug_index as _sync_bug_index, BUG_STATUSES
+    from taskmaster.taskmaster_v3 import BUG_STATUSES
     bp = _backlog_path()
     if not bp.exists():
         return "No backlog found."
@@ -3307,19 +4739,38 @@ def backlog_bug_update(bug_id: str, field: str, value: str = "") -> str:
         updates: dict[str, Any] = {field: [x.strip() for x in value.split(",") if x.strip()]}
     else:
         updates = {field: value}
+    result = _bug_update_in_tx(bug_id, updates)
+    if isinstance(result, str):
+        return result
+    return f"Bug updated: {bug_id} \u2014 status={result['status']}"
+
+
+def _bug_update_in_tx(bug_id: str, updates: dict):
+    """Apply field updates to one Bug row inside the open transaction.
+
+    Returns the new document, or an error string. Shared by the MCP tool and
+    the viewer's POST handler.
+    """
+    from taskmaster.taskmaster_v3 import apply_bug_updates as _apply_bug_updates
     try:
-        fm, _ = _update_bug(bp, bug_id, **updates)
-    except FileNotFoundError:
+        document, stored_body = _tx_doc("bug", bug_id)
+    except KeyError:
         return f"Bug not found: {bug_id}"
+    updates = dict(updates)
+    new_body = updates.pop("body", stored_body)
+    try:
+        fm = _apply_bug_updates(document, **updates)
     except ValueError as exc:
         return f"Error: {exc}"
+    _store_tx().put("bug", bug_id, fm, body=new_body)
     data = _load()
-    _sync_bug_index(data, bp)
-    _save(data)
-    return f"Bug updated: {bug_id} — status={fm['status']}"
+    _sync_bug_index_tx(data)
+    _mutate_and_save(data)
+    return fm
 
 
 @mcp.tool()
+@_transactional("backlog_bug_archive")
 def backlog_bug_archive(bug_id: str) -> str:
     """Move bugs/B-NNN.md to bugs/archive/B-NNN.md.
 
@@ -3329,20 +4780,36 @@ def backlog_bug_archive(bug_id: str) -> str:
     Args:
         bug_id: Bug ID (e.g. B-001).
     """
-    from taskmaster.taskmaster_v3 import archive_bug as _archive_bug, sync_bug_index as _sync_bug_index
     bp = _backlog_path()
     if not bp.exists():
         return "No backlog found."
+    error = _bug_archive_in_tx(bug_id)
+    if error is not None:
+        return error
+    return f"Bug archived: {bug_id}"
+
+
+def _bug_archive_in_tx(bug_id: str) -> str | None:
+    """Archive one Bug row inside the open transaction; None on success.
+
+    The file move to `bugs/archive/` is the exporter's job — the archive flag
+    on the row is what decides where the projection lives.
+    """
+    from taskmaster.taskmaster_v3 import assert_bug_archivable as _assert_bug_archivable
+    tx = _store_tx()
     try:
-        _archive_bug(bp, bug_id)
-    except FileNotFoundError:
+        document, _body = _tx_doc("bug", bug_id)
+    except KeyError:
         return f"Bug not found: {bug_id}"
+    try:
+        _assert_bug_archivable(document)
     except ValueError as exc:
         return f"Error: {exc}"
+    tx.archive("bug", bug_id)
     data = _load()
-    _sync_bug_index(data, bp)
-    _save(data)
-    return f"Bug archived: {bug_id}"
+    _sync_bug_index_tx(data)
+    _mutate_and_save(data)
+    return None
 
 
 @mcp.tool()
@@ -3363,7 +4830,8 @@ def backlog_bug_pattern_scan(mode: str = "all") -> str:
         return "No backlog found."
     include_archive = (mode == "all")
     open_only = (mode == "open_only")
-    groups = _scan_bug_patterns(bp, include_archive=include_archive, open_only=open_only)
+    rows = _dict_rows(_load(), "bug", include_archived=include_archive)
+    groups = _scan_bug_patterns(rows, open_only=open_only)
     if not groups:
         return "No bug patterns found (need >=2 matching signatures)."
     lines = [f"Found {len(groups)} pattern group(s):"]
@@ -3377,6 +4845,7 @@ def backlog_bug_pattern_scan(mode: str = "all") -> str:
 
 
 @mcp.tool()
+@_transactional("backlog_bug_promote")
 def backlog_bug_promote(
     bug_ids: list[str],
     title: str,
@@ -3399,34 +4868,91 @@ def backlog_bug_promote(
         components: Component tags for the Issue. Inferred from bugs if omitted.
         body: Markdown body for the new Issue.
     """
-    from taskmaster.taskmaster_v3 import (
-        promote_bugs_to_issue as _promote,
-        sync_bug_index as _sync_bug_index,
-        sync_issue_index as _sync_issue_index,
-    )
     bp = _backlog_path()
     if not bp.exists():
         return f"Error: no backlog found at {bp}. Run `backlog_init` first."
+    result = _promote_bugs_in_tx(
+        bug_ids=list(bug_ids or []),
+        title=title,
+        severity=severity,
+        evidence_text=evidence_text,
+        components=components or None,
+        body=body,
+    )
+    if not isinstance(result, str):
+        return f"Promoted {len(bug_ids)} bug(s) to {result[0]}."
+    return f"Error: {result}"
+
+
+def _promote_bugs_in_tx(
+    *,
+    bug_ids: list,
+    title: str,
+    severity: str,
+    evidence_text: str,
+    components: list | None,
+    body: str,
+):
+    """Create an Issue from N Bugs and mark each Bug promoted. One transaction.
+
+    Returns `(issue_id,)` on success or an error string. The issue create and
+    every bug flip commit together: a half-applied promotion would leave bugs
+    pointing at an issue that does not exist.
+    """
+    from taskmaster.taskmaster_v3 import (
+        apply_bug_updates as _apply_bug_updates,
+        build_issue_doc as _build_issue_doc_local,
+    )
+    if not bug_ids:
+        return "bug_ids must be non-empty"
+    if not evidence_text or not evidence_text.strip():
+        return "evidence_text is required (cite recurrence/systemic/outstanding)"
+
+    tx = _store_tx()
+    sources: dict = {}
+    for bid in bug_ids:
+        try:
+            sources[bid] = _tx_doc("bug", bid)
+        except KeyError:
+            return f"bug {bid} not found"
+
+    if components is None:
+        comps: set = set()
+        for bid in bug_ids:
+            for component in sources[bid][0].get("components") or []:
+                comps.add(component)
+        components = sorted(comps)
+
     try:
-        iid = _promote(
-            bp,
-            bug_ids=list(bug_ids or []),
+        issue_doc = _build_issue_doc_local(
             title=title,
             severity=severity,
-            evidence_text=evidence_text,
-            components=components or None,
-            body=body,
+            impact=evidence_text,  # repurpose impact as the evidence narrative
+            evidence=evidence_text,
+            components=components,
+            promoted_from=list(bug_ids),
         )
+        iid = tx.create("issue", issue_doc, body=body)
+        for bid in bug_ids:
+            document, stored_body = sources[bid]
+            tx.put(
+                "bug",
+                bid,
+                _apply_bug_updates(document, status="promoted", promoted_to=iid),
+                body=stored_body,
+            )
     except ValueError as exc:
-        return f"Error: {exc}"
+        return str(exc)
+
     data = _load()
-    _sync_bug_index(data, bp)
-    _sync_issue_index(data, bp)
-    _save(data)
-    return f"Promoted {len(bug_ids)} bug(s) to {iid}."
+    _sync_bug_index_tx(data)
+    _sync_issue_index_tx(data)
+    _mutate_and_save(data)
+    return (iid,)
 
 
 @mcp.tool()
+@_transactional("backlog_decision_create")
 def backlog_decision_create(
     title: str,
     options: list[str],
@@ -3456,8 +4982,7 @@ def backlog_decision_create(
     if not bp.exists():
         return f"Error: no backlog found at {bp}. Run `backlog_init` first."
     try:
-        did, target = _write_decision(
-            bp,
+        document = _build_decision_doc(
             title=title,
             options=options,
             recommendation=recommendation,
@@ -3465,12 +4990,13 @@ def backlog_decision_create(
             related_issues=related_issues or [],
             branch=branch,
             raised_in=raised_in,
-            body=body,
         )
+        did = _store_tx().create("decision", document, body=body)
     except ValueError as exc:
         return f"Error: {exc}"
-    _ensure_v3_marker(bp)
-    return f"Decision created: {did} — {title}\nFile: {target.relative_to(ROOT)}"
+    _mutate_and_save(_load())
+    target = _decision_path(bp, did)
+    return f"Decision created: {did} \u2014 {title}\nFile: {target.relative_to(ROOT)}"
 
 
 @mcp.tool()
@@ -3520,13 +5046,8 @@ def backlog_decision_list(
     bp = _backlog_path()
     if not bp.exists():
         return "No backlog found."
-    ids = _list_decision_ids(bp)
     rows: list[str] = []
-    for did in ids:
-        try:
-            fm, _ = _read_decision(bp, did)
-        except (OSError, ValueError):
-            continue
+    for did, fm, _body in _dict_rows(_load(), "decision"):
         if status != "all" and fm.get("status") != status:
             continue
         if task_id and fm.get("task_id") != task_id:
@@ -3545,15 +5066,15 @@ def backlog_decision_list(
 
 def backlog_decision_get(decision_id: str) -> str:
     """Return full decision frontmatter + body as readable text."""
-    bp = _backlog_path()
-    try:
-        fm, body = _read_decision(bp, decision_id)
-    except FileNotFoundError:
+    row = _dict_row(_load(), "decision", decision_id)
+    if row is None:
         return f"Decision not found: {decision_id}"
+    fm, body = row[0], row[1] or ""
     lines = [f"{k}: {v}" for k, v in fm.items()]
     return "\n".join(lines) + "\n\n---\n" + body
 
 
+@_transactional("backlog_decision_resolve")
 def backlog_decision_resolve(
     decision_id: str,
     resolved_with: int,
@@ -3561,32 +5082,67 @@ def backlog_decision_resolve(
     resolved_in: str = "",
 ) -> str:
     """Resolve a decision with a chosen option (1-indexed)."""
-    bp = _backlog_path()
-    try:
-        fm = _resolve_decision(
-            bp, decision_id,
-            resolved_with=int(resolved_with),
-            rationale=rationale,
-            resolved_in=resolved_in or None,
-        )
-    except (ValueError, FileNotFoundError) as exc:
-        return f"Error: {exc}"
+    result = _decision_resolve_in_tx(
+        decision_id,
+        resolved_with=int(resolved_with),
+        rationale=rationale,
+        resolved_in=resolved_in or None,
+    )
+    if isinstance(result, str):
+        return result
     return (
-        f"Decision {decision_id} resolved with option {fm['resolved_with']}: "
-        f"\"{fm['options'][fm['resolved_with'] - 1]}\""
+        f"Decision {decision_id} resolved with option {result['resolved_with']}: "
+        f"\"{result['options'][result['resolved_with'] - 1]}\""
     )
 
 
+def _decision_resolve_in_tx(
+    decision_id: str, *, resolved_with: int, rationale: str = "", resolved_in: str | None = None
+):
+    """Resolve one decision row inside the open transaction; doc or error string."""
+    try:
+        document, body = _tx_doc("decision", decision_id)
+    except KeyError:
+        return f"Error: Decision not found: {decision_id}"
+    try:
+        fm = _resolve_decision_doc(
+            document,
+            resolved_with=resolved_with,
+            rationale=rationale,
+            resolved_in=resolved_in,
+        )
+    except ValueError as exc:
+        return f"Error: {exc}"
+    _store_tx().put("decision", decision_id, fm, body=body)
+    _mutate_and_save(_load())
+    return fm
+
+
+@_transactional("backlog_decision_drop")
 def backlog_decision_drop(decision_id: str, reason: str) -> str:
     """Drop a decision with a reason (no option picked)."""
-    bp = _backlog_path()
-    try:
-        _drop_decision(bp, decision_id, reason=reason)
-    except (ValueError, FileNotFoundError) as exc:
-        return f"Error: {exc}"
+    result = _decision_drop_in_tx(decision_id, reason=reason)
+    if isinstance(result, str):
+        return result
     return f"Decision {decision_id} dropped: {reason}"
 
 
+def _decision_drop_in_tx(decision_id: str, *, reason: str):
+    """Drop one decision row inside the open transaction; doc or error string."""
+    try:
+        document, body = _tx_doc("decision", decision_id)
+    except KeyError:
+        return f"Error: Decision not found: {decision_id}"
+    try:
+        fm = _drop_decision_doc(document, reason=reason)
+    except ValueError as exc:
+        return f"Error: {exc}"
+    _store_tx().put("decision", decision_id, fm, body=body)
+    _mutate_and_save(_load())
+    return fm
+
+
+@_transactional("backlog_decision_update")
 def backlog_decision_update(
     decision_id: str,
     title: str = "",
@@ -3595,7 +5151,6 @@ def backlog_decision_update(
     body: str = "",
 ) -> str:
     """Edit a decision in place (pre-resolution fields only)."""
-    bp = _backlog_path()
     patch: dict = {}
     if title:
         patch["title"] = title
@@ -3604,12 +5159,15 @@ def backlog_decision_update(
     if recommendation is not None:
         patch["recommendation"] = recommendation
     try:
-        fm = _update_decision(bp, decision_id, patch)
-    except (ValueError, FileNotFoundError) as exc:
+        document, stored_body = _tx_doc("decision", decision_id)
+    except KeyError:
+        return f"Error: Decision not found: {decision_id}"
+    try:
+        fm = _apply_decision_patch(document, patch)
+    except ValueError as exc:
         return f"Error: {exc}"
-    if body:
-        cur_fm, _ = _read_decision(bp, decision_id)
-        _write_task_file(_decision_path(bp, decision_id), cur_fm, body)
+    _store_tx().put("decision", decision_id, fm, body=body or stored_body)
+    _mutate_and_save(_load())
     return f"Decision {decision_id} updated."
 
 
@@ -3631,11 +5189,20 @@ def backlog_continuity_items(
     bp = _backlog_path()
     if not bp.exists():
         return json.dumps({"items": [], "view": view, "error": "no backlog"})
-    items = _continuity_items(bp, include_auto_stage=include_auto_stage)
+    # One loaded tree for every kind the rail projects: tasks come from its
+    # epics (backlog.yaml has none on v4), and the rest from its `_rows`.
+    tree = _load()
+    items = _continuity_items(
+        bp,
+        include_auto_stage=include_auto_stage,
+        handover_rows=_dict_rows(tree, "handover"),
+        data=tree,
+    )
     return json.dumps({"items": items, "view": view}, default=str)
 
 
 @mcp.tool()
+@_transactional("backlog_idea_create")
 def backlog_idea_create(
     title: str,
     body: str = "",
@@ -3672,11 +5239,54 @@ def backlog_idea_create(
     if not tldr:
         tldr = extract_tldr(body) or title[:TLDR_MAX_CHARS]
         tldr_autogen = True
+    result = _idea_create_in_tx(
+        title=title,
+        body=body,
+        tags=tags or [],
+        status=status,
+        related_tasks=related_tasks or [],
+        related_issues=related_issues or [],
+        created_by=created_by,
+        tldr=tldr,
+        tldr_autogen=tldr_autogen,
+    )
+    if isinstance(result, str):
+        return f"Error: {result}"
+    iid, target = result
+
+    # Plan C: auto-detect inline ID mentions, materialize as `references` links.
     try:
-        iid, target = _write_idea(
-            bp,
+        _auto_link_entity(bp, iid)
+    except Exception:
+        pass
+
+    try:
+        rel = target.relative_to(ROOT)
+    except ValueError:
+        rel = target
+    return f"Idea created: {iid} \u2014 {title}\nFile: {rel}"
+
+
+def _idea_create_in_tx(
+    *,
+    title: str,
+    body: str = "",
+    tags: list | None = None,
+    status: str = "",
+    related_tasks: list | None = None,
+    related_issues: list | None = None,
+    created_by: str = "Claude",
+    tldr: str = "",
+    tldr_autogen: bool = False,
+):
+    """Create one idea row inside the open transaction; `(id, path)` or an error.
+
+    `ideas/IDEAS.md` is regenerated by the exporter from the idea rows, so
+    nothing here writes it. Shared by the MCP tool and the viewer's POST.
+    """
+    try:
+        document = _build_idea_doc(
             title=title,
-            body=body,
             tags=tags or [],
             status=status,
             related_tasks=related_tasks or [],
@@ -3685,21 +5295,11 @@ def backlog_idea_create(
             tldr=tldr,
             tldr_autogen=tldr_autogen,
         )
+        iid = _store_tx().create("idea", document, body=body)
     except ValueError as exc:
-        return f"Error: {exc}"
-
-    # Plan C: auto-detect inline ID mentions, materialize as `references` links.
-    from taskmaster.taskmaster_v3 import auto_link_on_save as _auto_link_on_save
-    try:
-        _auto_link_on_save(bp, iid)
-    except Exception:
-        pass
-
-    try:
-        rel = target.relative_to(ROOT)
-    except ValueError:
-        rel = target
-    return f"Idea created: {iid} — {title}\nFile: {rel}"
+        return str(exc)
+    _mutate_and_save(_load())
+    return iid, _idea_path(_backlog_path(), iid)
 
 
 @mcp.tool()
@@ -3723,8 +5323,9 @@ def backlog_idea_list(
     bp = _backlog_path()
     if not bp.exists():
         return "No backlog found."
+    data = _load()
     if idea_id:
-        out = _list_ideas(bp, idea_id=idea_id)
+        out = _idea_records(data, idea_id=idea_id)
         if not out:
             return f"Idea not found: {idea_id}"
         rec = out[0]
@@ -3732,14 +5333,13 @@ def backlog_idea_list(
         fm_lines = [f"  {k}: {v}" for k, v in rec.items()]
         return "---\n" + "\n".join(fm_lines) + "\n---\n" + body
 
-    entries = _list_ideas(
-        bp,
+    entries = _idea_records(
+        data,
         status=status or None,
         tag=tag or None,
         archived=archived,
         related_task=related_task or None,
         related_issue=related_issue or None,
-        limit=None,  # fetch all; cap here (below) so we can report overflow
         summary=not verbose,
     )
     if not entries:
@@ -3765,6 +5365,50 @@ def backlog_idea_list(
     return "\n".join(lines)
 
 
+def _idea_records(
+    data: dict,
+    *,
+    idea_id: str | None = None,
+    status: str | None = None,
+    tag: str | None = None,
+    archived: bool = False,
+    related_task: str | None = None,
+    related_issue: str | None = None,
+    summary: bool = True,
+) -> list[dict]:
+    """Idea documents from the store's rows, newest-first, filters ANDed.
+
+    The row map replaces the old `ideas/IDEA-*.md` glob: a list and the write
+    that follows it now read one snapshot. `summary=True` omits the body.
+    """
+    if idea_id:
+        row = _dict_row(data, "idea", idea_id)
+        if row is None:
+            return []
+        return [{**row[0], "body": (row[1] or "").rstrip("\n")}]
+
+    out: list[dict] = []
+    for _iid, fm, body in _dict_rows(data, "idea", include_archived=True):
+        if not archived and fm.get("archived"):
+            continue
+        if status is not None and (fm.get("status") or "") != status:
+            continue
+        if tag is not None and tag not in (fm.get("tags") or []):
+            continue
+        if related_task is not None and related_task not in (fm.get("related_tasks") or []):
+            continue
+        if related_issue is not None and related_issue not in (fm.get("related_issues") or []):
+            continue
+        out.append(dict(fm) if summary else {**fm, "body": (body or "").rstrip("\n")})
+
+    def _sort_key(entry: dict) -> tuple:
+        match = re.search(r"(\d+)$", entry.get("id", ""))
+        return (entry.get("created", ""), int(match.group(1)) if match else 0)
+
+    out.sort(key=_sort_key, reverse=True)
+    return out
+
+
 @mcp.tool()
 def backlog_idea_get(
     idea_id: str,
@@ -3787,10 +5431,10 @@ def backlog_idea_get(
         return "Error: sections=[] requested no sections; pass sections=None for the slim view or name at least one section"
     if sections:
         return "Error: ideas have no canonical body sections — use verbose=True to read the full body."
-    try:
-        fm, body = _read_idea(bp, idea_id)
-    except FileNotFoundError:
+    row = _dict_row(_load(), "idea", idea_id)
+    if row is None:
         return f"Idea not found: {idea_id}"
+    fm, body = row[0], (row[1] or "").rstrip("\n")
 
     # ── verbose mode ─────────────────────────────────────────────────────────
     if verbose:
@@ -3823,6 +5467,7 @@ IDEA_UPDATE_FIELDS = IDEA_UPDATE_LIST_FIELDS | IDEA_UPDATE_SCALAR_FIELDS | {"arc
 
 
 @mcp.tool()
+@_transactional("backlog_idea_update")
 def backlog_idea_update(idea_id: str, field: str, value: str = "") -> str:
     """Set one field on an idea. List fields take a comma-separated value; an
     empty value clears the field.
@@ -3846,18 +5491,30 @@ def backlog_idea_update(idea_id: str, field: str, value: str = "") -> str:
         updates = {field: value}
     body = value if field == "body" else ""
 
+    tx = _store_tx()
     try:
-        fm, _ = _update_idea(bp, idea_id, **updates)
-    except FileNotFoundError:
+        document, stored_body = _tx_doc("idea", idea_id)
+    except KeyError:
         return f"Idea not found: {idea_id}"
+    new_body = updates.pop("body", stored_body)
+    archived = updates.pop("archived", None)
+    try:
+        fm = _apply_idea_updates(document, **updates)
     except ValueError as exc:
         return f"Error: {exc}"
+    tx.put("idea", idea_id, fm, body=new_body)
+    # Archival is never implicit: the flag on the row is what the store acts on,
+    # so it moves through the explicit archive/unarchive calls.
+    if archived is True:
+        tx.archive("idea", idea_id)
+    elif archived is False:
+        tx.unarchive("idea", idea_id)
+    _mutate_and_save(_load())
 
     # Plan C: auto-detect inline ID mentions on body updates.
     if body:
-        from taskmaster.taskmaster_v3 import auto_link_on_save as _auto_link_on_save
         try:
-            _auto_link_on_save(bp, idea_id)
+            _auto_link_entity(bp, idea_id)
         except Exception:
             pass
 
@@ -3895,6 +5552,7 @@ def backlog_note(
     return f"Error: unknown action {action!r}"
 
 
+@_transactional("backlog_note_create")
 def backlog_note_create(text: str, pinned: bool = False) -> str:
     """Write a sticky note onto the user's Desk (dashboard).
 
@@ -3907,16 +5565,69 @@ def backlog_note_create(text: str, pinned: bool = False) -> str:
     bp = _backlog_path()
     if not bp.exists():
         return f"Error: no backlog found at {bp}. Run `backlog_init` first."
-    from taskmaster.taskmaster_v3 import write_note as _write_note
-    try:
-        nid, target = _write_note(bp, text=text, author="claude", pinned=pinned)
-    except ValueError as exc:
-        return f"Error: {exc}"
+    result = _note_create_in_tx(text=text, author="claude", pinned=pinned)
+    if isinstance(result, str):
+        return f"Error: {result}"
+    nid, target = result
     try:
         rel = target.relative_to(ROOT)
     except ValueError:
         rel = target
+    _render_after_commit(
+        lambda committed: f"Note created: {nid}\nFile: {rel}"
+        if committed.get(("note", nid)) is not None
+        else f"Note created: {NOT_PERSISTED}"
+    )
     return f"Note created: {nid}\nFile: {rel}"
+
+
+def _note_create_in_tx(*, text: str, author: str, pinned: bool):
+    """Create one note row inside the open transaction; `(id, path)` or an error."""
+    from taskmaster.taskmaster_v3 import (
+        build_note_doc as _build_note_doc,
+        note_path as _note_path,
+    )
+    try:
+        document, body = _build_note_doc(text=text, author=author, pinned=pinned)
+        nid = _store_tx().create("note", document, body=body)
+    except ValueError as exc:
+        return str(exc)
+    _mutate_and_save(_load())
+    return nid, _note_path(_backlog_path(), nid)
+
+
+def _note_update_in_tx(note_id: str, *, text: str | None, pinned: bool | None):
+    """Patch one note row inside the open transaction; None on success."""
+    from taskmaster.taskmaster_v3 import apply_note_updates as _apply_note_updates
+    try:
+        document, body = _tx_doc("note", note_id)
+    except KeyError:
+        return f"Note not found: {note_id}"
+    try:
+        fm, new_body = _apply_note_updates(document, body, text=text, pinned=pinned)
+    except ValueError as exc:
+        return f"Error: {exc}"
+    _store_tx().put("note", note_id, fm, body=new_body)
+    _mutate_and_save(_load())
+    return None
+
+
+def _note_archive_in_tx(note_id: str):
+    """Archive one note row inside the open transaction; None on success.
+
+    The document keeps the `archived_at` stamp; the move into `notes/_archive/`
+    follows from the row's archive flag, which `tx.archive` owns.
+    """
+    from taskmaster.taskmaster_v3 import archive_note_doc as _archive_note_doc
+    tx = _store_tx()
+    try:
+        document, body = _tx_doc("note", note_id)
+    except KeyError:
+        return f"Note not found: {note_id}"
+    tx.put("note", note_id, _archive_note_doc(document), body=body)
+    tx.archive("note", note_id)
+    _mutate_and_save(_load())
+    return None
 
 
 def backlog_note_list(include_archived: bool = False, limit: int = DEFAULT_LIST_LIMIT) -> str:
@@ -3928,8 +5639,7 @@ def backlog_note_list(include_archived: bool = False, limit: int = DEFAULT_LIST_
     bp = _backlog_path()
     if not bp.exists():
         return "No backlog found."
-    from taskmaster.taskmaster_v3 import list_notes as _list_notes
-    notes = _list_notes(bp, include_archived=include_archived)
+    notes = _note_records(_load(), include_archived=include_archived)
     if not notes:
         return "Desk is clear — no notes."
     notes, overflow = _cap_list(notes, limit)
@@ -3946,20 +5656,41 @@ def backlog_note_list(include_archived: bool = False, limit: int = DEFAULT_LIST_
     return "\n".join(lines)
 
 
+def _note_records(data: dict, *, include_archived: bool = False) -> list[dict]:
+    """Note documents with bodies, pinned first then created desc (id desc tiebreak)."""
+    out: list[dict] = []
+    for _nid, fm, body in _dict_rows(data, "note", include_archived=include_archived):
+        out.append({**fm, "body": (body or "").rstrip("\n")})
+
+    def _num(note: dict) -> int:
+        match = re.search(r"(\d+)$", note.get("id", ""))
+        return int(match.group(1)) if match else 0
+
+    # Numeric-id tiebreak prevents nondeterminism when created timestamps tie.
+    def _key(note: dict) -> tuple:
+        return (note.get("created", ""), _num(note))
+
+    pinned = [n for n in out if n.get("pinned")]
+    unpinned = [n for n in out if not n.get("pinned")]
+    pinned.sort(key=_key, reverse=True)
+    unpinned.sort(key=_key, reverse=True)
+    return pinned + unpinned
+
+
 def backlog_note_get(note_id: str) -> str:
     """Read one sticky note in full (frontmatter + complete text)."""
     bp = _backlog_path()
     if not bp.exists():
         return "No backlog found."
-    from taskmaster.taskmaster_v3 import read_note as _read_note
-    try:
-        fm, body = _read_note(bp, note_id)
-    except FileNotFoundError:
+    row = _dict_row(_load(), "note", note_id)
+    if row is None:
         return f"Note not found: {note_id}"
+    fm, body = row[0], (row[1] or "").rstrip("\n")
     fm_lines = [f"  {k}: {v}" for k, v in fm.items()]
     return "---\n" + "\n".join(fm_lines) + "\n---\n" + body
 
 
+@_transactional("backlog_note_update")
 def backlog_note_update(note_id: str, text: str = "", pinned: bool | None = None) -> str:
     """Edit a sticky note's text and/or pin state. Author is immutable —
     a user-authored note stays user-authored even if Claude edits it
@@ -3967,27 +5698,32 @@ def backlog_note_update(note_id: str, text: str = "", pinned: bool | None = None
     bp = _backlog_path()
     if not bp.exists():
         return "No backlog found."
-    from taskmaster.taskmaster_v3 import update_note as _update_note
-    try:
-        _update_note(bp, note_id, text=text or None, pinned=pinned)
-    except FileNotFoundError:
-        return f"Note not found: {note_id}"
-    except ValueError as exc:
-        return f"Error: {exc}"
+    error = _note_update_in_tx(note_id, text=text or None, pinned=pinned)
+    if error is not None:
+        return error
+    _render_after_commit(
+        lambda committed: f"Note updated: {note_id}"
+        if committed.get(("note", note_id)) is not None
+        else f"Note updated: {NOT_PERSISTED}"
+    )
     return f"Note updated: {note_id}"
 
 
+@_transactional("backlog_note_archive")
 def backlog_note_archive(note_id: str) -> str:
     """Archive a sticky note (moves it off the Desk into notes/_archive/).
     Never archive user-authored notes unless the user explicitly asks."""
     bp = _backlog_path()
     if not bp.exists():
         return "No backlog found."
-    from taskmaster.taskmaster_v3 import archive_note as _archive_note
-    try:
-        _archive_note(bp, note_id)
-    except FileNotFoundError:
-        return f"Note not found: {note_id}"
+    error = _note_archive_in_tx(note_id)
+    if error is not None:
+        return error
+    _render_after_commit(
+        lambda committed: f"Note archived: {note_id}"
+        if (committed.get(("note", note_id)) or {}).get("archived")
+        else f"Note archived: {NOT_PERSISTED}"
+    )
     return f"Note archived: {note_id}"
 
 
@@ -3997,6 +5733,7 @@ ALLOWED_AREA_FIELDS = {"name", "description", "anchors"}
 
 
 @mcp.tool()
+@_transactional("backlog_area_create")
 def backlog_area_create(
     area_id: str, name: str, description: str = "", anchors: list[str] | None = None
 ) -> str:
@@ -4010,7 +5747,10 @@ def backlog_area_create(
     bp = _backlog_path()
     if not bp.exists():
         return f"Error: no backlog found at {bp}. Run `backlog_init` first."
-    from taskmaster.taskmaster_v3 import write_area as _write_area
+    from taskmaster.taskmaster_v3 import (
+        area_path as _area_path,
+        validate_area_doc as _validate_area_doc,
+    )
     fm = {
         "id": area_id,
         "name": name,
@@ -4018,15 +5758,23 @@ def backlog_area_create(
         "anchors": list(anchors) if anchors else [],
         "created": _now(),
     }
+    tx = _store_tx()
     try:
-        target = _write_area(bp, fm, "")
+        document = _validate_area_doc(fm)
     except ValueError as exc:
         return f"Error: {exc}"
+    # Area ids are caller-derived, so a collision is a user error with a
+    # readable message rather than an exception out of the transaction.
+    if tx.id_taken("area", area_id):
+        return f"Error: area `{area_id}` already exists"
+    tx.create("area", document, body="")
+    _mutate_and_save(_load())
+    target = _area_path(bp, area_id)
     try:
         rel = target.relative_to(ROOT)
     except ValueError:
         rel = target
-    return f"Area created: {area_id} — {name}\nFile: {rel}"
+    return f"Area created: {area_id} \u2014 {name}\nFile: {rel}"
 
 
 @mcp.tool()
@@ -4039,8 +5787,7 @@ def backlog_area_list(limit: int = DEFAULT_LIST_LIMIT) -> str:
     bp = _backlog_path()
     if not bp.exists():
         return "No backlog found."
-    from taskmaster.taskmaster_v3 import list_areas as _list_areas
-    areas = _list_areas(bp)
+    areas = [dict(doc) for _aid, doc, _body in _dict_rows(_load(), "area")]
     if not areas:
         return "No areas defined."
     areas, overflow = _cap_list(areas, limit)
@@ -4062,11 +5809,10 @@ def backlog_area_get(area_id: str) -> str:
     bp = _backlog_path()
     if not bp.exists():
         return "No backlog found."
-    from taskmaster.taskmaster_v3 import read_area as _read_area
-    try:
-        fm, body = _read_area(bp, area_id)
-    except FileNotFoundError:
+    row = _dict_row(_load(), "area", area_id)
+    if row is None:
         return f"Area not found: {area_id}"
+    fm, body = row[0], (row[1] or "").rstrip("\n")
     fm_lines = [f"  {k}: {v}" for k, v in fm.items()]
     out = "---\n" + "\n".join(fm_lines) + "\n---"
     if body:
@@ -4075,6 +5821,7 @@ def backlog_area_get(area_id: str) -> str:
 
 
 @mcp.tool()
+@_transactional("backlog_area_update")
 def backlog_area_update(area_id: str, field: str, value: str) -> str:
     """Update a single field on an Area.
 
@@ -4089,7 +5836,7 @@ def backlog_area_update(area_id: str, field: str, value: str) -> str:
     bp = _backlog_path()
     if not bp.exists():
         return "No backlog found."
-    from taskmaster.taskmaster_v3 import update_area as _update_area
+    from taskmaster.taskmaster_v3 import apply_area_updates as _apply_area_updates
     if field == "anchors":
         try:
             parsed = json.loads(value)
@@ -4101,19 +5848,23 @@ def backlog_area_update(area_id: str, field: str, value: str) -> str:
     else:
         updates = {field: value}
     try:
-        _update_area(bp, area_id, updates)
-    except FileNotFoundError:
+        document, body = _tx_doc("area", area_id)
+    except KeyError:
         return f"Area not found: {area_id}"
+    try:
+        fm = _apply_area_updates(document, updates)
     except ValueError as exc:
         return f"Error: {exc}"
-    return f"Area updated: {area_id} — field `{field}`"
+    _store_tx().put("area", area_id, fm, body=body)
+    _mutate_and_save(_load())
+    return f"Area updated: {area_id} \u2014 field `{field}`"
 
 
 @mcp.tool()
 def viewer_prefs_get() -> str:
     """Return current viewer prefs as JSON."""
     import json
-    prefs = load_viewer_prefs()
+    prefs = load_viewer_prefs(_backlog_path())
     return json.dumps(prefs, indent=2)
 
 
@@ -4130,13 +5881,15 @@ def viewer_prefs_set(patch_json: str) -> str:
     if not isinstance(patch, dict):
         return "Error: patch must be a JSON object"
 
-    prefs = load_viewer_prefs()
+    bp = _backlog_path()
+    prefs = load_viewer_prefs(bp)
     _deep_merge(prefs, patch)
-    save_viewer_prefs(prefs)
+    save_viewer_prefs(bp, prefs)
     return "ok"
 
 
 @mcp.tool()
+@_transactional("backlog_add_task")
 def backlog_add_task(
     title: str, epic: str, phase: str = "", priority: str = "medium",
     tldr: str = "", notes: str = "", next_step: str = "",
@@ -4183,29 +5936,17 @@ def backlog_add_task(
     if not epic_obj:
         return f"Error: epic `{epic}` not found. Valid epics: {_epic_names(data)}"
 
-    # Resolve task ID: caller-supplied or auto-generated
+    # Resolve task ID: caller-supplied or allocated from authoritative state.
+    # The old filesystem scan saw only this checkout, so a linked worktree whose
+    # files lagged the store handed back an id the store already held — and the
+    # compatibility write-back then replaced that task instead of creating one.
+    tx = _store_tx()
     if task_id:
-        if _find_task(data, task_id):
+        if _find_task(data, task_id) or tx.id_taken("task", task_id):
             return f"Error: task ID `{task_id}` already exists"
         new_id = task_id
     else:
-        # v4: allocate by directory scan (honors concurrent creates); v3: legacy
-        # in-memory scan (per-task files aren't the enumeration source there).
-        if _detect_schema_version(data) >= SCHEMA_V4:
-            new_id = next_task_id(_backlog_path(), epic)
-        else:
-            tasks = epic_obj.get("tasks", [])
-            max_suffix = 0
-            prefix = f"{epic}-"
-            for t in tasks:
-                tid = t["id"]
-                if tid.startswith(prefix):
-                    suffix_str = tid[len(prefix):]
-                    try:
-                        max_suffix = max(max_suffix, int(suffix_str))
-                    except ValueError:
-                        pass
-            new_id = f"{epic}-{max_suffix + 1:03d}"
+        new_id = tx.allocate_id("task", {"epic": epic})
 
     # tldr: use supplied value, or auto-generate from notes/title
     tldr_autogen = False
@@ -4281,8 +6022,20 @@ def backlog_add_task(
 
     if _detect_schema_version(data) >= SCHEMA_V4:
         new_task["epic"] = epic
-        new_task["order"] = next_task_order(_backlog_path(), epic)
+        # Ordering comes from the transaction's own view of the epic, not from a
+        # second filesystem scan that a peer's commit could already have outrun.
+        orders: list[float] = []
+        for sibling in epic_obj.get("tasks") or []:
+            try:
+                orders.append(float(sibling["order"]))
+            except (KeyError, TypeError, ValueError):
+                continue
+        new_task["order"] = (max(orders) + 1.0) if orders else 1.0
 
+    # Create the row first: the id was allocated from the store, so the store
+    # is where the create belongs. Mirroring it into the dict afterwards keeps
+    # navigation in this same call (the budget count below) consistent.
+    tx.create("task", new_task, requested_id=new_id)
     if "tasks" not in epic_obj:
         epic_obj["tasks"] = []
     epic_obj["tasks"].append(new_task)
@@ -4307,6 +6060,18 @@ def backlog_add_task(
                 f"(this epic's `max_tasks` cap: {max_tasks})."
             )
 
+    epic_name = epic_obj["name"]
+
+    def _render(committed: dict) -> str:
+        document = committed.get(("task", new_id))
+        if document is None:
+            return f"Added `{new_id}` — {NOT_PERSISTED}"
+        return (
+            f"Added `{new_id}` — {document.get('title', '')} "
+            f"({document.get('priority', '')}) under {epic_name}" + budget_warning
+        )
+
+    _render_after_commit(_render)
     return f"Added `{new_id}` — {title} ({priority}) under {epic_obj['name']}" + budget_warning
 
 
@@ -4352,6 +6117,7 @@ def _build_worktree_instruction(
 
 
 @mcp.tool()
+@_transactional("backlog_pick_task")
 def backlog_pick_task(task_id: str, force: bool = False) -> str:
     """Start working on a task — sets it to in-progress. Idempotent if already in-progress.
 
@@ -4361,7 +6127,7 @@ def backlog_pick_task(task_id: str, force: bool = False) -> str:
                session ended without releasing the lock.
     """
     data = _load()
-    result = _find_task(data, task_id)
+    result = _tx_task(data, task_id)
     if not result:
         return f"Error: task `{task_id}` not found"
 
@@ -4401,6 +6167,8 @@ def backlog_pick_task(task_id: str, force: bool = False) -> str:
                 m["locked_by"] = SESSION_ID
                 m["branch"] = branch
                 m["worktree"] = worktree
+                member_found = _find_task(data, m["id"])
+                _tx_put_task(m, member_found[1] if member_found else None)
             _mutate_and_save(data)
         _set_session_task(task, epic)  # picked member stays "current task"
         _set_session_bundle({
@@ -4436,18 +6204,28 @@ def backlog_pick_task(task_id: str, force: bool = False) -> str:
                 )
             # Force-claim: transfer lock to this session
             task["locked_by"] = SESSION_ID
+            _tx_put_task(task, epic)
             _mutate_and_save(data)
         # Idempotent: update session state and lock, return details without mutation
         if not locked_by:
             task["locked_by"] = SESSION_ID
+            _tx_put_task(task, epic)
             _mutate_and_save(data)
         _set_session_task(task, epic)
         sub_repo = task.get("sub_repo", "")
         branch = task.get("branch", "")
         worktree = task.get("worktree", "")
         worktree_instruction = _build_worktree_instruction(task_id, sub_repo, branch, worktree)
+        context_text = _task_context(data, task, epic)
+        _render_after_commit(
+            lambda committed: f"Already in progress: `{task_id}` — "
+            + (_committed_task_field(committed, task_id, "title") or NOT_PERSISTED)
+            + "\n\n"
+            + context_text
+            + worktree_instruction
+        )
         # Open handovers stay open automatically under the new model — no resumed transition needed.
-        return f"Already in progress: `{task_id}` — {task['title']}\n\n" + _task_context(data, task, epic) + worktree_instruction
+        return f"Already in progress: `{task_id}` — {task['title']}\n\n" + context_text + worktree_instruction
 
     if status not in ("todo", "in-review"):
         # blocked/done tasks cannot be picked — use backlog_update_task to change status first
@@ -4477,6 +6255,7 @@ def backlog_pick_task(task_id: str, force: bool = False) -> str:
     task["started"] = task.get("started") or _now()
     task["locked_by"] = SESSION_ID
 
+    _tx_put_task(task, epic)
     _mutate_and_save(data)
     _set_session_task(task, epic)
 
@@ -4485,9 +6264,19 @@ def backlog_pick_task(task_id: str, force: bool = False) -> str:
     branch = task.get("branch", "")
     worktree = task.get("worktree", "")
     worktree_instruction = _build_worktree_instruction(task_id, sub_repo, branch, worktree)
+    context_text = _task_context(data, task, epic)
 
+    def _render(committed: dict) -> str:
+        document = committed.get(("task", task_id)) or {}
+        if document.get("status") != "in-progress":
+            head = f"Picked `{task_id}` — {NOT_PERSISTED}"
+        else:
+            head = f"Picked `{task_id}` — {document.get('title', '')} (locked to this session)"
+        return head + dep_warning + "\n\n" + context_text + worktree_instruction
+
+    _render_after_commit(_render)
     # Open handovers stay open automatically under the new model — no resumed transition needed.
-    return f"Picked `{task_id}` — {task['title']} (locked to this session)" + dep_warning + "\n\n" + _task_context(data, task, epic) + worktree_instruction
+    return f"Picked `{task_id}` — {task['title']} (locked to this session)" + dep_warning + "\n\n" + context_text + worktree_instruction
 
 
 def _append_changelog(
@@ -4499,7 +6288,12 @@ def _append_changelog(
     auto: bool = False,
     auto_stats: str = "",
 ) -> str:
-    """Insert a changelog entry into PROGRESS.md right after the '## Changelog' marker.
+    """Queue a changelog entry for PROGRESS.md, to be written by the store.
+
+    The paragraph is handed to the open transaction rather than written here:
+    PROGRESS.md gets exactly one writer, the store's export path, so a session
+    summary and the task transition that produced it land in the same commit
+    and can never half-apply.
 
     Returns a confirmation message for the tool response.
     """
@@ -4508,17 +6302,8 @@ def _append_changelog(
     if auto:
         heading = f"### {_today()} — auto"
         entry = f"{heading}\n{auto_stats}\nTasks touched: {tasks_touched}\n"
-        try:
-            text = _progress_path().read_text(encoding="utf-8")
-        except FileNotFoundError:
-            return "No PROGRESS.md found."
-        marker = "## Changelog"
-        idx = text.find(marker)
-        if idx == -1:
-            return "No changelog section found."
-        insert_pos = idx + len(marker)
-        new_text = text[:insert_pos] + "\n\n" + entry + text[insert_pos:]
-        _progress_path().write_text(new_text, encoding="utf-8")
+        if not _queue_changelog_entry(entry):
+            return "\nNot logged: no open transaction to commit the changelog with."
         return f"\nSession auto-logged to PROGRESS.md."
 
     heading = f"### {_today()} — {title}"
@@ -4565,19 +6350,58 @@ def _append_changelog(
     lines.append("")
 
     entry = "\n".join(lines)
-
-    # Insert into PROGRESS.md after ## Changelog
-    progress_text = _progress_path().read_text(encoding="utf-8")
-    changelog_marker = "## Changelog"
-    idx = progress_text.find(changelog_marker)
-    if idx == -1:
-        progress_text += f"\n{changelog_marker}\n\n{entry}"
-    else:
-        insert_point = idx + len(changelog_marker)
-        progress_text = progress_text[:insert_point] + "\n\n" + entry + progress_text[insert_point:]
-
-    _progress_path().write_text(progress_text, encoding="utf-8")
+    if not _queue_changelog_entry(entry):
+        return "\n\nNot logged: no open transaction to commit the changelog with."
     return f"\n\n**Session logged** to PROGRESS.md changelog."
+
+
+def _queue_changelog_entry(entry: str) -> bool:
+    """Commit one changelog paragraph as a row, for the store's export to write.
+
+    False when there is no open transaction to carry it — the caller then
+    reports that nothing was logged rather than writing the file behind the
+    store. The paragraph is persisted rather than held in memory so a failed
+    PROGRESS.md write cannot destroy the only copy of it.
+    """
+    try:
+        tx = _store_tx()
+    except RuntimeError:
+        return False
+    tx.queue_progress_log(entry)
+    return True
+
+
+def _smart_close_handovers_in_tx(data: dict, task_id: str) -> list[str]:
+    """Auto-close or flag the open handovers a terminal task belongs to.
+
+    Runs on the caller's transaction so the handover flips commit with the task
+    transition that caused them. Best-effort: a handover the planner cannot
+    evaluate leaves the task change alone.
+    """
+    try:
+        from taskmaster.taskmaster_v3 import smart_auto_close_handovers as _smart_close
+        terminal: set[str] = set()
+        for epic in data.get("epics", []):
+            for task in epic.get("tasks", []):
+                if task.get("status") in ("done", "archived"):
+                    terminal.add(task["id"])
+        terminal.add(task_id)  # the one we just transitioned
+        tx = _store_tx()
+        plan = _smart_close(
+            tx.list("handover"),
+            triggering_task_id=task_id,
+            done_or_archived_ids=terminal,
+        )
+        flipped = plan["closed"] + plan["flagged"]
+        for handover_id, document, body in flipped:
+            tx.put("handover", handover_id, document, body=body)
+    except Exception:
+        return []
+    if flipped:
+        data2 = _load()
+        _sync_handover_index_tx(data2)
+        _mutate_and_save(data2)
+    return [handover_id for handover_id, _doc, _body in flipped]
 
 
 def _open_bugs_for_task(bp, task_id: str) -> tuple[list[str], list[str]]:
@@ -4587,18 +6411,11 @@ def _open_bugs_for_task(bp, task_id: str) -> tuple[list[str], list[str]]:
     must still gate task id "test-epic-001". Shared by complete_task and batch_update
     so both honor the same close-gate.
     """
-    from taskmaster.taskmaster_v3 import (
-        list_bug_ids as _list_bug_ids,
-        read_bug as _read_bug,
-    )
     open_bugs: list[str] = []
     fixed_bugs: list[str] = []
     tid = (task_id or "").casefold()
-    for bid in _list_bug_ids(bp):
-        try:
-            bfm, _ = _read_bug(bp, bid)
-        except (OSError, ValueError):
-            continue
+    rows = _tx_rows("bug") if _active_tx() is not None else _dict_rows(_load(), "bug")
+    for bid, bfm, _body in rows:
         if (bfm.get("found_in") or "").casefold() == tid:
             st = bfm.get("status")
             if st == "open":
@@ -4621,6 +6438,7 @@ def _completion_block_reason(task) -> str:
 
 
 @mcp.tool()
+@_transactional("backlog_complete_task")
 def backlog_complete_task(
     task_id: str,
     session_title: str = "",
@@ -4662,7 +6480,7 @@ def backlog_complete_task(
         return f"Error: target_status must be 'done' or 'in-review', got '{target_status}'"
 
     data = _load()
-    result = _find_task(data, task_id)
+    result = _tx_task(data, task_id)
     if not result:
         return f"Error: task `{task_id}` not found"
 
@@ -4682,10 +6500,7 @@ def backlog_complete_task(
 
     # Bug close-gate (per bug-tier redesign)
     bp = _backlog_path()
-    from taskmaster.taskmaster_v3 import (
-        archive_bug as _archive_bug,
-        sync_bug_index as _sync_bug_index,
-    )
+    from taskmaster.taskmaster_v3 import assert_bug_archivable as _assert_bug_archivable
     open_bugs, fixed_bugs = _open_bugs_for_task(bp, task_id)
     if open_bugs:
         return (
@@ -4715,6 +6530,7 @@ def backlog_complete_task(
     if release:
         task["release"] = release
 
+    _tx_put_task(task, epic)
     _mutate_and_save(data)
     _enqueue_linear_push_if_synced(task_id, task=task)
     if target_status == "done":
@@ -4734,38 +6550,28 @@ def backlog_complete_task(
                 _clear_session_bundle()
 
     if target_status == "done":
-        try:
-            from taskmaster.taskmaster_v3 import smart_auto_close_handovers as _smart_close
-            # Collect done/archived task IDs from backlog for smart-close evaluation.
-            _all_terminal: set[str] = set()
-            for _epic in data.get("epics", []):
-                for _t in _epic.get("tasks", []):
-                    if _t.get("status") in ("done", "archived"):
-                        _all_terminal.add(_t["id"])
-            _all_terminal.add(task_id)  # the one we just transitioned
-            smart_close_result = _smart_close(
-                _backlog_path(),
-                triggering_task_id=task_id,
-                done_or_archived_ids=_all_terminal,
-            )
-            flipped_handovers = smart_close_result["closed"] + smart_close_result["flagged"]
-        except Exception:
-            flipped_handovers = []
-        if flipped_handovers:
-            data2 = _load()
-            _sync_handover_index(data2, _backlog_path())
-            _save(data2)
+        _smart_close_handovers_in_tx(data, task_id)
 
-    # Archive bugs that were fixed during this task (per bug-tier redesign)
+    # Archive bugs that were fixed during this task (per bug-tier redesign).
+    # Same transaction as the completion: a task that closed its bugs and a
+    # rollback of that completion must not leave the bugs filed.
     if target_status == "done" and fixed_bugs:
+        archived_any = False
         for bid in fixed_bugs:
             try:
-                _archive_bug(bp, bid)
-            except (OSError, ValueError):
-                pass
-        data3 = _load()
-        _sync_bug_index(data3, bp)
-        _save(data3)
+                document, _body = _tx_doc("bug", bid)
+            except KeyError:
+                continue
+            try:
+                _assert_bug_archivable(document)
+            except ValueError:
+                continue
+            _store_tx().archive("bug", bid)
+            archived_any = True
+        if archived_any:
+            data3 = _load()
+            _sync_bug_index_tx(data3)
+            _mutate_and_save(data3)
 
     # Append changelog entry if session summary provided
     changelog_msg = ""
@@ -4783,6 +6589,18 @@ def backlog_complete_task(
         suggestion = f"\n\n**Next in {epic['name']}:** `{n['id']}` — {n['title']} ({n.get('priority', 'medium')})"
 
     status_label = "Completed" if target_status == "done" else "Moved to in-review"
+
+    def _render(committed: dict) -> str:
+        document = committed.get(("task", task_id)) or {}
+        if document.get("status") != target_status:
+            return f"{status_label} `{task_id}` — {NOT_PERSISTED}" + changelog_msg + suggestion
+        return (
+            f"{status_label} `{task_id}` — {document.get('title', '')}"
+            + changelog_msg
+            + suggestion
+        )
+
+    _render_after_commit(_render)
     return f"{status_label} `{task_id}` — {task['title']}" + changelog_msg + suggestion
 
 
@@ -4854,6 +6672,7 @@ VALID_ARCHIVE_REASONS = {"done", "deprecated", "duplicate", "wont-fix", "superse
 
 
 @mcp.tool()
+@_transactional("backlog_archive_task")
 def backlog_archive_task(task_id: str, reason: str = "done") -> str:
     """Archive a task — hides it from the board and default listings.
     Tasks with status `done`, `blocked`, or `todo` can be archived. Archiving captures WHY the task
@@ -4886,30 +6705,12 @@ def backlog_archive_task(task_id: str, reason: str = "done") -> str:
     task["archive_reason"] = reason
     task["archived"] = _now()
     task.pop("locked_by", None)
+    _archive_entity("task", task_id, task)
     _mutate_and_save(data)
     _enqueue_linear_push_if_synced(task_id, task=task)
 
     # Smart-close open handovers that reference this task.
-    try:
-        from taskmaster.taskmaster_v3 import smart_auto_close_handovers as _smart_close
-        _all_terminal: set[str] = set()
-        for _epic in data.get("epics", []):
-            for _t in _epic.get("tasks", []):
-                if _t.get("status") in ("done", "archived"):
-                    _all_terminal.add(_t["id"])
-        _all_terminal.add(task_id)  # the one we just archived
-        smart_close_result = _smart_close(
-            _backlog_path(),
-            triggering_task_id=task_id,
-            done_or_archived_ids=_all_terminal,
-        )
-        flipped_handovers = smart_close_result["closed"] + smart_close_result["flagged"]
-        if flipped_handovers:
-            data2 = _load()
-            _sync_handover_index(data2, _backlog_path())
-            _save(data2)
-    except Exception:
-        pass
+    _smart_close_handovers_in_tx(data, task_id)
 
     return f"Archived `{task_id}` — {task['title']} (reason: {reason})"
 
@@ -5030,6 +6831,7 @@ VALID_DOC_KEYS = {"plan", "spec", "roadmap", "design", "analysis"}
 
 
 @mcp.tool()
+@_transactional("backlog_update_task")
 def backlog_update_task(
     task_id: str, field: str = "", value: str = "",
     tldr: str = "", next_step: str = "",
@@ -5068,22 +6870,34 @@ def backlog_update_task(
     # Keyword style: tldr= / next_step= kwargs take precedence over field/value.
     if tldr or next_step:
         data = _load()
-        result = _find_task(data, task_id)
+        result = _tx_task(data, task_id)
         if not result:
             return f"Error: task `{task_id}` not found"
         task, epic = result
         _touch_task(task)
-        updated = []
+        written = []
         if tldr:
             task["tldr"] = tldr
             task.pop("tldr_autogen", None)  # caller-supplied tldr is no longer auto-generated
-            updated.append(f"tldr → {tldr}")
+            written.append("tldr")
         if next_step:
             task["next_step"] = next_step
-            updated.append(f"next_step → {next_step}")
+            written.append("next_step")
+        expected = {field: _expected_field(task, field) for field in written}
+        _tx_put_task(task, epic)
         _mutate_and_save(data)
         _enqueue_linear_push_if_synced(task_id, task=task)
-        return f"Updated `{task_id}`: " + "; ".join(updated)
+        _render_after_commit(
+            lambda committed: f"Updated `{task_id}`: "
+            + "; ".join(
+                f"{name} → "
+                + _committed_field_display(committed, task_id, name, expected[name])
+                for name in written
+            )
+        )
+        return f"Updated `{task_id}`: " + "; ".join(
+            f"{name} → {tldr if name == 'tldr' else next_step}" for name in written
+        )
 
     # Classic field/value style
     if not field:
@@ -5092,7 +6906,7 @@ def backlog_update_task(
         return f"Error: field `{field}` not allowed. Allowed: {', '.join(sorted(ALLOWED_FIELDS))}"
 
     data = _load()
-    result = _find_task(data, task_id)
+    result = _tx_task(data, task_id)
     if not result:
         return f"Error: task `{task_id}` not found"
 
@@ -5110,15 +6924,13 @@ def backlog_update_task(
         if value == "in-review" and value != cur and not (task.get("human_action") or "").strip():
             return (f"Error: `in-review` means blocked on a human-only action; set human_action first: "
                     f"backlog_update_task('{task_id}', 'human_action', '<what the human must do>')")
-        if task.get("lane") and value != cur:
-            allowed = LEGAL_STATUS_TRANSITIONS.get(cur, set())
-            if value not in allowed:
-                return (f"Error: illegal transition `{cur}` → `{value}` for `{task_id}`. "
-                        f"Legal: {', '.join(sorted(allowed)) or '(none)'}.")
-            if value == "done":
-                block = _completion_block_reason(task)
-                if block:
-                    return block
+        refusal = illegal_transition_message(task, value)
+        if refusal:
+            return f"Error: `{task_id}`: {refusal}."
+        if task.get("lane") and value != cur and value == "done":
+            block = _completion_block_reason(task)
+            if block:
+                return block
         if value == "done":
             task.pop("human_action", None)
         task["status"] = value
@@ -5127,6 +6939,9 @@ def backlog_update_task(
         elif value == "done" and not task.get("completed"):
             task["completed"] = _now()
         # Note: archived status is allowed via update_task for flexibility (prefer backlog_archive_task)
+        # The store's archive flag is what moves the projection file in or out of
+        # tasks/archive/, so the transition has to say so explicitly.
+        _apply_archive_transition("task", task_id, task, before=cur, after=value)
         # Clear lock when leaving in-progress
         if value not in ("in-progress",):
             task.pop("locked_by", None)
@@ -5251,23 +7066,29 @@ def backlog_update_task(
     else:
         task[field] = value
 
-    _mutate_and_save(data)
-
     # Plan C: auto-detect inline ID mentions when body-bearing fields change.
+    # Runs before the latch so the link and the text that produced it land in
+    # one commit instead of a second, post-commit write.
     if field in ("notes", "review_instructions"):
-        bp = _backlog_path()
-        from taskmaster.taskmaster_v3 import auto_link_on_save as _auto_link_on_save
         try:
-            _auto_link_on_save(bp, task_id)
+            _auto_link_task_in_tx(data, task_id)
         except Exception:
             pass
 
+    expected = _expected_field(task, field)
+    _tx_put_task(task, epic)
+    _mutate_and_save(data)
     _enqueue_linear_push_if_synced(task_id, task=task)
 
+    _render_after_commit(
+        lambda committed: f"Updated `{task_id}` field `{field}` → "
+        + _committed_field_display(committed, task_id, field, expected)
+    )
     return f"Updated `{task_id}` field `{field}` → {value}"
 
 
 @mcp.tool()
+@_transactional("backlog_record_gate")
 def backlog_record_gate(
     task_id: str,
     gate: str,
@@ -5307,7 +7128,7 @@ def backlog_record_gate(
             return f"Error: status gate `{gate}` requires status=\"done\", got `{status or '(none)'}`"
 
     data = _load()
-    result = _find_task(data, task_id)
+    result = _tx_task(data, task_id)
     if not result:
         return f"Error: task `{task_id}` not found"
     task, _epic = result
@@ -5342,8 +7163,26 @@ def backlog_record_gate(
 
     task.setdefault("gates", {})[gate] = rec
     task["gate_state"] = _compute_gate_state(task)
+    _tx_put_task(task, _epic)
     _mutate_and_save(data)
     outcome = verdict if is_verdict else "done"
+
+    def _render(committed: dict) -> str:
+        document = committed.get(("task", task_id)) or {}
+        record = (document.get("gates") or {}).get(gate) or {}
+        # The outcome has to come out of the commit, not out of the request:
+        # reading it back from `outcome` reported a wholly lost write as a
+        # successful gate recording.
+        stored = record.get("verdict") if is_verdict else record.get("status")
+        if stored != outcome:
+            return f"Recorded gate `{gate}` for `{task_id}` — {NOT_PERSISTED}"
+        state = _committed_task_field(committed, task_id, "gate_state")
+        return (
+            f"Recorded gate `{gate}` = {stored} for `{task_id}` "
+            f"(state: {state or 'laneless'})"
+        )
+
+    _render_after_commit(_render)
     return f"Recorded gate `{gate}` = {outcome} for `{task_id}` (state: {task['gate_state'] or 'laneless'})"
 
 
@@ -5359,6 +7198,7 @@ def _resolved_merge_targets() -> list[dict]:
 
 
 @mcp.tool()
+@_transactional("backlog_record_merge")
 def backlog_record_merge(task_id: str, rung: str, sha: str, merged_at: str = "") -> str:
     """Stamp a merge rung on a task: records that the task's branch landed at `rung`
     (e.g. develop|stage|master) at merge commit `sha`. Idempotent overwrite per rung.
@@ -5377,7 +7217,7 @@ def backlog_record_merge(task_id: str, rung: str, sha: str, merged_at: str = "")
     if not (sha or "").strip():
         return "Error: sha is required"
     data = _load()
-    result = _find_task(data, task_id)
+    result = _tx_task(data, task_id)
     if not result:
         return f"Error: task `{task_id}` not found"
     task, _epic = result
@@ -5386,11 +7226,27 @@ def backlog_record_merge(task_id: str, rung: str, sha: str, merged_at: str = "")
         "merged_at": merged_at or _now(), "merge_commit": sha,
     }
     task["merge_gate_state"] = _compute_merge_gate_state(task, _resolved_merge_targets())
+    _tx_put_task(task, _epic)
     _mutate_and_save(data)
+
+    def _render(committed: dict) -> str:
+        document = committed.get(("task", task_id)) or {}
+        recorded = ((document.get("merge_status") or {}).get(rung) or {}).get(
+            "merge_commit", ""
+        )
+        ladder = _committed_task_field(committed, task_id, "merge_gate_state")
+        shown = str(recorded)[:7] if recorded else NOT_PERSISTED
+        return (
+            f"Recorded merge for rung `{rung}` on `{task_id}` "
+            f"(sha={shown}, ladder: {ladder or 'none'})"
+        )
+
+    _render_after_commit(_render)
     return f"Recorded merge for rung `{rung}` on `{task_id}` (sha={sha[:7]}, ladder: {task['merge_gate_state'] or 'none'})"
 
 
 @mcp.tool()
+@_transactional("backlog_skip_gate")
 def backlog_skip_gate(task_id: str, gate: str, reason: str, by: str = "claude") -> str:
     """Record an explicit, audited skip of a pipeline gate — the ONLY way past a
     required gate without satisfying it. Always succeeds (for a valid gate+reason)
@@ -5408,7 +7264,7 @@ def backlog_skip_gate(task_id: str, gate: str, reason: str, by: str = "claude") 
         return f"Error: skip_gate requires a non-empty reason (this is the audit trail)."
 
     data = _load()
-    result = _find_task(data, task_id)
+    result = _tx_task(data, task_id)
     if not result:
         return f"Error: task `{task_id}` not found"
     task, _epic = result
@@ -5418,11 +7274,27 @@ def backlog_skip_gate(task_id: str, gate: str, reason: str, by: str = "claude") 
         "skipped": True, "reason": reason.strip(), "by": by, "at": _now(),
     }
     task["gate_state"] = _compute_gate_state(task)
+    _tx_put_task(task, _epic)
     _mutate_and_save(data)
+
+    def _render(committed: dict) -> str:
+        document = committed.get(("task", task_id)) or {}
+        record = (document.get("gates") or {}).get(gate) or {}
+        # The audit trail is only worth anything if it is the stored reason,
+        # not the one the caller passed in and the store may not have kept.
+        if not record.get("skipped"):
+            return f"⚠ Skipped gate `{gate}` for `{task_id}` — reason: {NOT_PERSISTED}"
+        return (
+            f"⚠ Skipped gate `{gate}` for `{task_id}` — "
+            f"reason: {record.get('reason', '')} (by {record.get('by', '')})"
+        )
+
+    _render_after_commit(_render)
     return f"⚠ Skipped gate `{gate}` for `{task_id}` — reason: {reason.strip()} (by {by})"
 
 
 @mcp.tool()
+@_transactional("backlog_clear_gate")
 def backlog_clear_gate(task_id: str, gate: str) -> str:
     """Remove a single gate record from a task and recompute gate_state.
 
@@ -5433,10 +7305,10 @@ def backlog_clear_gate(task_id: str, gate: str) -> str:
     if gate not in _VALID_GATES:
         return f"Error: invalid gate `{gate}`. Valid: {', '.join(_VALID_GATES)}"
     data = _load()
-    result = _find_task(data, task_id)
+    result = _tx_task(data, task_id)
     if not result:
         return f"Error: task `{task_id}` not found"
-    task, _ = result
+    task, epic = result
     _touch_task(task)
     gates = task.get("gates") or {}
     if gate not in gates:
@@ -5444,7 +7316,16 @@ def backlog_clear_gate(task_id: str, gate: str) -> str:
     del gates[gate]
     task["gates"] = gates
     task["gate_state"] = _compute_gate_state(task)
+    _tx_put_task(task, epic)
     _mutate_and_save(data)
+
+    def _render(committed: dict) -> str:
+        document = committed.get(("task", task_id))
+        if document is None or gate in (document.get("gates") or {}):
+            return f"Cleared gate `{gate}` on `{task_id}` — {NOT_PERSISTED}"
+        return f"Cleared gate `{gate}` on `{task_id}`"
+
+    _render_after_commit(_render)
     return f"Cleared gate `{gate}` on `{task_id}`"
 
 
@@ -5486,6 +7367,7 @@ VALID_SPEC_REVIEW_VERDICTS = {"pass", "warn", "fail"}
 
 
 @mcp.tool()
+@_transactional("backlog_set_spec_review")
 def backlog_set_spec_review(
     task_id: str,
     verdict: str,
@@ -5538,6 +7420,7 @@ def backlog_set_spec_review(
 
 
 @mcp.tool()
+@_transactional("backlog_clear_spec_review")
 def backlog_clear_spec_review(task_id: str) -> str:
     """Remove the spec-review gate (and legacy spec_review mirror) from a task.
     Use when the spec was significantly revised and the prior review is no longer valid.
@@ -5595,6 +7478,7 @@ def _validate_components(components: dict) -> str:
 
 
 @mcp.tool()
+@_transactional("backlog_update_epic")
 def backlog_update_epic(epic_id: str, field: str, value: str) -> str:
     """Update a single field on an epic.
 
@@ -5676,11 +7560,50 @@ def backlog_update_epic(epic_id: str, field: str, value: str) -> str:
 
     old_value = epic.get(field, "")
     epic[field] = value
+    if field == "status":
+        # Moving an archived epic back to active must clear the row's archive
+        # flag; a document-only status change left the row archived for good.
+        _apply_archive_transition(
+            "epic", epic_id, epic, before=str(old_value), after=value
+        )
     _mutate_and_save(data)
     return f"Updated epic `{epic_id}` field `{field}`: `{old_value}` → `{value}`"
 
 
+def _archive_epic_cascade(epic: dict, epic_id: str, reason: str) -> int:
+    """Archive an epic and every live task under it; returns the cascade count.
+
+    One policy, shared by `backlog_archive_epic` and the batch `update_epic`
+    op: a batch archive that skipped the cascade left live tasks pointing at an
+    archived epic, and a status flip with no `tx.archive` left the row's archive
+    flag at 0 so the projection never moved.
+    """
+    now = _now()
+    epic["status"] = "archived"
+    epic["archive_reason"] = reason
+    epic["archived"] = now
+    _archive_entity("epic", epic_id, epic)
+    _store_tx().put("epic", epic_id, {k: v for k, v in epic.items() if k != "tasks"})
+
+    cascaded = 0
+    for task in epic.get("tasks", []) or []:
+        if task.get("status") != "archived":
+            task["status"] = "archived"
+            task["archive_reason"] = reason
+            task["archived"] = now
+            task.pop("locked_by", None)
+            _archive_entity("task", task["id"], task)
+            # The archive flag alone is not the cascade: without writing the
+            # document, a later operation in the same batch refreshes this
+            # dict node from a row that still holds the pre-cascade status,
+            # lock and missing reason, and silently reverts all three.
+            _tx_put_task(task, epic)
+            cascaded += 1
+    return cascaded
+
+
 @mcp.tool()
+@_transactional("backlog_archive_epic")
 def backlog_archive_epic(epic_id: str, reason: str = "done") -> str:
     """Archive an epic and all its tasks — hides the epic from the board and default listings.
     Cascades: every non-archived task in the epic is also archived with the same reason.
@@ -5700,25 +7623,14 @@ def backlog_archive_epic(epic_id: str, reason: str = "done") -> str:
     if epic.get("status") == "archived":
         return f"Error: epic `{epic_id}` is already archived"
 
-    now = _now()
-    epic["status"] = "archived"
-    epic["archive_reason"] = reason
-    epic["archived"] = now
-
-    cascaded = 0
-    for task in epic.get("tasks", []):
-        if task.get("status") != "archived":
-            task["status"] = "archived"
-            task["archive_reason"] = reason
-            task["archived"] = now
-            task.pop("locked_by", None)
-            cascaded += 1
+    cascaded = _archive_epic_cascade(epic, epic_id, reason)
 
     _mutate_and_save(data)
     return f"Archived epic `{epic_id}` — {epic.get('name', epic_id)} ({cascaded} tasks cascaded, reason: {reason})"
 
 
 @mcp.tool()
+@_transactional("backlog_add_epic")
 def backlog_add_epic(
     epic_id: str, name: str, done_when: str, description: str = "",
     status: str = "planned", area: str = "",
@@ -5783,6 +7695,7 @@ ALLOWED_PHASE_FIELDS = {"name", "status", "description", "order", "target_date",
 
 
 @mcp.tool()
+@_transactional("backlog_add_phase")
 def backlog_add_phase(
     phase_id: str, name: str, description: str = "", order: int | None = None,
     target_date: str = "", start_date: str = "",
@@ -5851,6 +7764,7 @@ def backlog_add_phase(
 
 
 @mcp.tool()
+@_transactional("backlog_update_phase")
 def backlog_update_phase(phase_id: str, field: str, value: str) -> str:
     """Update a single field on a phase.
 
@@ -5879,7 +7793,15 @@ def backlog_update_phase(phase_id: str, field: str, value: str) -> str:
                 ph["start_date"] = _today()
         if value == "done":
             ph["completed"] = _now()
+        before_status = str(ph.get("status") or "")
         ph["status"] = value
+        if value == "archived":
+            ph["archived"] = _now()
+        # Phases keep no archive directory, but the row flag still has to agree
+        # with the document, and the change log has to record the transition.
+        _apply_archive_transition(
+            "phase", phase_id, ph, before=before_status, after=value
+        )
     elif field == "order":
         try:
             ph["order"] = int(value)
@@ -6178,6 +8100,7 @@ def backlog_epic_status(epic_id: str) -> str:
 
 
 @mcp.tool()
+@_transactional("backlog_advance_phase")
 def backlog_advance_phase(force: bool = False) -> str:
     """Complete the active phase and activate the next one in sequence.
     Archives all 'done' tasks in the completed phase. Activates the next 'planned' phase by order.
@@ -6229,6 +8152,7 @@ def backlog_advance_phase(force: bool = False) -> str:
                 t["status"] = "archived"
                 t["archive_reason"] = "done"
                 t["archived"] = _now()
+                _archive_entity("task", t["id"], t)
                 archived_count += 1
 
     # Find and activate next planned phase by order
@@ -6273,6 +8197,7 @@ def backlog_advance_phase(force: bool = False) -> str:
 
 
 @mcp.tool()
+@_transactional("backlog_batch_update")
 def backlog_batch_update(operations: str) -> str:
     """Apply multiple task/epic updates in a single atomic operation. One load/save cycle.
 
@@ -6290,7 +8215,25 @@ def backlog_batch_update(operations: str) -> str:
     data = _load()
     results: list[str] = []
     errors: list[str] = []
+    # One renderer per applied line, so each line reports what the store kept
+    # for *its own* entity rather than what the loop believed it had written.
+    line_renderers: list = []
     changed = False
+
+    def _status_line(entity_id: str, expected_status: str, reason_field: str = ""):
+        def render(committed: dict) -> str:
+            document = committed.get(("task", entity_id))
+            if document is None or document.get("status") != expected_status:
+                return f"`{entity_id}` → {NOT_PERSISTED}"
+            if not reason_field:
+                return f"`{entity_id}` → {expected_status}"
+            # The parenthetical is the stored reason, not the requested one.
+            return (
+                f"`{entity_id}` → {expected_status} "
+                f"({document.get(reason_field, NOT_PERSISTED)})"
+            )
+
+        return render
 
     for line in operations.strip().split("\n"):
         line = line.strip()
@@ -6308,7 +8251,7 @@ def backlog_batch_update(operations: str) -> str:
             if field not in ALLOWED_FIELDS:
                 errors.append(f"`{task_id}`: field `{field}` not allowed")
                 continue
-            result = _find_task(data, task_id)
+            result = _tx_task(data, task_id)
             if not result:
                 errors.append(f"`{task_id}`: not found")
                 continue
@@ -6321,13 +8264,21 @@ def backlog_batch_update(operations: str) -> str:
                 if value == "in-review" and task.get("status") != "in-review" and not (task.get("human_action") or "").strip():
                     errors.append(f"`{task_id}`: in-review requires human_action — set it first via backlog_update_task")
                     continue
+                refusal = illegal_transition_message(task, value)
+                if refusal:
+                    errors.append(f"`{task_id}`: {refusal}")
+                    continue
                 if value == "done":
                     task.pop("human_action", None)
+                prior_status = task.get("status", "todo")
                 task["status"] = value
                 if value == "in-progress" and not task.get("started"):
                     task["started"] = _now()
                 elif value == "done" and not task.get("completed"):
                     task["completed"] = _now()
+                _apply_archive_transition(
+                    "task", task_id, task, before=prior_status, after=value
+                )
                 if value not in ("in-progress",):
                     task.pop("locked_by", None)
             elif field == "priority":
@@ -6395,7 +8346,15 @@ def backlog_batch_update(operations: str) -> str:
                     task["area"] = value
             else:
                 task[field] = value
+            expected = _expected_field(task, field)
+            _tx_put_task(task, epic)
             results.append(f"`{task_id}`.{field} → {value}")
+            line_renderers.append(
+                lambda committed, tid=task_id, fld=field, exp=expected: (
+                    f"`{tid}`.{fld} → "
+                    + _committed_field_display(committed, tid, fld, exp)
+                )
+            )
             changed = True
 
         elif op == "status" and len(parts) >= 3:
@@ -6403,7 +8362,7 @@ def backlog_batch_update(operations: str) -> str:
             if new_status not in VALID_STATUSES:
                 errors.append(f"`{task_id}`: invalid status `{new_status}`")
                 continue
-            result = _find_task(data, task_id)
+            result = _tx_task(data, task_id)
             if not result:
                 errors.append(f"`{task_id}`: not found")
                 continue
@@ -6413,10 +8372,18 @@ def backlog_batch_update(operations: str) -> str:
                 continue
             if new_status == "done":
                 # Same lifecycle guard + close-gate as backlog_complete_task (B-049).
+                # It runs before the transition table so a refused completion
+                # keeps naming the states a task may be completed *from*, which
+                # is the more actionable half of the same refusal.
                 cur_status = task.get("status", "todo")
                 if cur_status not in ("in-progress", "in-review", "blocked"):
                     errors.append(f"`{task_id}`: cannot complete from `{cur_status}` (expected in-progress/in-review/blocked)")
                     continue
+            refusal = illegal_transition_message(task, new_status)
+            if refusal:
+                errors.append(f"`{task_id}`: {refusal}")
+                continue
+            if new_status == "done":
                 open_bugs, _ = _open_bugs_for_task(_backlog_path(), task_id)
                 if open_bugs:
                     errors.append(f"`{task_id}`: {len(open_bugs)} open bug(s) linked via found_in: {', '.join(open_bugs)}")
@@ -6427,6 +8394,7 @@ def backlog_batch_update(operations: str) -> str:
                 if block:
                     errors.append(f"`{task_id}`: {block}")
                     continue
+            prior_status = task.get("status", "todo")
             task["status"] = new_status
             if new_status == "in-progress" and not task.get("started"):
                 task["started"] = _now()
@@ -6435,14 +8403,19 @@ def backlog_batch_update(operations: str) -> str:
                 if not task.get("completed"):
                     task["completed"] = _now()
                 task.pop("human_action", None)
+            _apply_archive_transition(
+                "task", task_id, task, before=prior_status, after=new_status
+            )
             if new_status not in ("in-progress",):
                 task.pop("locked_by", None)
+            _tx_put_task(task, epic)
             results.append(f"`{task_id}` → {new_status}")
+            line_renderers.append(_status_line(task_id, new_status))
             changed = True
 
         elif op == "complete" and len(parts) >= 2:
             task_id = parts[1]
-            result = _find_task(data, task_id)
+            result = _tx_task(data, task_id)
             if not result:
                 errors.append(f"`{task_id}`: not found")
                 continue
@@ -6471,34 +8444,57 @@ def backlog_batch_update(operations: str) -> str:
                 task["completed"] = _now()
             task.pop("locked_by", None)
             task.pop("human_action", None)
+            _tx_put_task(task, epic)
             results.append(f"`{task_id}` → done")
+            line_renderers.append(_status_line(task_id, "done"))
             changed = True
 
         elif op == "archive" and len(parts) >= 2:
             task_id = parts[1]
             reason = parts[2] if len(parts) > 2 else "done"
-            result = _find_task(data, task_id)
+            result = _tx_task(data, task_id)
             if not result:
                 errors.append(f"`{task_id}`: not found")
                 continue
             task, epic = result
+            already_archived = task.get("status") == "archived"
             task["status"] = "archived"
             task["archive_reason"] = reason
             task.pop("locked_by", None)
+            if not already_archived:
+                task["archived"] = _now()
+            # Archive first, then write: the explicit archive is what records
+            # the transition, and a put that had already raised the row's flag
+            # would turn it into a silent no-op.
+            _archive_entity("task", task_id, task)
+            _tx_put_task(task, epic)
             results.append(f"`{task_id}` → archived ({reason})")
+            line_renderers.append(_status_line(task_id, "archived", "archive_reason"))
             changed = True
 
         elif op == "pick" and len(parts) >= 2:
             task_id = parts[1]
-            result = _find_task(data, task_id)
+            result = _tx_task(data, task_id)
             if not result:
                 errors.append(f"`{task_id}`: not found")
                 continue
             task, epic = result
+            prior_status = task.get("status", "todo")
+            if prior_status not in ("todo", "in-progress", "in-review"):
+                errors.append(
+                    f"`{task_id}`: is `{prior_status}`, expected one of: "
+                    "todo, in-progress, in-review"
+                )
+                continue
             task["status"] = "in-progress"
             if not task.get("started"):
                 task["started"] = _now()
+            _apply_archive_transition(
+                "task", task_id, task, before=prior_status, after="in-progress"
+            )
+            _tx_put_task(task, epic)
             results.append(f"`{task_id}` → in-progress")
+            line_renderers.append(_status_line(task_id, "in-progress"))
             changed = True
 
         elif op == "update_epic" and len(parts) >= 4:
@@ -6513,8 +8509,42 @@ def backlog_batch_update(operations: str) -> str:
             if field == "status" and value not in VALID_EPIC_STATUSES:
                 errors.append(f"epic `{epic_id}`: invalid status `{value}`")
                 continue
+            if field == "status" and value == "archived":
+                # Same policy as backlog_archive_epic: the cascade is the point
+                # of archiving an epic, and the batch must not skip it.
+                if epic.get("status") == "archived":
+                    errors.append(f"epic `{epic_id}`: already archived")
+                    continue
+                cascaded = _archive_epic_cascade(epic, epic_id, "done")
+                results.append(
+                    f"epic `{epic_id}`.status → archived "
+                    f"({cascaded} tasks cascaded)"
+                )
+                line_renderers.append(
+                    lambda committed, eid=epic_id, n=cascaded: (
+                        f"epic `{eid}`.status → "
+                        + _committed_field_display(
+                            committed, eid, "status", "archived", kind="epic"
+                        )
+                        + f" ({n} tasks cascaded)"
+                    )
+                )
+                changed = True
+                continue
+            before_value = str(epic.get(field, "") or "")
             epic[field] = value
+            if field == "status":
+                _apply_archive_transition(
+                    "epic", epic_id, epic, before=before_value, after=value
+                )
+            expected_epic = _expected_field(epic, field)
             results.append(f"epic `{epic_id}`.{field} → {value}")
+            line_renderers.append(
+                lambda committed, eid=epic_id, fld=field, exp=expected_epic: (
+                    f"epic `{eid}`.{fld} → "
+                    + _committed_field_display(committed, eid, fld, exp, kind="epic")
+                )
+            )
             changed = True
 
         else:
@@ -6523,17 +8553,21 @@ def backlog_batch_update(operations: str) -> str:
     if changed:
         _mutate_and_save(data)
 
-    summary = f"**Batch update:** {len(results)} applied"
-    if errors:
-        summary += f", {len(errors)} errors"
-    summary += "\n\n"
+    def _summary(lines: list[str]) -> str:
+        text = f"**Batch update:** {len(lines)} applied"
+        if errors:
+            text += f", {len(errors)} errors"
+        text += "\n\n"
+        if lines:
+            text += "**Applied:**\n" + "\n".join(f"- {r}" for r in lines) + "\n"
+        if errors:
+            text += "\n**Errors:**\n" + "\n".join(f"- {e}" for e in errors) + "\n"
+        return text
 
-    if results:
-        summary += "**Applied:**\n" + "\n".join(f"- {r}" for r in results) + "\n"
-    if errors:
-        summary += "\n**Errors:**\n" + "\n".join(f"- {e}" for e in errors) + "\n"
-
-    return summary
+    _render_after_commit(
+        lambda committed: _summary([render(committed) for render in line_renderers])
+    )
+    return _summary(results)
 
 
 @mcp.tool()
@@ -6600,8 +8634,13 @@ def backlog_batch_preview(operations: str) -> str:
                 previews.append(f"- `{task_id}`: Missing target status for `status` operation")
                 continue
             new_status = parts[2]
+            refusal = illegal_transition_message(task, new_status)
             if new_status not in VALID_STATUSES:
                 previews.append(f"- `{task_id}`: Invalid status `{new_status}`")
+            elif refusal:
+                # A preview that promises a move the write refuses is worse than
+                # no preview: it sends the operator to a batch that half-applies.
+                previews.append(f"- `{task_id}`: {refusal}")
             else:
                 previews.append(f"- `{task_id}` ({current_status} → {new_status}): {task['title']}")
 
@@ -6789,7 +8828,14 @@ def _compute_recent_events(since_iso: str) -> list:
     except Exception as e:
         raise ValueError(f"invalid since: {e}")
 
-    backlog = yaml.safe_load(_backlog_path().read_text(encoding="utf-8")) or {}  # existing helper from Plan 1
+    backlog = _load()
+    if not isinstance(backlog.get("tasks"), list):
+        backlog = dict(backlog)
+        backlog["tasks"] = [
+            {**t, "epic": t.get("epic", e.get("id"))}
+            for e in (backlog.get("epics") or [])
+            for t in (e.get("tasks") or [])
+        ]
     events: list = []
 
     def _parse(s):
@@ -6834,17 +8880,278 @@ def _compute_recent_events(since_iso: str) -> list:
     return events
 
 
-def _load_task_full(task_id: str) -> dict | None:
-    """Merge backlog.yaml index entry with the per-task markdown file body.
-    Returns None if the task id is not in the index.
+# ── Viewer write path ──────────────────────────────────────────────────────
+# Every viewer mutation runs through exactly the same `_transaction` boundary
+# as an MCP tool, and the ETag is the store's committed identity rather than a
+# file mtime, so a viewer PATCH can no longer race an MCP write.
+
+
+class ViewerWriteRejected(ValueError):
+    """A viewer write the store refuses; carries a field-keyed error map."""
+
+    def __init__(self, errors: dict):
+        super().__init__("; ".join(f"{k}: {v}" for k, v in errors.items()))
+        self.errors = dict(errors)
+
+
+class ViewerCompletionBlocked(Exception):
+    """A viewer write would complete a task whose blocking gates are outstanding.
+
+    Separate from `ViewerWriteRejected` because it is not a malformed patch: the
+    field values are fine and the state of the world is what refuses the move,
+    which is a 409, not a 422.
     """
+
+
+class ViewerPreconditionFailed(Exception):
+    """`If-Match` did not match committed state; carries the current revision."""
+
+    def __init__(self, current_etag: str):
+        super().__init__("stale")
+        self.current_etag = current_etag
+
+
+def _check_if_match(if_match: str | None) -> None:
+    """Fail the write when `If-Match` no longer names committed state.
+
+    Called *inside* the write transaction, after the store has imported and
+    taken the writer lock: comparing before the transaction opened left a window
+    in which a peer could commit and this request would then overwrite it and
+    still answer 200.
+    """
+    if not if_match:
+        return
+    current = _viewer_etag()
+    if if_match.strip('"') != current:
+        raise ViewerPreconditionFailed(current)
+
+
+def illegal_transition_message(task: dict | None, after: str | None) -> str | None:
+    """Why moving `task` to `after` is refused, or None when it is allowed.
+
+    One rule, applied by `backlog_update_task`, by batch and by the viewer, so
+    the board cannot make a move the tool refuses. The rule is the one
+    `backlog_update_task` has always applied:
+
+    - a same-status write is never a transition, and is always allowed;
+    - a task with a lane is held to the full `LEGAL_STATUS_TRANSITIONS` table;
+    - a laneless (pre-lane, grandfathered) task keeps the permissive behaviour,
+      except that it may still only leave `archived` the way the table says.
+
+    The `archived` row is unconditional because `_apply_archive_transition`
+    un-archives on any `archived -> other`: without it a viewer
+    `PATCH {"status": "done"}` silently resurrects an archived task.
+    """
+    before = (task or {}).get("status", "todo")
+    if after is None or after == before:
+        return None
+    if before != "archived" and not (task or {}).get("lane"):
+        return None
+    legal = LEGAL_STATUS_TRANSITIONS.get(before, set())
+    if after in legal:
+        return None
+    return (
+        f"illegal transition `{before}` → `{after}`. "
+        f"Legal: {', '.join(sorted(legal)) or '(none)'}"
+    )
+
+
+def _invalid_status_error(patch: dict) -> dict:
+    """`{"status": …}` when the write supplies a status that is not one.
+
+    `illegal_transition_message` reads `after is None` as "no status in this
+    write" and allows it, so `{"status": null}` skipped the transition table
+    entirely and `task.update(patch)` persisted a null the MCP tools reject and
+    the board cannot place in any column. An *absent* `status` key is still a
+    write that names no status and is untouched here; an explicitly supplied
+    one has to be a real status.
+    """
+    if "status" not in patch:
+        return {}
+    supplied = patch["status"]
+    if supplied in VALID_STATUSES:
+        return {}
+    shown = "null" if supplied is None else repr(supplied)
+    return {
+        "status": (
+            f"invalid status {shown}. "
+            f"Valid: {', '.join(sorted(VALID_STATUSES))}"
+        )
+    }
+
+
+def _archived_transition_error(task: dict | None, patch: dict) -> dict:
+    """`illegal_transition_message` in the `{field: error}` shape the viewer
+    write path collects errors in."""
+    message = illegal_transition_message(task, patch.get("status"))
+    return {"status": message} if message else {}
+
+
+def _viewer_etag() -> str:
+    """`<creation_token>:<max_seq>` — the store's committed identity.
+
+    Taken from `load_dict_with_identity`, the same call every GET's payload
+    comes from, rather than from `status()`. On a network filesystem the store
+    runs projection-only and `status()` degrades to an empty token and seq 0, so
+    every revision of such a project answered the constant `":0"` — an ETag that
+    never moves is worse than none, because a client caches the first payload
+    forever and an `If-Match` write always passes.
+    """
+    bp = _backlog_path()
+    if not bp.exists():
+        return ""
+    try:
+        _data, token, max_seq = _store().load_dict_with_identity()
+    except store.LegacyLayoutError:
+        raise
+    except Exception:  # an unreadable store must not break a read-only GET
+        return ""
+    return f"{token}:{max_seq}"
+
+
+def _viewer_update_task(
+    task_id: str, patch: dict, *, method: str = "PATCH", if_match: str | None = None
+) -> dict:
+    """Apply a partial update to a task inside one store transaction.
+
+    Mirrors the timestamp stamping the old `taskmaster_v3.update_task` did:
+    `started` on the first move off `todo`, `completed` on `done`, neither ever
+    overwritten, and `human_action` cleared on `done`.
+    """
+    from taskmaster.taskmaster_v3 import _now_iso  # noqa: PLC0415
+    from taskmaster.taskmaster_v3 import validate_task_write  # noqa: PLC0415
+
+    with _transaction(tool=f"viewer:{method} /api/tasks") as data:
+        _check_if_match(if_match)
+        found = _find_task(data, task_id)
+        if found is None:
+            raise KeyError(f"task {task_id} not found")
+        task, _epic = found
+        errors = validate_task_write(task_id, patch, _backlog_path(), data=data)
+        if "_task" in errors:
+            raise KeyError(errors["_task"])
+        errors.update(_invalid_status_error(patch))
+        errors.update(_archived_transition_error(task, patch))
+        if errors:
+            raise ViewerWriteRejected(errors)
+        # The board is not a way around the gates. `backlog_update_task` and
+        # `backlog_complete_task` both refuse `-> done` while a lane'd task has
+        # outstanding blocking reviews; without this the same move landed by
+        # drag-and-drop and the gates were simply skipped.
+        if patch.get("status") == "done" and task.get("status") != "done":
+            block = _completion_block_reason(task)
+            if block:
+                raise ViewerCompletionBlocked(block)
+        before_status = task.get("status")
+        before_epic = task.get("epic") or _epic.get("id")
+        task.update(patch)
+        after_status = task.get("status")
+        moved_to = patch.get("epic")
+        if moved_to and moved_to != before_epic:
+            # The task has to leave one epic's list and join the other's; leaving
+            # it in place with a rewritten `epic` field produced a row whose
+            # parent and field disagreed.
+            target = next(
+                (e for e in data.get("epics") or [] if e.get("id") == moved_to), None
+            )
+            if target is None:
+                raise ViewerWriteRejected({"epic": f"unknown epic: {moved_to}"})
+            _epic["tasks"] = [t for t in _epic.get("tasks") or [] if t is not task]
+            target.setdefault("tasks", []).append(task)
+        if after_status != before_status:
+            if after_status == "in-progress" and not task.get("started"):
+                task["started"] = _now_iso()
+            if after_status == "done" and not task.get("completed"):
+                task["completed"] = _now_iso()
+        if after_status == "done":
+            task.pop("human_action", None)
+        task["last_referenced"] = _now_iso()
+        _apply_archive_transition(
+            "task", task_id, task, before=before_status, after=after_status
+        )
+        result = deepcopy(task)
+        _mutate_and_save(data)
+    return result
+
+
+def _viewer_create_task(payload: dict) -> str:
+    """Create a task under an existing epic. Returns the assigned id."""
+    from taskmaster.taskmaster_v3 import _now_iso  # noqa: PLC0415
+    from taskmaster.taskmaster_v3 import validate_task_write  # noqa: PLC0415
+
+    epic_id = payload.get("epic")
+    if not epic_id:
+        raise ValueError("epic is required")
+    new_id = ""
+    with _transaction(tool="viewer:POST /api/tasks") as data:
+        errors = validate_task_write("<new>", payload, _backlog_path(), data=data)
+        errors.update(_invalid_status_error(payload))
+        if errors:
+            raise ViewerWriteRejected(errors)
+        epic = next(
+            (e for e in data.get("epics") or [] if e.get("id") == epic_id), None
+        )
+        if epic is None:
+            raise KeyError(f"epic {epic_id} not found")
+        # Same authority as backlog_add_task: the store's tombstone-aware
+        # allocator, never a scan of this checkout's task list alone.
+        new_id = _store_tx().allocate_id("task", {"epic": epic_id})
+        task = {
+            "id": new_id,
+            "title": payload.get("title", ""),
+            "status": payload.get("status", "todo"),
+            "priority": payload.get("priority", "medium"),
+            "created": _now_iso(),
+            "last_referenced": _now_iso(),
+        }
+        for key, value in payload.items():
+            if key not in ("epic", "id"):
+                task[key] = value
+        epic.setdefault("tasks", []).append(task)
+        _mutate_and_save(data)
+    return new_id
+
+
+def _viewer_archive_task(task_id: str, *, if_match: str | None = None) -> None:
+    """Soft-delete a task: status flip plus the explicit store archive."""
+    with _transaction(tool="viewer:POST /api/tasks/archive") as data:
+        _check_if_match(if_match)
+        found = _find_task(data, task_id)
+        if found is None:
+            raise KeyError(f"task {task_id} not found")
+        task, _epic = found
+        before = task.get("status")
+        task["status"] = "archived"
+        _apply_archive_transition(
+            "task", task_id, task, before=before, after="archived"
+        )
+        _mutate_and_save(data)
+
+
+def _load_task_full(task_id: str) -> dict | None:
+    """The task detail the viewer renders, derived only from committed store state.
+
+    It used to overlay the store document with the contents of `tasks/<id>.md`.
+    That file is a projection: it lags whenever an export is dirty, and in a
+    linked worktree it is a different, older file entirely, so the viewer showed
+    stale prose under a current ETag and the next edit wrote that prose back.
+    The stored body is the same text without the lag.
+    Returns None if the task id is unknown.
+    """
+    return _load_task_full_identified(task_id)[0]
+
+
+def _load_task_full_identified(task_id: str) -> tuple[dict | None, str]:
+    """`_load_task_full` plus the ETag of the one snapshot it was read from."""
     import re
-    import yaml
 
     backlog_path = _backlog_path()
     if not backlog_path.exists():
-        return None
-    backlog = yaml.safe_load(backlog_path.read_text(encoding="utf-8")) or {}
+        return None, ""
+    # Route through the store: the v4 projection keeps no task index in
+    # backlog.yaml, and a call nested inside an open transaction must see the
+    # in-flight tree rather than the last exported file.
+    backlog, etag = _load_snapshot()
     tasks = backlog.get("tasks")
     if not isinstance(tasks, list):
         tasks = [
@@ -6854,49 +9161,63 @@ def _load_task_full(task_id: str) -> dict | None:
         ]
     index_entry = next((t for t in tasks if t.get("id") == task_id), None)
     if index_entry is None:
-        return None
+        return None, etag
+    store_owned = any(
+        task.get("id") == task_id
+        for epic in (backlog.get("epics") or [])
+        for task in (epic.get("tasks") or [])
+    )
 
     out = dict(index_entry)
     out.setdefault("docs", {})
     out.setdefault("description", "")
     out.setdefault("notes", "")
     out.setdefault("review_instructions", "")
-    out.setdefault("_body", "")
+    if store_owned:
+        body = out.pop(_BODY_KEY, "") or ""
+    else:
+        # A v3 backlog keeps a slim inline task index and leaves the heavy
+        # fields in `tasks/<id>.md`, which the store does not own as a row.
+        # There is no committed document to prefer, so the file is still the
+        # only source for them.
+        body = ""
+        legacy_path = backlog_path.parent / "tasks" / f"{task_id}.md"
+        if legacy_path.exists():
+            raw = legacy_path.read_text(encoding="utf-8")
+            match = re.match(r"^---\n(.*?)\n---\n(.*)$", raw, re.DOTALL)
+            if match:
+                try:
+                    frontmatter = yaml_io.safe_load(match.group(1)) or {}
+                except Exception:
+                    frontmatter = {}
+                body = match.group(2)
+                for key in (*_HEAVY_FIELDS, "patchnote", "release",
+                            "worktree", "spec_review", "locked_by"):
+                    if key in frontmatter:
+                        out[key] = frontmatter[key]
+            else:
+                body = raw
+    out["_body"] = body
 
-    md_path = backlog_path.parent / "tasks" / f"{task_id}.md"
-    if md_path.exists():
-        raw = md_path.read_text(encoding="utf-8")
-        fm_match = re.match(r"^---\n(.*?)\n---\n(.*)$", raw, re.DOTALL)
-        if fm_match:
-            try:
-                fm = yaml.safe_load(fm_match.group(1)) or {}
-            except Exception:
-                fm = {}
-            body = fm_match.group(2)
-            for k in (*_HEAVY_FIELDS, "patchnote", "release",
-                      "worktree", "spec_review", "locked_by"):
-                if k in fm:
-                    out[k] = fm[k]
-        else:
-            body = raw
-        out["_body"] = body
+    # A legacy body still carries `## Description` / `## Notes` sections that v4
+    # keeps as fields; when it does, the body wins, exactly as it did before.
+    sections: dict[str, list[str]] = {}
+    current: str | None = None
+    for line in body.splitlines():
+        m = re.match(r"^## +(.+?)\s*$", line)
+        if m:
+            current = m.group(1).strip().lower()
+            sections[current] = []
+            continue
+        if current is not None:
+            sections[current].append(line)
+    for key in ("description", "notes", "specification", "plan",
+                "review instructions", "activity", "patchnote"):
+        if key in sections:
+            out_key = key.replace(" ", "_")
+            out[out_key] = "\n".join(sections[key]).strip()
+    return out, etag
 
-        sections: dict[str, list[str]] = {}
-        current: str | None = None
-        for line in body.splitlines():
-            m = re.match(r"^## +(.+?)\s*$", line)
-            if m:
-                current = m.group(1).strip().lower()
-                sections[current] = []
-                continue
-            if current is not None:
-                sections[current].append(line)
-        for key in ("description", "notes", "specification", "plan",
-                    "review instructions", "activity", "patchnote"):
-            if key in sections:
-                out_key = key.replace(" ", "_")
-                out[out_key] = "\n".join(sections[key]).strip()
-    return out
 
 
 def _load_epic_full(epic_id: str) -> dict | None:
@@ -6905,15 +9226,26 @@ def _load_epic_full(epic_id: str) -> dict | None:
     rollup, a blocked/blockers attention list, and a slim task list.
 
     Returns None if the epic id is unknown. Mirrors _load_task_full but
-    routes through _load() (which calls _load_v3) so heavy fields that
+    routes through the store snapshot (committed state) so heavy fields that
     /api/backlog strips are present here.
     """
+    return _load_epic_full_identified(epic_id)[0]
+
+
+def _load_epic_full_identified(epic_id: str) -> tuple[dict | None, str]:
+    """`_load_epic_full` plus the ETag of the one snapshot it was read from.
+
+    The route used to take the payload from `_load()` and the revision from a
+    second `_viewer_etag()` call. A commit landing between the two handed the
+    viewer an old epic under a newer revision, and the edit that followed passed
+    its own precondition while overwriting the newer state.
+    """
     if not _backlog_path().exists():
-        return None
-    data = _load()
+        return None, ""
+    data, etag = _load_snapshot()
     epic = _find_epic(data, epic_id)
     if epic is None:
-        return None
+        return None, etag
 
     out = {k: v for k, v in epic.items() if k != "tasks"}
     out.setdefault("description", "")
@@ -6943,7 +9275,7 @@ def _load_epic_full(epic_id: str) -> dict | None:
          "design_change": t.get("design_change")}
         for t in epic.get("tasks", [])
     ]
-    return out
+    return out, etag
 
 
 def _load_related_for_task(task_id: str) -> dict | None:
@@ -6952,12 +9284,13 @@ def _load_related_for_task(task_id: str) -> dict | None:
     Returns None if the task is unknown.
     """
     import re
-    import yaml
 
     backlog_path = _backlog_path()
     if not backlog_path.exists():
         return None
-    backlog = yaml.safe_load(backlog_path.read_text(encoding="utf-8")) or {}
+    # Route through _load() so a call nested inside an open transaction sees the
+    # in-flight tree the mutation is building, not the last exported file.
+    backlog = _load()
     tasks = backlog.get("tasks")
     if not isinstance(tasks, list):
         tasks = [
@@ -6975,7 +9308,7 @@ def _load_related_for_task(task_id: str) -> dict | None:
         if not m:
             return {}, raw
         try:
-            fm = yaml.safe_load(m.group(1)) or {}
+            fm = yaml_io.safe_load(m.group(1)) or {}
         except Exception:
             fm = {}
         return fm, m.group(2)
@@ -7038,6 +9371,21 @@ def _load_related_for_task(task_id: str) -> dict | None:
 class ViewerHandler(BaseHTTPRequestHandler):
     """Serves the backlog viewer HTML and YAML data."""
 
+    def handle_one_request(self) -> None:
+        """Answer a refused legacy layout with a body, never a bare traceback."""
+        # One request must never inherit the sequence or the export notices of
+        # the previous one on this thread; only a commit made while serving it
+        # may set them.
+        _TX_STATE.last_seq = None
+        _TX_STATE.export_warnings = []
+        try:
+            super().handle_one_request()
+        except store.LegacyLayoutError as exc:
+            try:
+                self._send_json(409, {"ok": False, "error": str(exc)})
+            except Exception:
+                pass
+
     def do_GET(self) -> None:
         import re
         from urllib.parse import unquote, urlparse
@@ -7097,7 +9445,7 @@ class ViewerHandler(BaseHTTPRequestHandler):
             viewer_root = SCRIPT_DIR / "viewer"
             self._serve_file(viewer_root / "dev" / "edit-demo.html", "text/html")
         elif clean_path == "/api/viewer/prefs":
-            self._send_json(200, load_viewer_prefs())
+            self._send_json(200, load_viewer_prefs(_backlog_path()))
             return
         elif clean_path == "/backlog.yaml":
             self._serve_file(_backlog_path(), "text/yaml")
@@ -7112,24 +9460,20 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 self._send_json(200, related)
                 return
             if "/" not in rest and rest:
-                full = _load_task_full(rest)
+                full, etag = _load_task_full_identified(rest)
                 if full is None:
                     self._send_json(404, {"ok": False, "error": f"task {rest} not found"})
                     return
-                from taskmaster.taskmaster_v3 import compute_etag
-                etag = compute_etag(_backlog_path())
                 self._send_json(200, full, etag=etag)
                 return
             self.send_error(HTTPStatus.NOT_FOUND)
         elif clean_path.startswith("/api/epic/"):
             eid = clean_path[len("/api/epic/"):].rstrip("/")
             if eid and "/" not in eid:
-                full = _load_epic_full(eid)
+                full, etag = _load_epic_full_identified(eid)
                 if full is None:
                     self._send_json(404, {"ok": False, "error": f"epic {eid} not found"})
                     return
-                from taskmaster.taskmaster_v3 import compute_etag
-                etag = compute_etag(_backlog_path())
                 self._send_json(200, full, etag=etag)
                 return
             self.send_error(HTTPStatus.NOT_FOUND)
@@ -7158,86 +9502,84 @@ class ViewerHandler(BaseHTTPRequestHandler):
             return
         elif clean_path == "/api/threads":
             from taskmaster.taskmaster_v3 import list_threads as _list_threads_http
-            data = _load()
-            if "threads" not in data:
-                _sync_handover_index(data, _backlog_path())
-                _save(data)
-            self._send_json(200, _list_threads_http(data))
+            self._send_json(200, _list_threads_http(_threads_data(_backlog_path())))
             return
         elif clean_path == "/api/sessions":
-            self._send_json(200, list_sessions())
+            snapshot = self._snapshot()
+            if snapshot is None:
+                self._send_json(200, [])
+                return
+            data, etag = snapshot
+            self._send_json(200, list_sessions(_dict_rows(data, "handover")), etag=etag)
             return
         elif clean_path.startswith("/api/sessions/"):
             sid = clean_path[len("/api/sessions/"):]
-            detail = get_session_detail(sid)
+            snapshot = self._snapshot()
+            detail = (
+                None if snapshot is None
+                else get_session_detail(sid, _dict_rows(snapshot[0], "handover"))
+            )
             if detail is None:
                 self._send_json(404, {"ok": False, "error": f"unknown session {sid}"})
                 return
-            self._send_json(200, detail)
+            self._send_json(200, detail, etag=snapshot[1])
             return
         elif clean_path.startswith("/api/bugs"):
             from urllib.parse import urlparse, parse_qs
-            from taskmaster.taskmaster_v3 import (
-                list_bug_ids as _list_bug_ids_http,
-                read_bug as _read_bug_http,
-            )
-            bp = _backlog_path()
             qs = parse_qs(urlparse(self.path).query)
             include_archive = qs.get("include_archive", ["false"])[0].strip().lower() in ("1", "true", "yes", "on")
             status_filter = qs.get("status", [""])[0]
             found_in_filter = qs.get("found_in", [""])[0]
+            snapshot = self._snapshot()
+            if snapshot is None:
+                self._send_json(200, [])
+                return
+            data, etag = snapshot
             bugs = []
-            for bid in _list_bug_ids_http(bp, include_archive=include_archive):
-                try:
-                    fm, body = _read_bug_http(bp, bid)
-                except Exception:
-                    continue
+            for _bid, fm, body in _dict_rows(data, "bug", include_archived=include_archive):
                 summary = {k: v for k, v in fm.items() if k != "_body"}
-                summary["summary"] = body.strip()
+                summary["summary"] = (body or "").strip()
                 bugs.append(summary)
             if status_filter:
                 bugs = [b for b in bugs if b.get("status") == status_filter]
             if found_in_filter:
                 bugs = [b for b in bugs if b.get("found_in") == found_in_filter]
-            self._send_json(200, bugs)
+            self._send_json(200, bugs, etag=etag)
             return
         elif clean_path.startswith("/api/issues"):
-            import json
             from urllib.parse import urlparse, parse_qs
-            from taskmaster.taskmaster_v3 import (
-                list_issue_ids_cwd, load_issue, compute_issue_aging, severity_label,
-            )
+            from taskmaster.taskmaster_v3 import compute_issue_aging, severity_label
             qs = parse_qs(urlparse(self.path).query)
             include_resolved = qs.get("include_resolved", ["true"])[0].lower() != "false"
-            prefs = load_viewer_prefs()
+            snapshot = self._snapshot()
+            if snapshot is None:
+                self._send_json(200, {"issues": []})
+                return
+            data, etag = snapshot
+            prefs = load_viewer_prefs(_backlog_path())
             aging_cfg = prefs.get("issues", {}).get("aging", {})
             issues = []
-            for iid in list_issue_ids_cwd():
-                try:
-                    issue = load_issue(iid)
-                except Exception:
-                    continue
-                if not include_resolved and issue.get("status") in ("fixed", "wontfix"):
+            for _iid, fm, body in _dict_rows(data, "issue"):
+                if not include_resolved and fm.get("status") in ("fixed", "wontfix"):
                     continue
                 try:
-                    summary = {k: v for k, v in issue.items() if k != "_body"}
+                    summary = {k: v for k, v in fm.items() if k != "_body"}
                     summary["severity_label"] = severity_label(summary.get("severity", "P2"))
-                    summary["aging"] = compute_issue_aging(issue, aging_cfg)
-                    summary["summary"] = (issue.get("_body") or "").strip()
+                    summary["aging"] = compute_issue_aging(dict(fm), aging_cfg)
+                    summary["summary"] = (body or "").strip()
                     issues.append(summary)
                 except Exception:
                     # One bad issue must not blank the whole screen. ISS-005.
                     continue
-            self._send_json(200, {"issues": issues})
+            self._send_json(200, {"issues": issues}, etag=etag)
             return
         elif clean_path.startswith("/api/ideas"):
             from urllib.parse import urlparse, parse_qs
-            from taskmaster.taskmaster_v3 import _resolve_artifact_root
-            artifact_root = _resolve_artifact_root()
-            bp = artifact_root / "backlog.yaml"
-            if not bp.exists():
+            snapshot = self._snapshot()
+            if snapshot is None:
                 self._send_json(200, {"ideas": []})
                 return
+            data, etag = snapshot
             qs = parse_qs(urlparse(self.path).query)
             archived = qs.get("archived", ["false"])[0].lower() == "true"
             status = qs.get("status", [""])[0] or None
@@ -7251,16 +9593,15 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 limit = int(qs.get("limit", ["100"])[0])
             except (TypeError, ValueError):
                 limit = 100
-            entries = _list_ideas(
-                bp,
+            entries = _idea_records(
+                data,
                 status=status,
                 tag=tag,
                 archived=archived,
                 related_task=related_task,
-                limit=max(1, limit),
                 summary=summary,
-            )
-            self._send_json(200, {"ideas": entries})
+            )[: max(1, limit)]
+            self._send_json(200, {"ideas": entries}, etag=etag)
             return
         elif clean_path == "/api/continuity":
             import json
@@ -7272,33 +9613,51 @@ class ViewerHandler(BaseHTTPRequestHandler):
             return
         elif m := re.fullmatch(r"/api/decisions/([A-Za-z0-9_\-]+)", clean_path):
             decision_id = m.group(1)
-            bp = _backlog_path()
-            try:
-                fm, body = _read_decision(bp, decision_id)
-                self._send_json(200, {**fm, "body": body})
-            except FileNotFoundError:
+            snapshot = self._snapshot()
+            row = None if snapshot is None else _dict_row(snapshot[0], "decision", decision_id)
+            if row is None:
                 self._send_json(404, {"ok": False, "error": f"decision {decision_id} not found"})
+                return
+            fm, body = row[0], row[1] or ""
+            self._send_json(200, {**fm, "body": body}, etag=snapshot[1])
             return
         elif m := re.fullmatch(r"/api/handover/([A-Za-z0-9_\-]+)", clean_path):
             handover_id = m.group(1)
-            bp = _backlog_path()
-            try:
-                fm, body = _read_handover(bp, handover_id)
-                self._send_json(200, {**fm, "body": body})
-            except FileNotFoundError:
+            snapshot = self._snapshot()
+            row = None if snapshot is None else _dict_row(snapshot[0], "handover", handover_id)
+            if row is None:
                 self._send_json(404, {"ok": False, "error": f"handover {handover_id} not found"})
+                return
+            fm, body = row[0], row[1] or ""
+            self._send_json(200, {**fm, "body": body}, etag=snapshot[1])
             return
         elif clean_path == "/api/notes":
             from urllib.parse import urlparse, parse_qs
-            from taskmaster.taskmaster_v3 import list_notes as _list_notes
             qs = parse_qs(urlparse(self.path).query)
             include_archived = qs.get("include_archived", ["0"])[0] in ("1", "true")
-            bp = _backlog_path()
-            notes = _list_notes(bp, include_archived=include_archived) if bp.exists() else []
-            self._send_json(200, {"notes": notes})
+            snapshot = self._snapshot()
+            if snapshot is None:
+                self._send_json(200, {"notes": []})
+                return
+            data, etag = snapshot
+            notes = _note_records(data, include_archived=include_archived)
+            self._send_json(200, {"notes": notes}, etag=etag)
             return
         else:
             self.send_error(HTTPStatus.NOT_FOUND)
+
+    def _snapshot(self):
+        """`(data, etag)` for one GET, or None when the project has no backlog.
+
+        Every list endpoint reads through this, so a screen built from several
+        GETs is built from one committed revision: taking the payload from one
+        read and the revision from another let a client cache an old list under
+        a newer ETag and then pass its own `If-Match` while overwriting a peer.
+        """
+        try:
+            return _load_snapshot()
+        except FileNotFoundError:
+            return None
 
     def _serve_file(self, path: Path, content_type: str) -> None:
         try:
@@ -7369,7 +9728,7 @@ class ViewerHandler(BaseHTTPRequestHandler):
 
     def _serve_json(self) -> None:
         try:
-            data = yaml.safe_load(_backlog_path().read_text(encoding="utf-8"))
+            data, etag = _load_snapshot()
             data.setdefault("meta", {})["_version"] = VERSION
             if not isinstance(data.get("tasks"), list):
                 data["tasks"] = [
@@ -7386,9 +9745,12 @@ class ViewerHandler(BaseHTTPRequestHandler):
                     data["phases"],
                     key=lambda p: (p.get("order") if p.get("order") is not None else 999),
                 )
-            from taskmaster.taskmaster_v3 import compute_etag
-            etag = compute_etag(_backlog_path())
             self._send_json(200, data, etag=etag)
+        except store.LegacyLayoutError as exc:
+            # A layout the store refuses is a conflict the operator can fix, not
+            # a server fault: 500 sent the viewer into its generic error state
+            # and hid the one instruction that resolves it.
+            self._send_json(409, {"ok": False, "error": str(exc)})
         except Exception as e:
             self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
 
@@ -7397,7 +9759,6 @@ class ViewerHandler(BaseHTTPRequestHandler):
         import re
 
         if self.path == "/api/ideas":
-            from taskmaster.taskmaster_v3 import _resolve_artifact_root
             length = int(self.headers.get("Content-Length") or 0)
             raw = self.rfile.read(length).decode("utf-8") if length else ""
             try:
@@ -7409,14 +9770,15 @@ class ViewerHandler(BaseHTTPRequestHandler):
             if not title:
                 self._send_json(400, {"ok": False, "error": "title is required"})
                 return
-            artifact_root = _resolve_artifact_root()
-            bp = artifact_root / "backlog.yaml"
+            # One store root per process (spec decision 2): resolving the
+            # artifact root separately here opened a second store, and the dict
+            # `_idea_create_in_tx` loaded then belonged to neither transaction.
+            bp = _backlog_path()
             if not bp.exists():
                 self._send_json(400, {"ok": False, "error": f"no backlog at {bp}"})
                 return
-            try:
-                iid, target = _write_idea(
-                    bp,
+            with _transaction(tool="viewer:POST /api/ideas"):
+                result = _idea_create_in_tx(
                     title=title,
                     body=payload.get("body", ""),
                     tags=payload.get("tags") or [],
@@ -7425,14 +9787,14 @@ class ViewerHandler(BaseHTTPRequestHandler):
                     related_issues=payload.get("related_issues") or [],
                     created_by=payload.get("created_by", "user"),
                 )
-            except ValueError as e:
-                self._send_json(400, {"ok": False, "error": str(e)})
+            if isinstance(result, str):
+                self._send_json(400, {"ok": False, "error": result})
                 return
+            iid, target = result
             self._send_json(201, {"ok": True, "id": iid, "path": str(target)})
             return
 
         if self.path == "/api/notes":
-            from taskmaster.taskmaster_v3 import write_note as _write_note
             length = int(self.headers.get("Content-Length") or 0)
             raw = self.rfile.read(length).decode("utf-8") if length else ""
             try:
@@ -7448,20 +9810,18 @@ class ViewerHandler(BaseHTTPRequestHandler):
             if not bp.exists():
                 self._send_json(400, {"ok": False, "error": f"no backlog at {bp}"})
                 return
-            try:
-                nid, _target = _write_note(
-                    bp, text=text, author="user",
-                    pinned=bool(payload.get("pinned", False)),
+            with _transaction(tool="viewer:POST /api/notes"):
+                result = _note_create_in_tx(
+                    text=text, author="user", pinned=bool(payload.get("pinned", False))
                 )
-            except ValueError as e:
-                self._send_json(400, {"ok": False, "error": str(e)})
+            if isinstance(result, str):
+                self._send_json(400, {"ok": False, "error": result})
                 return
-            self._send_json(201, {"ok": True, "id": nid})
+            self._send_json(201, {"ok": True, "id": result[0]})
             return
 
         m = re.fullmatch(r"/api/notes/([A-Za-z0-9_\-]+)/(update|archive)", self.path)
         if m:
-            from taskmaster.taskmaster_v3 import update_note as _update_note, archive_note as _archive_note
             note_id, action = m.group(1), m.group(2)
             length = int(self.headers.get("Content-Length") or 0)
             raw = self.rfile.read(length).decode("utf-8") if length else ""
@@ -7470,23 +9830,20 @@ class ViewerHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._send_json(400, {"ok": False, "error": f"invalid JSON: {e}"})
                 return
-            bp = _backlog_path()
-            try:
+            with _transaction(tool=f"viewer:POST /api/notes/{action}"):
                 if action == "archive":
-                    _archive_note(bp, note_id)
+                    error = _note_archive_in_tx(note_id)
                 else:
                     text = payload.get("text")
                     pinned = payload.get("pinned")
-                    _update_note(
-                        bp, note_id,
+                    error = _note_update_in_tx(
+                        note_id,
                         text=(text.strip() if isinstance(text, str) and text.strip() else None),
                         pinned=(bool(pinned) if pinned is not None else None),
                     )
-            except FileNotFoundError:
-                self._send_json(404, {"ok": False, "error": f"note {note_id} not found"})
-                return
-            except ValueError as e:
-                self._send_json(400, {"ok": False, "error": str(e)})
+            if error is not None:
+                status = 404 if error.startswith("Note not found") else 400
+                self._send_json(status, {"ok": False, "error": error})
                 return
             self._send_json(200, {"ok": True, "id": note_id})
             return
@@ -7503,18 +9860,15 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 return
             status = payload.get("status", "")
             reason = payload.get("reason", "")
-            try:
-                from taskmaster.taskmaster_v3 import update_handover_status as _update
-                fm, _ = _update(_backlog_path(), handover_id=handover_id, status=status, reason=reason)
-            except ValueError as exc:
-                self._send_json(400, {"ok": False, "error": str(exc)})
+            with _transaction(tool="viewer:POST /api/handovers/status") as data:
+                fm = _handover_set_status(handover_id, status=status, reason=reason)
+                if not isinstance(fm, str):
+                    _sync_handover_index_tx(data)
+                    _mutate_and_save(data)
+            if isinstance(fm, str):
+                code = 404 if fm.startswith("Handover not found") else 400
+                self._send_json(code, {"ok": False, "error": fm})
                 return
-            except FileNotFoundError:
-                self._send_json(404, {"ok": False, "error": f"handover not found: {handover_id}"})
-                return
-            data = _load()
-            _sync_handover_index(data, _backlog_path())
-            _save(data)
             self._send_json(200, {"ok": True, "id": handover_id, "status": fm["status"]})
             return
 
@@ -7529,7 +9883,24 @@ class ViewerHandler(BaseHTTPRequestHandler):
             tid = payload.get("task_id") or "<new>"
             patch = payload.get("patch") or {}
             from taskmaster.taskmaster_v3 import validate_task_write
-            errors = validate_task_write(tid, patch)
+            # Preview and write must run the same gate against the same state:
+            # the store, not the projection files.
+            try:
+                data = _load()
+            except FileNotFoundError:
+                data = None
+            errors = validate_task_write(tid, patch, data=data)
+            errors.update(_invalid_status_error(patch))
+            if data is not None and tid != "<new>":
+                found = _find_task(data, tid)
+                if found is not None:
+                    errors.update(_archived_transition_error(found[0], patch))
+                    # Preview and write run the same gate: a validate that says
+                    # "ok" for a move the write refuses is worse than no preview.
+                    if patch.get("status") == "done" and found[0].get("status") != "done":
+                        block = _completion_block_reason(found[0])
+                        if block:
+                            errors["status"] = block
             self._send_json(200, {"ok": len(errors) == 0, "errors": errors})
             return
 
@@ -7543,17 +9914,16 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 self._send_json(400, {"ok": False, "error": f"invalid JSON: {e}"})
                 return
             try:
-                from taskmaster.taskmaster_v3 import validate_task_write, create_task
-                errors = validate_task_write("<new>", payload)
-                if errors:
-                    self._send_json(422, {"ok": False, "errors": errors})
-                    return
-                new_id = create_task(payload)
+                new_id = _viewer_create_task(payload)
                 # Look up the new task to return.
                 task = _load_task_full(new_id) or {"id": new_id}
                 self._send_json(201, {"ok": True, "task": task})
+            except ViewerWriteRejected as e:
+                self._send_json(422, {"ok": False, "errors": e.errors})
             except (KeyError, ValueError) as e:
                 self._send_json(400, {"ok": False, "error": str(e)})
+            except store.LegacyLayoutError as exc:
+                self._send_json(409, {"ok": False, "error": str(exc)})
             except Exception as e:
                 self._send_json(500, {"ok": False, "error": str(e)})
             return
@@ -7561,26 +9931,15 @@ class ViewerHandler(BaseHTTPRequestHandler):
         m = re.fullmatch(r"/api/tasks/([A-Za-z0-9_\-]+)/archive", self.path)
         if m:
             task_id = m.group(1)
-            # If-Match check
-            from taskmaster.taskmaster_v3 import compute_etag, archive_task
-            if_match = self.headers.get("If-Match")
-            if if_match:
-                if_match = if_match.strip('"')
-                current_etag = compute_etag(_backlog_path())
-                if if_match != current_etag:
-                    current = _load_task_full(task_id)
-                    self._send_json(409, {
-                        "ok": False, "error": "stale",
-                        "current_etag": current_etag,
-                        "current": current,
-                    })
-                    return
             try:
-                archive_task(task_id)
-                new_etag = compute_etag(_backlog_path())
-                self._send_json(200, {"ok": True}, etag=new_etag)
+                _viewer_archive_task(task_id, if_match=self.headers.get("If-Match"))
+                self._send_json(200, {"ok": True}, etag=_viewer_etag())
+            except ViewerPreconditionFailed as e:
+                self._send_stale(task_id, e.current_etag)
             except KeyError as e:
                 self._send_json(404, {"ok": False, "error": str(e)})
+            except store.LegacyLayoutError as exc:
+                self._send_json(409, {"ok": False, "error": str(exc)})
             except Exception as e:
                 self._send_json(500, {"ok": False, "error": str(e)})
             return
@@ -7600,14 +9959,15 @@ class ViewerHandler(BaseHTTPRequestHandler):
             if resolved_with is None:
                 self._send_json(400, {"ok": False, "error": "resolved_with is required"})
                 return
-            bp = _backlog_path()
-            try:
-                fm = _resolve_decision(bp, decision_id, resolved_with=int(resolved_with), rationale=rationale)
-                self._send_json(200, {"ok": True, "id": decision_id, "status": fm.get("status")})
-            except FileNotFoundError:
-                self._send_json(404, {"ok": False, "error": f"decision {decision_id} not found"})
-            except ValueError as e:
-                self._send_json(400, {"ok": False, "error": str(e)})
+            with _transaction(tool="viewer:POST /api/decisions/resolve"):
+                fm = _decision_resolve_in_tx(
+                    decision_id, resolved_with=int(resolved_with), rationale=rationale
+                )
+            if isinstance(fm, str):
+                code = 404 if "not found" in fm else 400
+                self._send_json(code, {"ok": False, "error": fm})
+                return
+            self._send_json(200, {"ok": True, "id": decision_id, "status": fm.get("status")})
             return
 
         m = re.fullmatch(r"/api/decisions/([A-Za-z0-9_\-]+)/drop", self.path)
@@ -7621,21 +9981,19 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 self._send_json(400, {"ok": False, "error": f"invalid JSON: {e}"})
                 return
             reason = payload.get("reason", "")
-            bp = _backlog_path()
-            try:
-                fm = _drop_decision(bp, decision_id, reason=reason)
-                self._send_json(200, {"ok": True, "id": decision_id, "status": fm.get("status")})
-            except FileNotFoundError:
-                self._send_json(404, {"ok": False, "error": f"decision {decision_id} not found"})
-            except ValueError as e:
-                self._send_json(400, {"ok": False, "error": str(e)})
+            with _transaction(tool="viewer:POST /api/decisions/drop"):
+                fm = _decision_drop_in_tx(decision_id, reason=reason)
+            if isinstance(fm, str):
+                code = 404 if "not found" in fm else 400
+                self._send_json(code, {"ok": False, "error": fm})
+                return
+            self._send_json(200, {"ok": True, "id": decision_id, "status": fm.get("status")})
             return
 
         # ── Bug HTTP routes ───────────────────────────────────────────────────────
         clean_path_post = self.path.split("?")[0].rstrip("/")
 
         if clean_path_post == "/api/bugs":
-            from taskmaster.taskmaster_v3 import write_bug as _write_bug_http, sync_bug_index as _sync_bug_index_http
             length = int(self.headers.get("Content-Length") or 0)
             raw = self.rfile.read(length).decode("utf-8") if length else ""
             try:
@@ -7651,9 +10009,8 @@ class ViewerHandler(BaseHTTPRequestHandler):
             if not bp.exists():
                 self._send_json(400, {"ok": False, "error": f"no backlog at {bp}"})
                 return
-            try:
-                bid, target = _write_bug_http(
-                    bp,
+            with _transaction(tool="viewer:POST /api/bugs"):
+                result = _bug_create_in_tx(
                     title=title,
                     found_in=payload.get("found_in") or None,
                     discovered_by=payload.get("discovered_by", "user"),
@@ -7662,19 +10019,16 @@ class ViewerHandler(BaseHTTPRequestHandler):
                     location=payload.get("location") or [],
                     body=payload.get("body", ""),
                 )
-            except ValueError as e:
-                self._send_json(400, {"ok": False, "error": str(e)})
+            if isinstance(result, str):
+                self._send_json(400, {"ok": False, "error": result})
                 return
-            data = _load()
-            _sync_bug_index_http(data, bp)
-            _save(data)
+            bid, target = result
             self._send_json(201, {"ok": True, "id": bid, "path": str(target)})
             return
 
         m = re.fullmatch(r"/api/bugs/pattern-scan", clean_path_post)
         if m:
             from taskmaster.taskmaster_v3 import scan_bug_patterns as _scan_bug_patterns_http
-            bp = _backlog_path()
             length = int(self.headers.get("Content-Length") or 0)
             raw = self.rfile.read(length).decode("utf-8") if length else ""
             try:
@@ -7684,17 +10038,19 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 return
             mode = payload.get("mode", "all")
             include_archive = (mode != "end_of_task")
-            groups = _scan_bug_patterns_http(bp, include_archive=include_archive)
-            self._send_json(200, {"groups": groups})
+            snapshot = self._snapshot()
+            if snapshot is None:
+                self._send_json(200, {"groups": []})
+                return
+            data, etag = snapshot
+            groups = _scan_bug_patterns_http(
+                _dict_rows(data, "bug", include_archived=include_archive)
+            )
+            self._send_json(200, {"groups": groups}, etag=etag)
             return
 
         m = re.fullmatch(r"/api/bugs/promote", clean_path_post)
         if m:
-            from taskmaster.taskmaster_v3 import (
-                promote_bugs_to_issue as _promote_http,
-                sync_bug_index as _sync_bug_index_http2,
-                sync_issue_index as _sync_issue_index_http,
-            )
             bp = _backlog_path()
             length = int(self.headers.get("Content-Length") or 0)
             raw = self.rfile.read(length).decode("utf-8") if length else ""
@@ -7719,9 +10075,8 @@ class ViewerHandler(BaseHTTPRequestHandler):
             if not evidence_text:
                 self._send_json(400, {"ok": False, "error": "evidence_text is required"})
                 return
-            try:
-                iid = _promote_http(
-                    bp,
+            with _transaction(tool="viewer:POST /api/bugs/promote"):
+                result = _promote_bugs_in_tx(
                     bug_ids=list(bug_ids),
                     title=title,
                     severity=severity,
@@ -7729,41 +10084,30 @@ class ViewerHandler(BaseHTTPRequestHandler):
                     components=payload.get("components") or None,
                     body=payload.get("body", ""),
                 )
-            except ValueError as e:
-                self._send_json(400, {"ok": False, "error": str(e)})
+            if isinstance(result, str):
+                self._send_json(400, {"ok": False, "error": result})
                 return
-            data = _load()
-            _sync_bug_index_http2(data, bp)
-            _sync_issue_index_http(data, bp)
-            _save(data)
-            self._send_json(201, {"ok": True, "issue_id": iid})
+            self._send_json(201, {"ok": True, "issue_id": result[0]})
             return
 
         m = re.fullmatch(r"/api/bugs/([A-Za-z0-9_\-]+)/archive", clean_path_post)
         if m:
             bug_id = m.group(1)
-            from taskmaster.taskmaster_v3 import archive_bug as _archive_bug_http, sync_bug_index as _sync_bug_index_http3
-            bp = _backlog_path()
             length = int(self.headers.get("Content-Length") or 0)
             self.rfile.read(length)  # consume body
-            try:
-                _archive_bug_http(bp, bug_id)
-            except FileNotFoundError:
-                self._send_json(404, {"ok": False, "error": f"bug {bug_id} not found"})
+            with _transaction(tool="viewer:POST /api/bugs/archive"):
+                error = _bug_archive_in_tx(bug_id)
+            if error is not None:
+                code = 404 if error.startswith("Bug not found") else 400
+                self._send_json(code, {"ok": False, "error": error})
                 return
-            except ValueError as e:
-                self._send_json(400, {"ok": False, "error": str(e)})
-                return
-            data = _load()
-            _sync_bug_index_http3(data, bp)
-            _save(data)
             self._send_json(200, {"ok": True, "id": bug_id})
             return
 
         m = re.fullmatch(r"/api/bugs/([A-Za-z0-9_\-]+)", clean_path_post)
         if m:
             bug_id = m.group(1)
-            from taskmaster.taskmaster_v3 import update_bug as _update_bug_http, sync_bug_index as _sync_bug_index_http4, BUG_STATUSES as _BUG_STATUSES_HTTP
+            from taskmaster.taskmaster_v3 import BUG_STATUSES as _BUG_STATUSES_HTTP
             bp = _backlog_path()
             length = int(self.headers.get("Content-Length") or 0)
             raw = self.rfile.read(length).decode("utf-8") if length else ""
@@ -7784,17 +10128,12 @@ class ViewerHandler(BaseHTTPRequestHandler):
             for field in ("components", "location"):
                 if field in payload and payload[field] is not None:
                     updates[field] = payload[field]
-            try:
-                fm, _ = _update_bug_http(bp, bug_id, **updates)
-            except FileNotFoundError:
-                self._send_json(404, {"ok": False, "error": f"bug {bug_id} not found"})
+            with _transaction(tool="viewer:PATCH /api/bugs"):
+                fm = _bug_update_in_tx(bug_id, updates)
+            if isinstance(fm, str):
+                code = 404 if fm.startswith("Bug not found") else 400
+                self._send_json(code, {"ok": False, "error": fm})
                 return
-            except ValueError as e:
-                self._send_json(400, {"ok": False, "error": str(e)})
-                return
-            data = _load()
-            _sync_bug_index_http4(data, bp)
-            _save(data)
             self._send_json(200, {"ok": True, "id": bug_id, "status": fm["status"]})
             return
 
@@ -7815,9 +10154,10 @@ class ViewerHandler(BaseHTTPRequestHandler):
                 self._send_json(400, {"ok": False, "error": "patch must be a JSON object"})
                 return
 
-            prefs = load_viewer_prefs()
+            bp = _backlog_path()
+            prefs = load_viewer_prefs(bp)
             _deep_merge(prefs, patch)
-            save_viewer_prefs(prefs)
+            save_viewer_prefs(bp, prefs)
             self._send_json(200, {"ok": True})
             return
 
@@ -7833,34 +10173,21 @@ class ViewerHandler(BaseHTTPRequestHandler):
             if not isinstance(full, dict):
                 self._send_json(400, {"ok": False, "error": "body must be object"})
                 return
-            # If-Match check
-            from taskmaster.taskmaster_v3 import compute_etag, update_task
-            if_match = self.headers.get("If-Match")
-            if if_match:
-                if_match = if_match.strip('"')
-                current_etag = compute_etag(_backlog_path())
-                if if_match != current_etag:
-                    current = _load_task_full(task_id)
-                    self._send_json(409, {
-                        "ok": False, "error": "stale",
-                        "current_etag": current_etag,
-                        "current": current,
-                    })
-                    return
             try:
-                from taskmaster.taskmaster_v3 import validate_task_write, update_task
-                errors = validate_task_write(task_id, full)
-                if "_task" in errors:
-                    self._send_json(404, {"ok": False, "error": errors["_task"]})
-                    return
-                if errors:
-                    self._send_json(422, {"ok": False, "errors": errors})
-                    return
-                task = update_task(task_id, full)
-                new_etag = compute_etag(_backlog_path())
-                self._send_json(200, {"ok": True, "task": task}, etag=new_etag)
+                task = _viewer_update_task(
+                    task_id, full, method="PUT", if_match=self.headers.get("If-Match")
+                )
+                self._send_json(200, {"ok": True, "task": task}, etag=_viewer_etag())
+            except ViewerPreconditionFailed as e:
+                self._send_stale(task_id, e.current_etag)
+            except ViewerCompletionBlocked as e:
+                self._send_json(409, {"ok": False, "error": str(e)})
+            except ViewerWriteRejected as e:
+                self._send_json(422, {"ok": False, "errors": e.errors})
             except KeyError as e:
                 self._send_json(404, {"ok": False, "error": str(e)})
+            except store.LegacyLayoutError as exc:
+                self._send_json(409, {"ok": False, "error": str(exc)})
             return
 
         self.send_response(404)
@@ -7869,7 +10196,6 @@ class ViewerHandler(BaseHTTPRequestHandler):
     def do_PATCH(self):
         import json
         import re
-        from taskmaster.taskmaster_v3 import compute_etag, update_task
         if m := re.fullmatch(r"/api/tasks/([A-Za-z0-9_\-]+)", self.path):
             task_id = m.group(1)
             length = int(self.headers.get("Content-Length") or 0)
@@ -7882,41 +10208,49 @@ class ViewerHandler(BaseHTTPRequestHandler):
             if not isinstance(patch, dict):
                 self._send_json(400, {"ok": False, "error": "patch must be object"})
                 return
-            # If-Match check
-            if_match = self.headers.get("If-Match")
-            if if_match:
-                if_match = if_match.strip('"')
-                current_etag = compute_etag(_backlog_path())
-                if if_match != current_etag:
-                    current = _load_task_full(task_id)
-                    self._send_json(409, {
-                        "ok": False, "error": "stale",
-                        "current_etag": current_etag,
-                        "current": current,
-                    })
-                    return
             try:
-                from taskmaster.taskmaster_v3 import validate_task_write, update_task
-                errors = validate_task_write(task_id, patch)
-                if "_task" in errors:
-                    self._send_json(404, {"ok": False, "error": errors["_task"]})
-                    return
-                if errors:
-                    self._send_json(422, {"ok": False, "errors": errors})
-                    return
-                task = update_task(task_id, patch)
-                new_etag = compute_etag(_backlog_path())
-                self._send_json(200, {"ok": True, "task": task}, etag=new_etag)
+                task = _viewer_update_task(
+                    task_id, patch, if_match=self.headers.get("If-Match")
+                )
+                self._send_json(200, {"ok": True, "task": task}, etag=_viewer_etag())
+            except ViewerPreconditionFailed as e:
+                self._send_stale(task_id, e.current_etag)
+            except ViewerCompletionBlocked as e:
+                self._send_json(409, {"ok": False, "error": str(e)})
+            except ViewerWriteRejected as e:
+                self._send_json(422, {"ok": False, "errors": e.errors})
             except KeyError as e:
                 self._send_json(404, {"ok": False, "error": str(e)})
+            except store.LegacyLayoutError as exc:
+                self._send_json(409, {"ok": False, "error": str(exc)})
             except Exception as e:
                 self._send_json(500, {"ok": False, "error": str(e)})
             return
 
         self.send_error(404)
 
+    def _send_stale(self, task_id: str, current_etag: str) -> None:
+        """The unchanged 409 contract, with the revision the write lost to."""
+        current, _etag = _load_task_full_identified(task_id)
+        self._send_json(409, {
+            "ok": False, "error": "stale",
+            "current_etag": current_etag,
+            "current": current,
+        })
+
     def _send_json(self, status: int, payload: dict, etag: str | None = None):
-        """Serialize *payload* as JSON and write the complete HTTP response."""
+        """Serialize *payload* as JSON and write the complete HTTP response.
+
+        A successful mutation carries the `changes.seq` its commit ended at, the
+        JSON counterpart of the `[seq N]` suffix on a tool's string result.
+        """
+        if (
+            isinstance(payload, dict)
+            and payload.get("ok")
+            and 200 <= status < 300
+            and self.command in ("POST", "PATCH", "PUT", "DELETE")
+        ):
+            payload = _json_with_seq(dict(payload))
         body = json.dumps(payload, default=str).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -8107,35 +10441,6 @@ def backlog_open_viewer() -> str:
     return f"Opened backlog viewer at {url}"
 
 
-def issue_list_extended(include_resolved: bool = True) -> str:
-    """List all issues with computed aging tier per severity base."""
-    import json as _json
-    from taskmaster.taskmaster_v3 import (
-        list_issue_ids_cwd, load_issue, compute_issue_aging, severity_label, load_viewer_prefs,
-    )
-
-    prefs = load_viewer_prefs()
-    aging_cfg = prefs.get("issues", {}).get("aging", {})
-    out = []
-    for iid in list_issue_ids_cwd():
-        try:
-            issue = load_issue(iid)
-        except Exception:
-            continue
-        if not include_resolved and issue.get("status") in ("fixed", "wontfix"):
-            continue
-        try:
-            summary = {k: v for k, v in issue.items() if k != "_body"}
-            summary["severity_label"] = severity_label(summary.get("severity", "P2"))
-            summary["aging"] = compute_issue_aging(issue, aging_cfg)
-            summary["summary"] = (issue.get("_body") or "").strip()
-            out.append(summary)
-        except Exception:
-            # One bad issue must not blank the whole list. ISS-005.
-            continue
-    return _json.dumps({"issues": out}, indent=2, default=str)
-
-
 # --- .taskmaster/project.yaml (Project manifest) ---
 
 from dataclasses import asdict
@@ -8218,14 +10523,16 @@ def backlog_project_ship_order() -> list[str]:
 
 
 @mcp.tool()
+@_transactional("backlog_project_set")
 def backlog_project_set(yaml_content: str) -> str:
     """Write .taskmaster/project.yaml with strict validation.
 
-    Raises ValueError if YAML is malformed or schema invalid. Atomic write
-    using the existing _atomic_write helper. Returns the absolute path written.
+    Raises ValueError if YAML is malformed or schema invalid. The manifest is
+    a store-owned entity, so the write commits through a store transaction.
+    Returns the absolute path written, followed by the committed `[seq N]`.
     """
     try:
-        data = yaml.safe_load(yaml_content) or {}
+        data = yaml_io.safe_load(yaml_content) or {}
     except yaml.YAMLError as exc:
         raise ValueError(f"YAML parse failed: {exc}") from exc
     if not isinstance(data, dict):
@@ -8236,9 +10543,50 @@ def backlog_project_set(yaml_content: str) -> str:
     path = project_yaml_path(root)
     _ensure_taskmaster_dir(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    rendered = yaml.safe_dump(data, sort_keys=False, allow_unicode=True, default_flow_style=False)
-    _atomic_write(path, rendered)
+    _write_project_manifest(path, data)
     return str(path)
+
+
+def _write_project_manifest(
+    path: Path, document: dict, *, create_only: bool = False
+) -> None:
+    """Commit `project.yaml` through the store that owns its directory.
+
+    The store knows `project` as a kind and renders the file itself, so the
+    manifest can no longer be written behind its back and silently reverted by
+    the next scan.
+
+    `create_only` makes this an initialization: the existence check is the
+    project *row*, read inside the writer transaction. Checking the projection
+    file outside it let two initializers both pass and the second replace the
+    first's committed manifest, and let a scaffold land on a real project whose
+    first export had failed.
+    """
+    def apply() -> None:
+        tx = _store_tx()
+        try:
+            tx.get("project", "__project__")
+        except KeyError:
+            tx.create("project", document, body=None, requested_id="__project__")
+        else:
+            if create_only:
+                raise ValueError(
+                    f"{path} already has a project manifest — refusing to "
+                    "overwrite (edit it directly)"
+                )
+            tx.put("project", "__project__", document)
+
+    if _active_tx() is not None:
+        # The tool decorator already owns the transaction; joining it is what
+        # keeps one public call to one transaction, and stops a second store
+        # being opened when the manifest path and `_backlog_path()` disagree.
+        apply()
+        _mutate_and_save(_load())
+        return
+    backlog_path = path.parent / "backlog.yaml"
+    with _transaction(tool="backlog_project_set", backlog_path=backlog_path) as data:
+        apply()
+        _mutate_and_save(data)
 
 
 def _ensure_taskmaster_dir(path: Path) -> None:
@@ -8252,10 +10600,12 @@ def _slugify(name: str) -> str:
 
 
 @mcp.tool()
+@_transactional("backlog_project_init")
 def backlog_project_init(name: str, slug: str = "") -> str:
     """Scaffold a minimal valid project.yaml. Refuses to overwrite.
 
-    Returns a confirmation message including the path written.
+    Returns a confirmation message including the path written, followed by the
+    committed `[seq N]`.
     """
     if not name or not name.strip():
         raise ValueError("name: required (project name must be non-empty)")
@@ -8279,10 +10629,7 @@ def backlog_project_init(name: str, slug: str = "") -> str:
     ok, errs = validate_manifest_dict(scaffold)
     if not ok:
         raise ValueError("refusing to write invalid manifest: " + "; ".join(errs))
-    _atomic_write(
-        path,
-        yaml.safe_dump(scaffold, sort_keys=False, allow_unicode=True, default_flow_style=False),
-    )
+    _write_project_manifest(path, scaffold, create_only=True)
     return f"Created {path}"
 
 
@@ -8457,15 +10804,6 @@ def backlog_linear_bootstrap_apply(
     bp = _backlog_path()
     cfg_path = linear_config_path(bp)
 
-    if cfg_path.exists():
-        with cfg_path.open("r", encoding="utf-8") as f:
-            cfg = yaml.safe_load(f) or {}
-        existing_aliases = {ws.get("alias") for ws in cfg.get("workspaces") or []}
-        if workspace_alias in existing_aliases:
-            return json.dumps({"error": f"workspace alias {workspace_alias!r} already exists in linear.yaml"})
-    else:
-        cfg = {}
-
     ws_entry: dict = {
         "alias": workspace_alias,
         "team_id": team_id,
@@ -8476,18 +10814,28 @@ def backlog_linear_bootstrap_apply(
     if pm:
         ws_entry["priority_mapping"] = pm
 
-    cfg.setdefault("workspaces", []).append(ws_entry)
-    if default_workspace:
-        cfg["default_workspace"] = workspace_alias
+    def _add_workspace(cfg: dict) -> dict:
+        # The collision check, the append and the write are one critical
+        # section held by the store: doing them around an unlocked read let two
+        # agents adding different aliases both report success with only one
+        # addition surviving.
+        existing = {ws.get("alias") for ws in cfg.get("workspaces") or []}
+        if workspace_alias in existing:
+            raise _AliasExists(workspace_alias)
+        cfg.setdefault("workspaces", []).append(dict(ws_entry))
+        if default_workspace:
+            cfg["default_workspace"] = workspace_alias
+        _validate_linear_config(cfg)
+        return cfg
 
     try:
-        _validate_linear_config(cfg)
+        _store_for(bp).update_root_config(cfg_path.name, _add_workspace)
+    except _AliasExists:
+        return json.dumps({
+            "error": f"workspace alias {workspace_alias!r} already exists in linear.yaml"
+        })
     except ValueError as e:
         return json.dumps({"error": f"config validation failed: {e}"})
-
-    cfg_path.parent.mkdir(parents=True, exist_ok=True)
-    with cfg_path.open("w", encoding="utf-8") as f:
-        yaml.dump(cfg, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
 
     return json.dumps({
         "ok": True,
@@ -8497,6 +10845,7 @@ def backlog_linear_bootstrap_apply(
     })
 
 
+@_transactional("backlog_linear:link")
 def backlog_linear_link(task_id: str, external_key: str, workspace_alias: str = "") -> str:
     """Link an existing TM task to an existing Linear issue by creating a Tracker file.
 
@@ -8536,28 +10885,35 @@ def backlog_linear_link(task_id: str, external_key: str, workspace_alias: str = 
         return json.dumps({"error": f"task {task_id!r} already has tracker_id {existing_tracker!r} — unlink first"})
 
     tracker_id = _make_tracker_id("linear", alias, external_key)
-    tp = _tracker_path(bp, tracker_id)
-    if tp.exists():
-        return json.dumps({"error": f"tracker file already exists at {tp} — it may be linked to another task"})
+    tx = _store_tx()
+    if tx.id_taken("tracker", tracker_id):
+        return json.dumps({
+            "error": f"tracker {tracker_id} already exists \u2014 it may be linked to another task"
+        })
 
     try:
-        _write_tracker(
-            bp,
-            external_system="linear",
-            instance_alias=alias,
-            external_key=external_key,
-            title=task.get("title", external_key),
-            status=task.get("status", "todo"),
+        tx.create(
+            "tracker",
+            _build_tracker_doc(
+                external_system="linear",
+                instance_alias=alias,
+                external_key=external_key,
+                title=task.get("title", external_key),
+                status=task.get("status", "todo"),
+            ),
+            body="",
         )
-    except (ValueError, OSError) as e:
+    except ValueError as e:
         return json.dumps({"error": f"failed to write tracker: {e}"})
 
     task["tracker_id"] = tracker_id
-    _save(data)
+    _sync_tracker_index_tx(data)
+    _mutate_and_save(data)
 
     return json.dumps({"ok": True, "tracker_id": tracker_id, "task_id": task_id})
 
 
+@_transactional("backlog_linear:unlink")
 def backlog_linear_unlink(task_id: str) -> str:
     """Clear the tracker_id on a TM task. Does NOT delete the Tracker file.
 
@@ -8583,7 +10939,7 @@ def backlog_linear_unlink(task_id: str) -> str:
         return json.dumps({"ok": True, "note": f"task {task_id!r} had no tracker_id — nothing to unlink"})
 
     task.pop("tracker_id", None)
-    _save(data)
+    _mutate_and_save(data)
     return json.dumps({"ok": True, "unlinked": existing, "task_id": task_id})
 
 
@@ -8599,13 +10955,11 @@ def backlog_linear_list() -> str:
     if not bp.exists():
         return json.dumps({"trackers": []})
 
+    # `tracker` is a row-backed kind: reading `trackers/*.md` here made a
+    # tracker whose export had not landed read as absent (decision 1).
     out = []
-    for tid in _list_tracker_ids(bp):
+    for tid, fm, _body in _dict_rows(_load(), "tracker"):
         if not tid.startswith("linear-"):
-            continue
-        try:
-            fm, _ = _read_tracker(bp, tid)
-        except (OSError, yaml.YAMLError):
             continue
         out.append({
             "id": fm.get("id"),
@@ -8634,48 +10988,65 @@ def backlog_linear_show(tracker_id: str) -> str:
     if not bp.exists():
         return json.dumps({"error": "No backlog found."})
 
-    tp = _tracker_path(bp, tracker_id)
-    if not tp.exists():
+    row = _dict_row(_load(), "tracker", tracker_id)
+    if row is None:
         return json.dumps({"error": f"tracker {tracker_id!r} not found"})
 
-    try:
-        fm, body = _read_tracker(bp, tracker_id)
-    except (OSError, yaml.YAMLError) as e:
-        return json.dumps({"error": f"cannot read tracker: {e}"})
-
+    fm, body = row[0], row[1] or ""
     return json.dumps({"frontmatter": fm, "body": body}, indent=2, default=str)
 
 
 def backlog_linear_status() -> str:
     """Return a summary of the Linear sync queue state.
 
-    Includes: queue depth, oldest pending item's enqueued_at, count of permanent
-    failures, and the last error message if any. No network calls.
+    Includes: queue depth, oldest pending item's enqueued_at, count of parked
+    (permanently failed) items, and the last error message if any. No network calls.
     """
     import json
-    from taskmaster.integrations.linear.worker import read_queue
 
     bp = _backlog_path()
-    items = read_queue(bp) if bp.exists() else []
+    if not bp.exists():
+        return json.dumps({
+            "queue_depth": 0,
+            "pending": 0,
+            "permanent_failures": 0,
+            "oldest_enqueued_at": None,
+            "last_error": None,
+            "warning": None,
+        }, indent=2)
 
-    permanent_count = sum(1 for i in items if i.get("permanent"))
-    pending = [i for i in items if not i.get("permanent")]
-    oldest_at = None
-    if pending:
-        oldest_at = min((i.get("enqueued_at") or "") for i in pending) or None
+    # `done` rows are settled history; the depth a caller acts on is what is
+    # still pending plus what is parked awaiting an explicit retry. On a network
+    # root with no usable store there are no rows to read, and the queue reads
+    # answer empty rather than raising — the warning is the useful part.
+    opened = _store_for(bp)
+    degraded = opened.projection_only_reason()
+    # A `claimed` row is one a drain has in flight: still owed, not settled,
+    # so it counts as pending rather than vanishing from the depth.
+    rows = opened.linear_rows(states=("pending", "claimed", "failed"))
+    pending = [row for row in rows if row["state"] in ("pending", "claimed")]
+    parked = [row for row in rows if row["state"] == "failed"]
+
+    stamps = [
+        (row["payload"] or {}).get("enqueued_at")
+        for row in pending
+        if (row["payload"] or {}).get("enqueued_at")
+    ]
+    oldest_at = min(stamps) if stamps else None
 
     last_error = None
-    for item in reversed(items):
-        if item.get("last_error"):
-            last_error = item["last_error"]
+    for row in reversed(rows):
+        if row["last_error"]:
+            last_error = row["last_error"]
             break
 
     return json.dumps({
-        "queue_depth": len(items),
+        "queue_depth": len(rows),
         "pending": len(pending),
-        "permanent_failures": permanent_count,
+        "permanent_failures": len(parked),
         "oldest_enqueued_at": oldest_at,
         "last_error": last_error,
+        "warning": degraded,
     }, indent=2)
 
 
@@ -8702,6 +11073,14 @@ def backlog_linear_retry(target_id: str = "") -> str:
     if cfg is None:
         return json.dumps({"error": "linear.yaml not found — run backlog_linear_bootstrap_apply first."})
 
+    # A drain is a queue write, and on a network root with no usable store there
+    # is no queue to write. Say so before spending a token lookup and an HTTP
+    # client on it.
+    st = _store_for(bp)
+    degraded = st.projection_only_reason()
+    if degraded:
+        return json.dumps({"error": f"store unavailable on network storage: {degraded}"})
+
     try:
         from taskmaster.taskmaster_v3 import get_linear_workspace, resolve_linear_token
         workspace = get_linear_workspace(cfg)
@@ -8716,33 +11095,37 @@ def backlog_linear_retry(target_id: str = "") -> str:
 
     data = _load()
 
-    # An explicit retry is the un-park action: clear permanent/attempts on the
-    # items being retried so a previously-parked push gets one fresh attempt
-    # (routine drains still skip parked items). The full queue is rewritten with
-    # cleared flags, then drained with a target filter — so a target-scoped retry
-    # never removes other targets' items from disk and a crash mid-drain cannot
-    # lose them (B-029).
-    all_items = _worker.read_queue(bp)
-    targets_present = False
-    for it in all_items:
-        if target_id and it.get("target_id") != target_id:
-            continue
-        targets_present = True
-        it.pop("permanent", None)
-        it["attempts"] = 0
-        it["last_error"] = None
+    # An explicit retry is the un-park action: every row for the targets being
+    # retried goes back to `pending` with a cleared attempt count, so a dead push
+    # gets a fresh budget (routine drains never see parked rows at all). Rows for
+    # other targets are not touched, so a target-scoped retry cannot lose them
+    # and a crash mid-drain leaves them exactly as they were (B-029).
+    candidates = [
+        row
+        for row in st.linear_rows(states=("pending", "claimed", "failed"))
+        if not target_id or row["target_id"] == target_id
+    ]
 
-    if target_id and not targets_present:
+    if target_id and not candidates:
         return json.dumps({"error": f"no queued items for target_id {target_id!r}"})
 
-    _worker._write_queue(bp, all_items)
+    st.linear_requeue(row["seq"] for row in candidates)
     counts = _worker.drain(
-        bp, client, cfg, backlog_data=data,
+        st, client, cfg, backlog_data=data,
         only_targets={target_id} if target_id else None,
     )
 
     return json.dumps({"ok": True, "counts": counts}, indent=2)
 
 
-if __name__ == "__main__":
+# Importing this module is what makes the shared entity dispatcher store-aware.
+_configure_entity_io()
+
+
+def main() -> None:
+    """Entry point for both `taskmaster/backlog_server.py` and the root shim."""
     mcp.run()
+
+
+if __name__ == "__main__":
+    main()
