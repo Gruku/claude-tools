@@ -12,7 +12,7 @@
       "name": "taskmaster",
       "source": "./plugins/taskmaster",
       "description": "Universal AI-powered task and backlog management with narrative continuity: handovers, issues, areas, finite epics (done_when). As of 6.0.x a SQLite store (.taskmaster/local/store.db) is the runtime authority; backlog.yaml and the per-entity markdown files are a Git-facing projection, so concurrent agents no longer overwrite each other's writes. Existing v2/v3/v4 backlogs are adopted on first open (first open of a large backlog takes minutes). Kanban viewer with inline edit-in-UI served at the root URL for every project. Lessons subsystem removed in 4.0 (durable knowledge lives in assistant memory + CLAUDE.md/AGENTS.md). Requires: uv (https://docs.astral.sh/uv/)",
-      "version": "6.0.1"
+      "version": "6.0.2"
     },
     {
       "name": "guard-hooks",
