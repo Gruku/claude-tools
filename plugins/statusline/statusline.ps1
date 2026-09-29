@@ -1,5 +1,5 @@
 # Claude Code statusline — pastel, brightness squares, git+hosting, gradient limits
-# Line 1: dir  model  ◆ account  ■■⬓□□ pct% Nk [◉◎○◌]  [$cost]  [agent]  [vim:MODE]  [↑ update]
+# Line 1: ◆ account  ■■⬓□□ pct% Nk [◉◎○◌]  [$cost]  [agent]  [vim:MODE]  [↑ update]
 # Line 2: ⎇ branch [✔ ~]  limit_bars [reset times]  [peak]  [⚡ extra usage]
 #
 # Official docs:
@@ -617,7 +617,7 @@ if ($activeExtra) {
 # --- Output ---
 # Line 1: dir  model  context  [cost]  [agent]  [vim]  [extra msg]  [update]
 $line1 = "${ctxText}  ${cSand}${dirDisplay}${R}  ${cPeach}${model}${R}"
-if ($accountLabel) { $line1 += "  ${accountColor}$([char]0x25C6) ${accountLabel}${R}" }
+if ($accountLabel) { $line1 = "${accountColor}$([char]0x25C6) ${accountLabel}${R}  " + $line1 }
 # Show session cost when approaching or on extra usage
 if ($costTxt -and ($nearExtra -or $activeExtra)) { $line1 += "  ${costTxt}" }
 if ($agentName) { $line1 += "  ${cLav}$([char]0x2699) ${agentName}${R}" }
