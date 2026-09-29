@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Claude Code statusline — pastel, brightness squares, git+hosting, gradient limits
-# Line 1: dir  model  ■■⬓□□ pct% Nk [◉◎○◌]  [$cost]  [agent]  [vim:MODE]  [↑ update]
+# Line 1: dir  model  ◆ account  ■■⬓□□ pct% Nk [◉◎○◌]  [$cost]  [agent]  [vim:MODE]  [↑ update]
 # Line 2: ⎇ branch [✔ ~]  limit_bars [reset times]  [peak]  [⚡ extra usage]
 #
 # Official docs:
@@ -218,6 +218,32 @@ if [[ -f "$slConfigPath" ]]; then
     [[ "$su" == "false" ]] && slShowUpdate=false
     sb=$(jq -r '.showLimitBars // true' "$slConfigPath" 2>/dev/null || echo "true")
     [[ "$sb" == "false" ]] && slShowLimitBars=false
+fi
+
+# --- Account (which CLAUDE_CONFIG_DIR this session runs under) ---
+# ~/.claude (or unset) -> "personal"; ~/.claude-<name> -> "<name>".
+# Override per dir in statusline.config.json: "accounts": { ".claude-work": "acme" }
+accountDir=".claude"
+if [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then
+    accountDir="${CLAUDE_CONFIG_DIR//\\//}"; accountDir="${accountDir%/}"
+    accountDir="${accountDir##*/}"
+fi
+if [[ "$accountDir" == ".claude" ]]; then accountLabel="personal"
+elif [[ "$accountDir" == .claude-* ]]; then accountLabel="${accountDir#.claude-}"
+else accountLabel="${accountDir#.}"
+fi
+if [[ -f "$slConfigPath" ]]; then
+    ov=$(jq -r --arg d "$accountDir" '.accounts[$d] // ""' "$slConfigPath" 2>/dev/null)
+    [[ -n "$ov" ]] && accountLabel="$ov"
+fi
+# Stable color per label so each account always reads the same
+accountPalette=("$cSage" "$cAmber" "$cTeal" "$cMauve" "$cLav" "$cSalmon")
+accountHash=0
+for (( i=0; i<${#accountLabel}; i++ )); do
+    printf -v _c '%d' "'${accountLabel:$i:1}"; accountHash=$((accountHash + _c))
+done
+if [[ "$accountLabel" == "personal" ]]; then accountColor="$cSage"
+else accountColor="${accountPalette[$((1 + accountHash % 5))]}"
 fi
 
 # --- Context percentage (adjusted for autocompact buffer) ---
@@ -650,6 +676,7 @@ fi
 # --- Output ---
 # Line 1: dir  model  context  [cost]  [agent]  [vim]  [extra msg]  [update]
 line1="${ctxText}  ${cSand}${dirDisplay}${R}  ${cPeach}${J_MODEL}${R}"
+[[ -n "$accountLabel" ]] && line1+="  ${accountColor}◆ ${accountLabel}${R}"
 # Show session cost when approaching or on extra usage
 if [[ -n "$costTxt" ]] && ($nearExtra || $activeExtra); then line1+="  ${costTxt}"; fi
 [[ -n "${J_AGENT:-}" ]] && line1+="  ${cLav}⚙ ${J_AGENT}${R}"

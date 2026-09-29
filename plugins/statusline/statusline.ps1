@@ -1,5 +1,5 @@
 # Claude Code statusline — pastel, brightness squares, git+hosting, gradient limits
-# Line 1: dir  model  ■■⬓□□ pct% Nk [◉◎○◌]  [$cost]  [agent]  [vim:MODE]  [↑ update]
+# Line 1: dir  model  ◆ account  ■■⬓□□ pct% Nk [◉◎○◌]  [$cost]  [agent]  [vim:MODE]  [↑ update]
 # Line 2: ⎇ branch [✔ ~]  limit_bars [reset times]  [peak]  [⚡ extra usage]
 #
 # Official docs:
@@ -151,6 +151,21 @@ if (Test-Path $slConfigPath) {
         if ($slConfig.PSObject.Properties['showLimitBars'])   { $slShowLimitBars = [bool]$slConfig.showLimitBars }
     } catch {}
 }
+
+# --- Account (which CLAUDE_CONFIG_DIR this session runs under) ---
+# ~/.claude (or unset) -> "personal"; ~/.claude-<name> -> "<name>".
+# Override per dir in statusline.config.json: "accounts": { ".claude-work": "acme" }
+$accountDir = if ($env:CLAUDE_CONFIG_DIR) { Split-Path -Leaf ($env:CLAUDE_CONFIG_DIR.TrimEnd('\', '/')) } else { ".claude" }
+if ($accountDir -eq ".claude") { $accountLabel = "personal" }
+elseif ($accountDir -like ".claude-*") { $accountLabel = $accountDir.Substring(8) }
+else { $accountLabel = $accountDir.TrimStart('.') }
+if ($slConfig -and $slConfig.PSObject.Properties['accounts'] -and $slConfig.accounts.PSObject.Properties[$accountDir]) {
+    $accountLabel = [string]$slConfig.accounts.$accountDir
+}
+# Stable color per label so each account always reads the same
+$accountPalette = @($cSage, $cAmber, $cTeal, $cMauve, $cLav, $cSalmon)
+$accountHash = 0; foreach ($ch in $accountLabel.ToCharArray()) { $accountHash += [int]$ch }
+$accountColor = if ($accountLabel -eq "personal") { $cSage } else { $accountPalette[1 + ($accountHash % ($accountPalette.Count - 1))] }
 
 # --- Context percentage (adjusted for autocompact buffer) ---
 # When autocompact is on, it reserves ~33000 tokens (20000 max_output + 13000 buffer).
@@ -602,6 +617,7 @@ if ($activeExtra) {
 # --- Output ---
 # Line 1: dir  model  context  [cost]  [agent]  [vim]  [extra msg]  [update]
 $line1 = "${ctxText}  ${cSand}${dirDisplay}${R}  ${cPeach}${model}${R}"
+if ($accountLabel) { $line1 += "  ${accountColor}$([char]0x25C6) ${accountLabel}${R}" }
 # Show session cost when approaching or on extra usage
 if ($costTxt -and ($nearExtra -or $activeExtra)) { $line1 += "  ${costTxt}" }
 if ($agentName) { $line1 += "  ${cLav}$([char]0x2699) ${agentName}${R}" }
