@@ -1,14 +1,20 @@
 # Uninstaller for the gruku-tools statusline (Windows).
 #
-# - Removes the `statusLine` key from ~/.claude/settings.json (only if it
-#   points at the gruku-tools resolver — leaves a custom command alone)
-# - Optionally deletes ~/.claude/statusline.config.json
+# - Removes `statusLine` from <claude dir>\settings.json, only if it is the gruku-tools
+#   launcher (a custom command is left alone unless -Force)
+# - Removes the toggle keys (showGit/showUpdateCheck/showLimitBars) from
+#   <claude dir>\statusline.config.json unless -KeepConfig; other keys (e.g. `accounts`)
+#   are kept, and the file is deleted only if nothing else is left in it
+#
+# <claude dir> = $env:CLAUDE_CONFIG_DIR if set, else %USERPROFILE%\.claude.
 #
 # Usage:
-#   pwsh -File uninstall.ps1                        # interactive
-#   pwsh -File uninstall.ps1 -KeepConfig            # leave statusline.config.json in place
-#   pwsh -File uninstall.ps1 -Force                 # remove statusLine even if it isn't ours
-#   pwsh -File uninstall.ps1 -NonInteractive        # no prompts; default = remove config
+#   powershell -NoProfile -ExecutionPolicy Bypass -File uninstall.ps1   # interactive
+#   ... -File uninstall.ps1 -KeepConfig        # leave statusline.config.json untouched
+#   ... -File uninstall.ps1 -Force             # remove statusLine even if it isn't ours
+#   ... -File uninstall.ps1 -NonInteractive    # no prompts
+#
+# Exit codes: 0 ok / nothing to do, 1 error (invalid JSON), 3 refused (foreign statusLine).
 
 param(
     [switch]$KeepConfig,
@@ -17,76 +23,80 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib\statusline-common.ps1')
 
-$configPath   = Join-Path $env:USERPROFILE '.claude\statusline.config.json'
-$settingsPath = Join-Path $env:USERPROFILE '.claude\settings.json'
-
-function Read-YesNo([string]$question, [bool]$default) {
-    $hint = if ($default) { '[Y/n]' } else { '[y/N]' }
-    $resp = Read-Host "$question $hint"
-    if (-not $resp) { return $default }
-    return ($resp -match '^\s*[Yy]')
-}
+$claudeDir    = Get-ClaudeDir
+$configPath   = Join-Path $claudeDir 'statusline.config.json'
+$settingsPath = Join-Path $claudeDir 'settings.json'
 
 Write-Host ""
 Write-Host "gruku-tools statusline -- uninstaller" -ForegroundColor Cyan
 Write-Host "====================================="
+Write-Host "Claude config dir: $claudeDir"
 Write-Host ""
 
-# --- Remove statusLine from settings.json ---
-if (Test-Path $settingsPath) {
-    try {
-        $settings = Get-Content $settingsPath -Raw | ConvertFrom-Json
-    } catch {
-        Write-Host "WARN: $settingsPath is not valid JSON. Backing up to $settingsPath.bak" -ForegroundColor Yellow
-        Copy-Item $settingsPath "$settingsPath.bak"
-        $settings = $null
-    }
-
-    if ($settings -and $settings.PSObject.Properties['statusLine']) {
-        $existing = $null
-        if ($settings.statusLine -and $settings.statusLine.PSObject.Properties['command']) {
-            $existing = $settings.statusLine.command
-        }
-
-        # Detect "ours": either the resolver path is visible (older installs / direct paths)
-        # or the EncodedCommand prefix matches our base64 resolver. The current installer
-        # encodes the path into UTF-16-LE base64 starting with "JABwACAAPQAg" ("$p = ...").
-        $isOurs = $existing -and (
-            ($existing -match 'gruku-tools[\\/]+statusline') -or
-            ($existing -match 'EncodedCommand\s+JABwACAAPQAg')
-        )
-        $remove = $isOurs -or $Force
-
-        if (-not $remove -and -not $NonInteractive) {
-            Write-Host "settings.json has a statusLine.command that doesn't look like ours:" -ForegroundColor Yellow
-            Write-Host "  $existing"
-            $remove = Read-YesNo "Remove anyway?" $false
-        }
-
-        if ($remove) {
-            $settings.PSObject.Properties.Remove('statusLine')
-            $settings | ConvertTo-Json -Depth 20 | Set-Content $settingsPath -Encoding UTF8
-            Write-Host "Removed statusLine from $settingsPath" -ForegroundColor Green
-        } else {
-            Write-Host "Left statusLine in $settingsPath untouched." -ForegroundColor Yellow
-        }
-    } else {
-        Write-Host "No statusLine entry in $settingsPath -- nothing to remove."
-    }
-} else {
-    Write-Host "No $settingsPath found -- nothing to remove."
+try {
+    $settingsFile = Read-JsonObjectFile $settingsPath
+    $configFile   = if ($KeepConfig) { $null } else { Read-JsonObjectFile $configPath }
+} catch {
+    Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
+    exit 1
 }
 
-# --- Optionally delete the toggle config ---
-if (Test-Path $configPath) {
-    $deleteConfig = -not $KeepConfig
-    if (-not $NonInteractive -and -not $KeepConfig) {
-        $deleteConfig = Read-YesNo "Delete $configPath too?" $true
+# --- Remove statusLine from settings.json ---
+$settings = $settingsFile.Object
+if (-not $settingsFile.Exists) {
+    Write-Host "No $settingsPath found -- nothing to remove."
+} elseif (-not $settings.PSObject.Properties['statusLine']) {
+    Write-Host "No statusLine entry in $settingsPath -- nothing to remove."
+} else {
+    $existing = $null
+    if ($settings.statusLine -and $settings.statusLine.PSObject.Properties['command']) {
+        $existing = [string]$settings.statusLine.command
     }
-    if ($deleteConfig) {
-        Remove-Item $configPath -Force
-        Write-Host "Deleted $configPath" -ForegroundColor Green
+    $remove = (Test-OurStatusLineCommand $existing) -or $Force
+    if (-not $remove) {
+        Write-Host "settings.json has a statusLine.command that isn't the gruku-tools one:" -ForegroundColor Yellow
+        Write-Host "  $existing"
+        if ($NonInteractive) {
+            Write-Host "Refusing to remove it. Re-run with -Force to remove anyway. Nothing was changed." -ForegroundColor Red
+            exit 3
+        }
+        $remove = Read-YesNo "Remove it anyway?" $false
+    }
+    if ($remove) {
+        $newText = Remove-JsonTopMember $settingsFile.Text 'statusLine'
+        $check = Assert-JsonObjectText $newText $settingsPath
+        if ($check.PSObject.Properties['statusLine']) { throw "internal error: statusLine removal did not round-trip. Nothing was changed." }
+        $bak = Backup-File $settingsPath
+        Write-Host "Backed up $settingsPath -> $bak"
+        Write-TextFile $settingsPath $newText
+        Write-Host "Removed statusLine from $settingsPath" -ForegroundColor Green
+    } else {
+        Write-Host "Left statusLine in $settingsPath untouched." -ForegroundColor Yellow
+    }
+}
+
+# --- Toggle config: drop our keys, keep the rest ---
+if ($configFile -and $configFile.Exists) {
+    $clean = $true
+    if (-not $NonInteractive) {
+        $clean = Read-YesNo "Remove the statusline toggles from $configPath too?" $true
+    }
+    if ($clean) {
+        $configText = if ($configFile.Text.Trim()) { $configFile.Text } else { '{}' }
+        foreach ($k in $script:ToggleKeys) { $configText = Remove-JsonTopMember $configText $k }
+        $config = Assert-JsonObjectText $configText $configPath
+        $isLink = [bool]((Get-Item -LiteralPath $configPath -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)
+        if (@($config.PSObject.Properties).Count -eq 0 -and -not $isLink) {
+            Remove-Item -LiteralPath $configPath -Force
+            Write-Host "Deleted $configPath" -ForegroundColor Green
+        } elseif ($configText -cne $configFile.Text) {
+            Write-TextFile $configPath $configText
+            Write-Host "Removed toggle keys from $configPath (other keys kept)" -ForegroundColor Green
+        } else {
+            Write-Host "No toggle keys in $configPath -- left untouched."
+        }
     } else {
         Write-Host "Kept $configPath" -ForegroundColor Yellow
     }

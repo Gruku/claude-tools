@@ -1,49 +1,48 @@
-# Interactive installer for the gruku-tools statusline (Windows).
+# Installer for the gruku-tools statusline (Windows).
 #
-# - Wires ~/.claude/settings.json -> the version-resolver command
-# - Writes ~/.claude/statusline.config.json with feature toggles
+# - Points <claude dir>\settings.json statusLine at a version-resolving launcher
+# - Merges feature toggles into <claude dir>\statusline.config.json (other keys, e.g. `accounts`, kept)
+#
+# <claude dir> = $env:CLAUDE_CONFIG_DIR if set, else %USERPROFILE%\.claude.
 #
 # Usage:
-#   pwsh -File install.ps1                                                  # interactive
-#   pwsh -File install.ps1 -NoGit                                           # disable git section
-#   pwsh -File install.ps1 -NoUpdateCheck                                   # disable update banner
-#   pwsh -File install.ps1 -NoLimitBars                                     # hide 5h/7d rate-limit bars
-#   pwsh -File install.ps1 -NoGit -NoUpdateCheck -NoLimitBars -NonInteractive  # scripted
+#   powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1                 # interactive
+#   ... -File install.ps1 -NoGit                   # disable git section
+#   ... -File install.ps1 -NoUpdateCheck           # disable update banner
+#   ... -File install.ps1 -NoLimitBars             # hide 5h/7d rate-limit bars
+#   ... -File install.ps1 -Force                   # replace a statusLine that isn't ours
+#   ... -File install.ps1 -NonInteractive [flags]  # scripted, no prompts
+#
+# Exit codes: 0 ok / nothing to do, 1 error (plugin missing, invalid JSON), 3 refused (foreign statusLine).
 
 param(
     [switch]$NoGit,
     [switch]$NoUpdateCheck,
     [switch]$NoLimitBars,
+    [switch]$Force,
     [switch]$NonInteractive
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib\statusline-common.ps1')
 
-$cacheDir     = Join-Path $env:USERPROFILE '.claude\plugins\cache\gruku-tools\statusline'
-$configPath   = Join-Path $env:USERPROFILE '.claude\statusline.config.json'
-$settingsPath = Join-Path $env:USERPROFILE '.claude\settings.json'
+$claudeDir    = Get-ClaudeDir
+$cacheDir     = Get-PluginCacheDir $claudeDir
+$configPath   = Join-Path $claudeDir 'statusline.config.json'
+$settingsPath = Join-Path $claudeDir 'settings.json'
 
-if (-not (Test-Path $cacheDir)) {
-    Write-Host "ERROR: statusline plugin not found at $cacheDir" -ForegroundColor Red
+if (-not (Test-PluginInstalled $cacheDir 'statusline.ps1')) {
+    Write-Host "ERROR: no statusline.ps1 found under $cacheDir\<version>\" -ForegroundColor Red
     Write-Host "Run '/plugin install statusline@gruku-tools' in Claude Code first." -ForegroundColor Yellow
     exit 1
-}
-
-function Read-YesNo([string]$question, [bool]$default) {
-    $hint = if ($default) { '[Y/n]' } else { '[y/N]' }
-    $resp = Read-Host "$question $hint"
-    if (-not $resp) { return $default }
-    return ($resp -match '^\s*[Yy]')
 }
 
 function Invoke-PreflightChecks {
     Write-Host "Preflight checks:" -ForegroundColor Cyan
     $warnings = 0
 
-    # CLAUDE_CODE_GIT_BASH_PATH stale-path check.
-    # Claude Code routes shell commands (incl. statusLine.command) through this binary
-    # when set. If the path no longer exists (common after reinstalling Git), Claude
-    # Code hangs silently — popup window stays open, statusline never renders.
+    # A stale CLAUDE_CODE_GIT_BASH_PATH makes Claude Code hang silently on every shell
+    # command, including statusLine.command.
     $scopes = @(
         @{ Name = 'User';    Value = [Environment]::GetEnvironmentVariable('CLAUDE_CODE_GIT_BASH_PATH','User') },
         @{ Name = 'Machine'; Value = [Environment]::GetEnvironmentVariable('CLAUDE_CODE_GIT_BASH_PATH','Machine') }
@@ -68,19 +67,34 @@ function Invoke-PreflightChecks {
         Write-Host "  [OK]   CLAUDE_CODE_GIT_BASH_PATH not set (Claude Code will auto-detect Git Bash)." -ForegroundColor Green
     }
 
-    # WSL bash.exe stub on PATH — informational. Doesn't block anything for the
-    # statusline (which goes through powershell.exe directly), but useful breadcrumb
-    # if shell commands ever route through WSL and hang.
+    # WSL bash.exe stub on PATH -- informational breadcrumb if shell commands ever hang.
     $bashSrc = (Get-Command bash -ErrorAction SilentlyContinue).Source
     if ($bashSrc -eq 'C:\Windows\System32\bash.exe') {
         Write-Host "  [INFO] 'bash' on PATH resolves to the WSL launcher ($bashSrc)." -ForegroundColor DarkGray
-        Write-Host "         Harmless on its own. If the statusline ever stops rendering, look at" -ForegroundColor DarkGray
-        Write-Host "         the popup window's title bar — '/usr/bin/bash --login -i -c …' means" -ForegroundColor DarkGray
-        Write-Host "         Claude Code is routing through WSL/Git Bash. Re-run this installer." -ForegroundColor DarkGray
+        Write-Host "         Harmless on its own. If the statusline ever stops rendering and the popup's" -ForegroundColor DarkGray
+        Write-Host "         title bar shows '/usr/bin/bash --login -i -c ...', re-run this installer." -ForegroundColor DarkGray
     }
-
+    Write-Host "  [OK]   Claude config dir: $claudeDir" -ForegroundColor Green
     Write-Host ""
     return $warnings
+}
+
+# --- Read everything first; abort before any write if a file is unreadable ---
+try {
+    $settingsFile = Read-JsonObjectFile $settingsPath
+    $configFile   = Read-JsonObjectFile $configPath
+} catch {
+    Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
+    exit 1
+}
+$settings = $settingsFile.Object
+$config   = $configFile.Object
+
+$desired = Get-LauncherCommand
+$existing = $null
+if ($settings.PSObject.Properties['statusLine'] -and $settings.statusLine -and
+    $settings.statusLine.PSObject.Properties['command']) {
+    $existing = [string]$settings.statusLine.command
 }
 
 $preflightWarnings = Invoke-PreflightChecks
@@ -92,12 +106,25 @@ if ($preflightWarnings -gt 0 -and -not $NonInteractive) {
     Write-Host ""
 }
 
+# A statusLine that isn't ours is never replaced silently.
+if ($existing -and -not (Test-OurStatusLineCommand $existing) -and -not $Force) {
+    Write-Host "settings.json already has a statusLine.command that isn't the gruku-tools one:" -ForegroundColor Yellow
+    Write-Host "  $existing"
+    if ($NonInteractive) {
+        Write-Host "Refusing to replace it. Re-run with -Force to overwrite. Nothing was changed." -ForegroundColor Red
+        exit 3
+    }
+    if (-not (Read-YesNo "Overwrite it with the gruku-tools launcher?" $false)) {
+        Write-Host "Kept the existing command. Nothing was changed." -ForegroundColor Yellow
+        exit 0
+    }
+}
+
 if ($NonInteractive) {
     $showGit       = -not $NoGit
     $showUpdate    = -not $NoUpdateCheck
     $showLimitBars = -not $NoLimitBars
 } else {
-    Write-Host ""
     Write-Host "gruku-tools statusline -- installer" -ForegroundColor Cyan
     Write-Host "==================================="
     Write-Host ""
@@ -106,76 +133,51 @@ if ($NonInteractive) {
     Write-Host ""
     Write-Host "  - Git info     : branch + dirty markers (runs 'git' per refresh,"
     Write-Host "                   may flash if a credential helper is misconfigured)"
-    Write-Host "  - Update check : checks npm for a new Claude Code version"
-    Write-Host "                   (runs 'claude --version' once per session/hour)"
+    Write-Host "  - Update check : banner when npm has a newer Claude Code"
+    Write-Host "                   (version comes from the session; npm is queried in the background)"
     Write-Host "  - Limit bars   : 5h / 7d rate-limit bars on line 2"
     Write-Host ""
-    $showGit       = Read-YesNo "Enable git info?"        $true
-    $showUpdate    = Read-YesNo "Enable update check?"    $true
-    $showLimitBars = Read-YesNo "Show rate-limit bars?"   $true
+    $showGit       = if ($NoGit)         { $false } else { Read-YesNo "Enable git info?"      $true }
+    $showUpdate    = if ($NoUpdateCheck) { $false } else { Read-YesNo "Enable update check?"  $true }
+    $showLimitBars = if ($NoLimitBars)   { $false } else { Read-YesNo "Show rate-limit bars?" $true }
     Write-Host ""
 }
 
-# Write toggle config
-$null = New-Item -ItemType Directory -Force -Path (Split-Path $configPath) -ErrorAction SilentlyContinue
-[ordered]@{
-    showGit         = $showGit
-    showUpdateCheck = $showUpdate
-    showLimitBars   = $showLimitBars
-} | ConvertTo-Json | Set-Content $configPath -Encoding UTF8
-
-Write-Host "Wrote $configPath" -ForegroundColor Green
+# --- Toggle config: merge, keep every other key (accounts, ...) ---
+$toggles = [ordered]@{ showGit = [bool]$showGit; showUpdateCheck = [bool]$showUpdate; showLimitBars = [bool]$showLimitBars }
+$configText = if ($configFile.Text.Trim()) { $configFile.Text } else { '{}' + "`n" }
+$configChanged = $false
+foreach ($k in $toggles.Keys) {
+    $prop = $config.PSObject.Properties[$k]
+    if (-not $prop -or $prop.Value -isnot [bool] -or $prop.Value -ne $toggles[$k]) {
+        $configText = Set-JsonTopMember $configText $k $toggles[$k]
+        $configChanged = $true
+    }
+}
+if ($configChanged) {
+    $null = Assert-JsonObjectText $configText $configPath
+    Write-TextFile $configPath $configText
+    Write-Host "Updated $configPath" -ForegroundColor Green
+} else {
+    Write-Host "$configPath already up to date" -ForegroundColor Green
+}
 Write-Host "  showGit         = $showGit"
 Write-Host "  showUpdateCheck = $showUpdate"
 Write-Host "  showLimitBars   = $showLimitBars"
 
-# Ensure settings.json exists
-if (-not (Test-Path $settingsPath)) {
-    Set-Content $settingsPath '{}' -Encoding UTF8
-}
-
-# Load (preserves all other keys)
-try {
-    $settings = Get-Content $settingsPath -Raw | ConvertFrom-Json
-} catch {
-    Write-Host "WARN: $settingsPath is not valid JSON. Backing up to $settingsPath.bak" -ForegroundColor Yellow
-    Copy-Item $settingsPath "$settingsPath.bak"
-    $settings = [pscustomobject]@{}
-}
-if (-not $settings) { $settings = [pscustomobject]@{} }
-
-# UTF-16-LE base64 of:
-#   $p = (Get-ChildItem "$env:USERPROFILE\.claude\plugins\cache\gruku-tools\statusline" -Directory | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1).FullName; & "$p\statusline.ps1"
-$encoded = 'JABwACAAPQAgACgARwBlAHQALQBDAGgAaQBsAGQASQB0AGUAbQAgACIAJABlAG4AdgA6AFUAUwBFAFIAUABSAE8ARgBJAEwARQBcAC4AYwBsAGEAdQBkAGUAXABwAGwAdQBnAGkAbgBzAFwAYwBhAGMAaABlAFwAZwByAHUAawB1AC0AdABvAG8AbABzAFwAcwB0AGEAdAB1AHMAbABpAG4AZQAiACAALQBEAGkAcgBlAGMAdABvAHIAeQAgAHwAIABTAG8AcgB0AC0ATwBiAGoAZQBjAHQAIAB7ACAAWwB2AGUAcgBzAGkAbwBuAF0AJABfAC4ATgBhAG0AZQAgAH0AIAAtAEQAZQBzAGMAZQBuAGQAaQBuAGcAIAB8ACAAUwBlAGwAZQBjAHQALQBPAGIAagBlAGMAdAAgAC0ARgBpAHIAcwB0ACAAMQApAC4ARgB1AGwAbABOAGEAbQBlADsAIAAmACAAIgAkAHAAXABzAHQAYQB0AHUAcwBsAGkAbgBlAC4AcABzADEAIgA='
-$desired = "powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand $encoded"
-
-$existing = $null
-if ($settings.PSObject.Properties['statusLine'] -and $settings.statusLine -and
-    $settings.statusLine.PSObject.Properties['command']) {
-    $existing = $settings.statusLine.command
-}
-
-if ($existing -and $existing -ne $desired -and -not $NonInteractive) {
-    Write-Host ""
-    Write-Host "settings.json already has a different statusLine.command:" -ForegroundColor Yellow
-    Write-Host "  $existing"
-    if (-not (Read-YesNo "Overwrite with the gruku-tools resolver?" $true)) {
-        Write-Host "Kept existing command. Toggle config was still written." -ForegroundColor Yellow
-        exit 0
-    }
-}
-
-$newStatusLine = [pscustomobject]@{
-    type    = 'command'
-    command = $desired
-}
-if ($settings.PSObject.Properties['statusLine']) {
-    $settings.statusLine = $newStatusLine
+# --- settings.json statusLine ---
+if ($existing -ceq $desired -and $settings.statusLine.PSObject.Properties['type'] -and $settings.statusLine.type -eq 'command') {
+    Write-Host "statusLine in $settingsPath already current" -ForegroundColor Green
 } else {
-    $settings | Add-Member -NotePropertyName statusLine -NotePropertyValue $newStatusLine -Force
+    $settingsText = Set-JsonTopMember $settingsFile.Text 'statusLine' ([ordered]@{ type = 'command'; command = $desired })
+    $check = Assert-JsonObjectText $settingsText $settingsPath
+    if ($check.statusLine.command -cne $desired) { throw "internal error: statusLine edit did not round-trip. Nothing was changed." }
+    if ($settingsFile.Exists) {
+        $bak = Backup-File $settingsPath
+        Write-Host "Backed up $settingsPath -> $bak"
+    }
+    Write-TextFile $settingsPath $settingsText
+    Write-Host "Wrote statusLine entry to $settingsPath" -ForegroundColor Green
 }
-
-$settings | ConvertTo-Json -Depth 20 | Set-Content $settingsPath -Encoding UTF8
-Write-Host "Wrote statusLine entry to $settingsPath" -ForegroundColor Green
 Write-Host ""
 Write-Host "Restart Claude Code for changes to take effect." -ForegroundColor Cyan

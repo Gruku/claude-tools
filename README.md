@@ -92,7 +92,7 @@ Author Unreal Engine 5 materials from YAML specs. Two execution modes:
 
 ### Statusline
 
-Pastel statusline for Claude Code with rate-limit bars, git status, context usage, update notifications, and session cost tracking. Bash + PowerShell.
+Pastel statusline for Claude Code with rate-limit bars, git status, context usage, update notifications, and a per-account badge showing which `CLAUDE_CONFIG_DIR` the session runs under. Bash + PowerShell.
 
 **[Live Preview](https://gruku.github.io/claude-tools/statusline/)**
 
@@ -103,13 +103,13 @@ Pastel statusline for Claude Code with rate-limit bars, git status, context usag
 ```bash
 /plugin marketplace add Gruku/claude-tools
 /plugin install statusline@gruku-tools
-/statusline:setup
 /reload-plugins
+/statusline:custom-statusline-install
 ```
 
 Then restart Claude Code so the new `statusLine` config is picked up.
 
-The `/statusline:setup` skill detects your OS (Windows → PS1, macOS/Linux → Bash), checks prerequisites, and writes the `statusLine` block into `~/.claude/settings.json` pointing at the bundled script via `${CLAUDE_PLUGIN_ROOT}`. Marketplace updates ship new versions automatically — no re-install needed.
+The `/statusline:custom-statusline-install` skill runs the bundled installer. The installer points `statusLine` in `settings.json` at a launcher that finds the newest cached plugin version every time it runs, so plugin updates need no reinstall. It also merges the feature toggles into `statusline.config.json`. Optional flags are `--no-git`, `--no-update-check`, `--no-limit-bars`, and `--force`, which replaces a statusline that isn't this one. Both files live in `$CLAUDE_CONFIG_DIR` when that variable is set and in `~/.claude` otherwise. To remove the statusline, run `/statusline:custom-statusline-uninstall`.
 
 **Requires:** `jq` + `git` on Bash; nothing on Windows (PowerShell built-in, `git` recommended).
 

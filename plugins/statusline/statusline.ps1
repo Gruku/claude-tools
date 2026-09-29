@@ -1,28 +1,23 @@
 # Claude Code statusline — pastel, brightness squares, git+hosting, gradient limits
-# Line 1: ◆ account  ■■⬓□□ pct% Nk [◉◎○◌]  [$cost]  [agent]  [vim:MODE]  [↑ update]
-# Line 2: ⎇ branch [✔ ~]  limit_bars [reset times]  [peak]  [⚡ extra usage]
+# Line 1: ◆ account  ■■⬓□□ pct% Nk [◉◎○◌] [cold]  dir  model [effort] [↯]  [⚙ agent]  [vim]  [↑ update]
+# Line 2: [↳] ⎇ branch [⋔ worktree] [⬡] [#PR] [✔] [~]  5h-bar [reset]  7d-bar [reset]  [$ spend-bar]  [peak]
 #
-# Official docs:
-#   https://code.claude.com/docs/en/statusline
+# Windows PowerShell 5.1 compatible. statusline.sh is the bash port — keep the two in behavior parity
+# (color math uses truncating integer arithmetic on purpose so both emit identical bytes).
+# Stdin schema (every field name used here): https://code.claude.com/docs/en/statusline
+# Install / uninstall: /statusline:custom-statusline-install
 #
 # Reference implementations:
 #   https://github.com/NoobyGains/claude-pulse        — Python, rainbow animation, usage data, update notifications
 #   https://github.com/sirmalloc/ccstatusline          — pre-built themes and configs
 #   https://github.com/martinemde/starship-claude      — Starship prompt integration
-#
-# Rate limits: read from stdin rate_limits JSON (v2.1.80+, zero API calls).
-#
-# Installation (Windows/PowerShell):
-#   1. Save this script, e.g. to ~/.claude/statusline.ps1
-#   2. Add to ~/.claude/settings.json:
-#        {
-#          "statusLine": {
-#            "command": "powershell -NoProfile -File \"%USERPROFILE%\\.claude\\statusline.ps1\""
-#          }
-#        }
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$ErrorActionPreference = 'SilentlyContinue'
+try { [Console]::InputEncoding = New-Object System.Text.UTF8Encoding $false } catch {}
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
 $esc = [char]27
 $bel = [char]7
+$inv = [System.Globalization.CultureInfo]::InvariantCulture
+$NOW = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 
 # --- Pastel palette ---
 $cSand   = "$esc[38;2;205;185;165m"
@@ -40,25 +35,30 @@ $R       = "$esc[0m"
 
 $dimR = 50; $dimG = 48; $dimB = 45
 $neuR = 195; $neuG = 180; $neuB = 165
+# Amber/red waypoints for overspend gradient
+$amberR = 235; $amberG = 195; $amberB = 80
+$warnRedR = 210; $warnRedG = 95; $warnRedB = 85
+
+# Integer division truncating toward zero (bash $(( a / b )) semantics)
+function Q([double]$a, [double]$b) { return [long][math]::Truncate($a / $b) }
+function IsNum($v) { return ($v -is [int] -or $v -is [long] -or $v -is [double] -or $v -is [decimal]) }
+function IsFalse($v) { return ($v -is [bool] -and -not $v) }
+function IsTrue($v) { return ($v -is [bool] -and $v) }
+function Test-Truthy([string]$v) { return @('1','true','yes','on') -contains $v.ToLowerInvariant() }
 
 # --- Gradient RGB (green -> amber -> red) ---
 function Get-GradRGB([int]$p) {
     $p = [math]::Max(0, [math]::Min(100, $p))
     if ($p -le 60) {
-        $t = $p / 60.0
-        return @([int](130+50*$t), [int](190+5*$t), [int](150-30*$t))
+        $t = Q ($p * 1000) 60
+        return @((130 + (Q (50 * $t) 1000)), (190 + (Q (5 * $t) 1000)), (150 - (Q (30 * $t) 1000)))
     } elseif ($p -le 80) {
-        $t = ($p-60) / 20.0
-        return @([int](180+30*$t), [int](195-20*$t), [int](120-20*$t))
+        $t = Q (($p - 60) * 1000) 20
+        return @((180 + (Q (30 * $t) 1000)), (195 - (Q (20 * $t) 1000)), (120 - (Q (20 * $t) 1000)))
     } else {
-        $t = ($p-80) / 20.0
-        return @(210, [int](175-80*$t), [int](100-15*$t))
+        $t = Q (($p - 80) * 1000) 20
+        return @(210, (175 - (Q (80 * $t) 1000)), (100 - (Q (15 * $t) 1000)))
     }
-}
-
-function Get-GradColor([int]$p) {
-    $rgb = Get-GradRGB $p
-    return "$esc[38;2;$($rgb[0]);$($rgb[1]);$($rgb[2])m"
 }
 
 # --- Limit-bar gradient (80%=green, 100%=red, saturation ramps at high %) ---
@@ -67,89 +67,70 @@ function Get-LimitGradRGB([int]$p) {
     if ($p -le 80) {
         $r = 130; $g = 190; $b = 150
     } elseif ($p -le 90) {
-        $t = ($p - 80) / 10.0
-        $r = [int](130 + 80*$t);  $g = [int](190 - 15*$t);  $b = [int](150 - 50*$t)
+        $t = Q (($p - 80) * 1000) 10
+        $r = 130 + (Q (80 * $t) 1000); $g = 190 - (Q (15 * $t) 1000); $b = 150 - (Q (50 * $t) 1000)
     } else {
-        $t = ($p - 90) / 10.0
-        $r = 210; $g = [int](175 - 80*$t); $b = [int](100 - 15*$t)
+        $t = Q (($p - 90) * 1000) 10
+        $r = 210; $g = 175 - (Q (80 * $t) 1000); $b = 100 - (Q (15 * $t) 1000)
     }
     # Dynamic muting: muted at <=80%, increasingly saturated toward 100%
-    if ($p -le 80) { $mf = 0.75 }
-    else { $mf = 0.75 + 0.25 * (($p - 80) / 20.0) }
-    return @([int]($dimR + ($r - $dimR) * $mf), [int]($dimG + ($g - $dimG) * $mf), [int]($dimB + ($b - $dimB) * $mf))
-}
-
-function Get-LimitGradColor([int]$p) {
-    $rgb = Get-LimitGradRGB $p
-    return "$esc[38;2;$($rgb[0]);$($rgb[1]);$($rgb[2])m"
+    $mf = 750
+    if ($p -gt 80) { $mf = 750 + (Q (250 * ($p - 80)) 20) }
+    return @(($dimR + (Q (($r - $dimR) * $mf) 1000)), ($dimG + (Q (($g - $dimG) * $mf) 1000)), ($dimB + (Q (($b - $dimB) * $mf) 1000)))
 }
 
 # --- Read JSON ---
-$inputData = [System.Console]::In.ReadToEnd()
-$data = $inputData | ConvertFrom-Json
+$data = [System.Console]::In.ReadToEnd() | ConvertFrom-Json
+if ($null -eq $data) { $data = New-Object PSObject }
+
+# --- Paths: active account's config dir ($CLAUDE_CONFIG_DIR, else ~/.claude) ---
+$homeDir = [System.Environment]::GetFolderPath('UserProfile')
+$cfgDir = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR -replace '[/\\]$', '' } else { Join-Path $homeDir '.claude' }
+$ccConfig = $null; $slConfig = $null
+try { $ccConfig = [IO.File]::ReadAllText((Join-Path $cfgDir 'settings.json')) | ConvertFrom-Json } catch {}
+$slConfigPath = Join-Path $cfgDir 'statusline.config.json'
+if (-not (Test-Path -LiteralPath $slConfigPath)) { $slConfigPath = Join-Path $homeDir '.claude\statusline.config.json' }
+try { $slConfig = [IO.File]::ReadAllText($slConfigPath) | ConvertFrom-Json } catch {}
+
+$slShowGit       = -not (IsFalse $slConfig.showGit)
+$slShowUpdate    = -not (IsFalse $slConfig.showUpdateCheck)
+$slShowLimitBars = -not (IsFalse $slConfig.showLimitBars)
+
+# --- Basic fields ---
+$model = $data.model.display_name; if ($null -eq $model) { $model = $data.model.id }; $model = [string]$model
+$agentName = [string]$data.agent.name
+$vimMode = [string]$data.vim.mode
+$sid = [string]$data.session_id
+$sidTag = $sid -replace '[^A-Za-z0-9_-]', ''
+if ($sidTag.Length -gt 40) { $sidTag = $sidTag.Substring(0, 40) }
+$ccVersion = [string]$data.version
+$effort = [string]$data.effort.level
+$fastMode = IsTrue $data.fast_mode
+$worktreeName = $data.workspace.git_worktree; if ($null -eq $worktreeName) { $worktreeName = $data.worktree.name }; $worktreeName = [string]$worktreeName
+$stdinRepo = ""
+$repo = $data.workspace.repo
+if ($repo -and $repo.host -and $repo.owner -and $repo.name) { $stdinRepo = "https://$($repo.host)/$($repo.owner)/$($repo.name)" }
 
 # --- Directory (project_dir:relative when cwd differs) ---
-$projDir = $data.workspace.current_dir
-if ($data.workspace.PSObject.Properties['project_dir'] -and $data.workspace.project_dir) {
-    $projDir = $data.workspace.project_dir
-}
-$curDir = $data.workspace.current_dir
-$projName = Split-Path -Leaf $projDir
+$curDir = $data.workspace.current_dir; if ($null -eq $curDir) { $curDir = $data.cwd }; $curDir = [string]$curDir
+$projDir = [string]$data.workspace.project_dir; if (-not $projDir) { $projDir = $curDir }
+$pT = $projDir -replace '[/\\]$', ''; $projName = $pT -replace '^.*[/\\]', ''
+$cT = $curDir -replace '[/\\]$', ''; $curName = $cT -replace '^.*[/\\]', ''
+$dsep = if ($curDir.Contains('\')) { '\' } else { '/' }
+$cmpP = $pT.Replace('\', '/'); $cmpC = $cT.Replace('\', '/')
+$ic = [System.StringComparison]::OrdinalIgnoreCase
+$sameDir = [string]::Equals($cmpC, $cmpP, $ic)
 
-if ($curDir -ne $projDir -and $curDir.StartsWith($projDir)) {
-    $relPath = $curDir.Substring($projDir.Length).TrimStart('\', '/')
+if (-not $sameDir -and $cmpC.StartsWith($cmpP + '/', $ic)) {
+    $relPath = $cT.Substring($pT.Length + 1)
     # Shorten: first\...\last when 3+ segments
     $relParts = $relPath -split '[/\\]'
-    if ($relParts.Count -ge 3) {
-        $relPath = "$($relParts[0])\...\$($relParts[-1])"
-    }
+    if ($relParts.Count -ge 3) { $relPath = "$($relParts[0])$dsep...$dsep$($relParts[-1])" }
     $dirDisplay = "${projName}${cDim}:${cSand}${relPath}"
-} elseif ($curDir -ne $projDir) {
-    $dirDisplay = "${projName}${cDim}:${cSand}$(Split-Path -Leaf $curDir)"
+} elseif (-not $sameDir) {
+    $dirDisplay = "${projName}${cDim}:${cSand}${curName}"
 } else {
     $dirDisplay = $projName
-}
-
-# --- Basic info ---
-$model = $data.model.display_name
-$agentName = ""
-if ($data.PSObject.Properties['agent'] -and $data.agent -and
-    $data.agent.PSObject.Properties['name'] -and $data.agent.name) {
-    $agentName = $data.agent.name
-}
-
-# --- Vim mode (only when active) ---
-$vimMode = ""
-if ($data.PSObject.Properties['vim'] -and $data.vim -and
-    $data.vim.PSObject.Properties['mode'] -and $data.vim.mode) {
-    $vimMode = $data.vim.mode
-}
-
-
-# --- Read Claude Code config (autoCompact) ---
-$autoCompactOn = $true   # default when absent
-$configPath = Join-Path ([System.Environment]::GetFolderPath('UserProfile')) ".claude\settings.json"
-if (Test-Path $configPath) {
-    try {
-        $ccConfig = Get-Content $configPath -Raw | ConvertFrom-Json
-        if ($ccConfig.PSObject.Properties['autoCompact'] -and $ccConfig.autoCompact -eq $false) {
-            $autoCompactOn = $false
-        }
-    } catch {}
-}
-
-# --- Statusline config (~/.claude/statusline.config.json, written by install.ps1) ---
-$slShowGit = $true
-$slShowUpdate = $true
-$slShowLimitBars = $true
-$slConfigPath = Join-Path ([System.Environment]::GetFolderPath('UserProfile')) ".claude\statusline.config.json"
-if (Test-Path $slConfigPath) {
-    try {
-        $slConfig = Get-Content $slConfigPath -Raw | ConvertFrom-Json
-        if ($slConfig.PSObject.Properties['showGit'])         { $slShowGit       = [bool]$slConfig.showGit }
-        if ($slConfig.PSObject.Properties['showUpdateCheck']) { $slShowUpdate    = [bool]$slConfig.showUpdateCheck }
-        if ($slConfig.PSObject.Properties['showLimitBars'])   { $slShowLimitBars = [bool]$slConfig.showLimitBars }
-    } catch {}
 }
 
 # --- Account (which CLAUDE_CONFIG_DIR this session runs under) ---
@@ -162,8 +143,13 @@ if ($accountDir -eq ".claude") { $accountLabel = "personal" }
 elseif ($accountDir -like ".claude-*") { $accountLabel = $accountDir.Substring(8) }
 else { $accountLabel = $accountDir.TrimStart('.') }
 $accountColorName = ""
-if ($slConfig -and $slConfig.PSObject.Properties['accounts'] -and $slConfig.accounts.PSObject.Properties[$accountDir]) {
-    $acct = $slConfig.accounts.$accountDir
+# Account key match is case-insensitive (Windows dir names); first match in file order wins
+$acctProp = $null
+if ($slConfig -and $slConfig.accounts -is [System.Management.Automation.PSCustomObject]) {
+    $acctProp = $slConfig.accounts.PSObject.Properties | Where-Object { $_.Name -ieq $accountDir } | Select-Object -First 1
+}
+if ($acctProp) {
+    $acct = $acctProp.Value
     if ($acct -is [string]) { $accountLabel = $acct }
     else {
         if ($acct.PSObject.Properties['label'] -and $acct.label) { $accountLabel = [string]$acct.label }
@@ -184,55 +170,85 @@ elseif ($accountColorName -match '^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$') {
     $accountColor = if ($accountLabel -eq "personal") { $cSage } else { $accountPalette[1 + ($accountHash % ($accountPalette.Count - 1))] }
 }
 
-# --- Context percentage (adjusted for autocompact buffer) ---
-# When autocompact is on, it reserves ~33000 tokens (20000 max_output + 13000 buffer).
-# used_percentage is raw % of total window — we recalculate against usable space.
-$pct = 0; $currentTokens = [int64]0
-if ($data.PSObject.Properties['context_window']) {
-    $cw = $data.context_window
-    $size = if ($cw.PSObject.Properties['context_window_size']) { [int]$cw.context_window_size } else { 0 }
-    $autocompactBuffer = if ($autoCompactOn) { 33000 } else { 0 }
-
-    if ($cw.PSObject.Properties['current_usage'] -and $null -ne $cw.current_usage) {
-        $cu = $cw.current_usage
-        $current = $cu.input_tokens + $cu.cache_creation_input_tokens + $cu.cache_read_input_tokens
-        $currentTokens = [int64]$current
-        $usable = [math]::Max(1, $size - $autocompactBuffer)
-        $pct = [math]::Round($current * 100 / $usable)
-    } elseif ($cw.PSObject.Properties['used_percentage'] -and $null -ne $cw.used_percentage -and $size -gt 0) {
-        # Fallback: convert raw used_percentage to autocompact-adjusted
-        $rawTokens = [math]::Floor($size * [double]$cw.used_percentage / 100)
-        $currentTokens = [int64]$rawTokens
-        $usable = [math]::Max(1, $size - $autocompactBuffer)
-        $pct = [math]::Round($rawTokens * 100 / $usable)
-    }
+# --- Context percentage: 100% = the point where auto-compaction fires ---
+# Documented (code.claude.com/docs/en/settings-reference, env-vars, model-config):
+#   autoCompactEnabled (settings.json, default true); DISABLE_AUTO_COMPACT=1 / DISABLE_COMPACT=1 turn it off.
+#   Window precedence: CLAUDE_CODE_AUTO_COMPACT_WINDOW (plain int; "500k" reads as 500) > autoCompactWindow
+#   > model default; clamped to 100K..1M and capped at the model's context window.
+#   CLAUDE_AUTOCOMPACT_PCT_OVERRIDE (1-100) can only lower the trigger.
+# An explicit window is documented as the compaction point itself, so it is used as-is.
+# Heuristic (unverified) for the model default only: trigger = context size - 33000 (20k output reserve
+#   + 13k buffer), which matches the documented ~967K default for 1M windows.
+# (--autocompact CLI flag isn't visible to a statusline process and is ignored.)
+$cw = $data.context_window
+$size = [long]0
+if (IsNum $cw.context_window_size) { $size = [long][math]::Floor([double]$cw.context_window_size) }
+$currentTokens = [long]0
+if ($cw.current_usage -is [System.Management.Automation.PSCustomObject]) {
+    $cu = $cw.current_usage
+    $currentTokens = [long][math]::Floor([double]$cu.input_tokens + [double]$cu.cache_creation_input_tokens + [double]$cu.cache_read_input_tokens)
+} elseif ((IsNum $cw.used_percentage) -and $size -gt 0) {
+    $currentTokens = [long][math]::Floor($size * [double]$cw.used_percentage / 100)
 }
-$pct = [math]::Max(0, [math]::Min(100, $pct))
+
+$autoCompactOn = -not (IsFalse $ccConfig.autoCompactEnabled)
+if (Test-Truthy $env:DISABLE_AUTO_COMPACT) { $autoCompactOn = $false }
+if (Test-Truthy $env:DISABLE_COMPACT) { $autoCompactOn = $false }
+$settingWin = [long]0
+$acw = $ccConfig.autoCompactWindow
+if (IsNum $acw) { $settingWin = [long][math]::Floor([double]$acw) }
+elseif ($acw -is [string] -and $acw.ToLowerInvariant() -match '^\s*([0-9]+(\.[0-9]+)?)\s*([km]?)') {
+    $mult = switch ($Matches[3]) { 'm' { 1000000 } 'k' { 1000 } default { 1 } }
+    $settingWin = [long][math]::Floor([double]::Parse($Matches[1], $inv) * $mult)
+}
+
+$pct = 0
+if ($size -gt 0) {
+    if ($autoCompactOn) {
+        $win = $size; $explicitWin = $false
+        if ("$env:CLAUDE_CODE_AUTO_COMPACT_WINDOW" -match '^[0-9]+') { $win = [long]$Matches[0]; $explicitWin = $true }
+        elseif ($settingWin -gt 0) { $win = $settingWin; $explicitWin = $true }
+        if ($explicitWin) { $win = [math]::Max(100000, [math]::Min(1000000, $win)) }
+        if ($win -gt $size) { $win = $size }
+        # Explicit window = the compaction point itself; reserve only applies to the model default
+        $threshold = if ($explicitWin) { $win } else { $win - 33000 }
+        if ("$env:CLAUDE_AUTOCOMPACT_PCT_OVERRIDE" -match '^[0-9]+') {
+            $pctO = [long]$Matches[0]
+            if ($pctO -ge 1 -and $pctO -le 100) { $threshold = [math]::Min($threshold, (Q ($win * $pctO) 100)) }
+        }
+    } else {
+        $threshold = $size
+    }
+    if ($threshold -lt 1) { $threshold = 1 }
+    $pct = Q ($currentTokens * 100 + (Q $threshold 2)) $threshold   # round half up
+    # COMPACT (100) only once the threshold is actually reached, not at 99.5% via rounding
+    if ($currentTokens -lt $threshold -and $pct -ge 100) { $pct = 99 }
+}
+$pct = [int][math]::Max(0, [math]::Min(100, $pct))
 
 # --- Context squares (5 squares, brightness + half-fills, leading = gradient) ---
 $sq_full  = [char]0x25A0
 $sq_half  = [char]0x2B13
 $sq_empty = [char]0x25A1
 $sqCount = 5
-$sqW = 100.0 / $sqCount
 $gradRGB = Get-GradRGB $pct
+$pctScaled = $pct * $sqCount
 
 $squares = ""
 for ($i = 0; $i -lt $sqCount; $i++) {
-    $rangeStart = $i * $sqW
-    $rangeEnd = ($i + 1) * $sqW
-
-    if ($pct -ge $rangeEnd) {
+    $rangeStart = $i * 100
+    $rangeEnd = ($i + 1) * 100
+    if ($pctScaled -ge $rangeEnd) {
         $squares += "$esc[38;2;${neuR};${neuG};${neuB}m${sq_full}"
-    } elseif ($pct -gt $rangeStart) {
-        $fill = [math]::Min(1.0, ($pct - $rangeStart) / $sqW)
-        $bri = 0.25 + 0.75 * $fill
-        $sr = [math]::Round($dimR + ($gradRGB[0] - $dimR) * $bri)
-        $sg = [math]::Round($dimG + ($gradRGB[1] - $dimG) * $bri)
-        $sb = [math]::Round($dimB + ($gradRGB[2] - $dimB) * $bri)
+    } elseif ($pctScaled -gt $rangeStart) {
+        $fill = ($pctScaled - $rangeStart) * 10   # 0-1000 scale
+        $bri = 250 + (Q (750 * $fill) 1000)
+        $sr = $dimR + (Q (($gradRGB[0] - $dimR) * $bri) 1000)
+        $sg = $dimG + (Q (($gradRGB[1] - $dimG) * $bri) 1000)
+        $sb = $dimB + (Q (($gradRGB[2] - $dimB) * $bri) 1000)
         $sqC = "$esc[38;2;${sr};${sg};${sb}m"
-        if ($fill -ge 0.75) { $squares += "${sqC}${sq_full}" }
-        elseif ($fill -ge 0.25) { $squares += "${sqC}${sq_half}" }
+        if ($fill -ge 750) { $squares += "${sqC}${sq_full}" }
+        elseif ($fill -ge 250) { $squares += "${sqC}${sq_half}" }
         else { $squares += "${sqC}${sq_empty}" }
     } else {
         $squares += "$esc[38;2;${dimR};${dimG};${dimB}m${sq_empty}"
@@ -240,12 +256,13 @@ for ($i = 0; $i -lt $sqCount; $i++) {
 }
 $squares += $R
 
-# --- Format token count ---
+# --- Format token count (round half up; 999.5k+ reads as 1.0M) ---
 $tokenStr = ""
-if ($currentTokens -ge 1000000) {
-    $tokenStr = "{0:F1}M" -f ($currentTokens / 1000000.0)
+if ($currentTokens -ge 999500) {
+    $tM = Q ($currentTokens + 50000) 100000
+    $tokenStr = "$(Q $tM 10).$($tM % 10)M"
 } elseif ($currentTokens -ge 1000) {
-    $tokenStr = "{0}k" -f [math]::Round($currentTokens / 1000)
+    $tokenStr = "$(Q ($currentTokens + 500) 1000)k"
 } elseif ($currentTokens -gt 0) {
     $tokenStr = "$currentTokens"
 }
@@ -255,9 +272,9 @@ $focusRing = ""
 if ($currentTokens -ge 700000) {
     # ◌ dashed ring — dim red, barely there
     $fr = Get-GradRGB 95
-    $rr = [math]::Round($dimR + ($fr[0] - $dimR) * 0.6)
-    $rg = [math]::Round($dimG + ($fr[1] - $dimG) * 0.6)
-    $rb = [math]::Round($dimB + ($fr[2] - $dimB) * 0.6)
+    $rr = $dimR + (Q (($fr[0] - $dimR) * 600) 1000)
+    $rg = $dimG + (Q (($fr[1] - $dimG) * 600) 1000)
+    $rb = $dimB + (Q (($fr[2] - $dimB) * 600) 1000)
     $focusRing = " $esc[38;2;${rr};${rg};${rb}m$([char]0x25CC)${R}"
 } elseif ($currentTokens -ge 500000) {
     # ○ empty ring — salmon
@@ -272,7 +289,7 @@ if ($currentTokens -ge 700000) {
     $focusRing = " ${cDim}$([char]0x25C9)${R}"
 }
 
-$ctxColor = Get-GradColor $pct
+$ctxColor = "$esc[38;2;$($gradRGB[0]);$($gradRGB[1]);$($gradRGB[2])m"
 if ($pct -ge 100) {
     $ctxText = "$squares ${ctxColor}COMPACT${R}"
 } elseif ($tokenStr) {
@@ -280,387 +297,303 @@ if ($pct -ge 100) {
 } else {
     $ctxText = "$squares ${ctxColor}${pct}%${R}"
 }
-
-# --- Git info (cached 30s, per-project) ---
-$gitDisplay = ""
-if ($slShowGit) {
-$gitCache = Join-Path $env:TEMP "claude-sl-git.json"
-$branch = ""; $gitStaged = 0; $gitModified = 0; $repoUrl = ""; $hasGit = $false; $gitNested = $false
-$needGit = $true
-
-if (Test-Path $gitCache) {
-    $gitAge = ((Get-Date) - (Get-Item $gitCache).LastWriteTime).TotalSeconds
-    if ($gitAge -lt 30) {
-        try {
-            $gc = Get-Content $gitCache -Raw | ConvertFrom-Json
-            # Invalidate cache if project or cwd changed
-            $cachedCur = if ($gc.PSObject.Properties['curDir']) { [string]$gc.curDir } else { "" }
-            if ([string]$gc.projDir -eq $projDir -and $cachedCur -eq $curDir) {
-                $needGit = $false
-                $branch = [string]$gc.branch
-                $gitStaged = [int]$gc.staged
-                $gitModified = [int]$gc.modified
-                $repoUrl = [string]$gc.repoUrl
-                $hasGit = [bool]$gc.hasGit
-                if ($gc.PSObject.Properties['nested']) { $gitNested = [bool]$gc.nested }
-            }
-        } catch {}
-    }
+# Prompt cache went cold (TTL expired / last response had no cache hits): next turn re-caches
+$pc = $data.prompt_cache
+if ($pc -and (IsTrue $pc.caching_observed)) {
+    if ((IsFalse $pc.warm) -or ((IsNum $pc.expires_at) -and [double]$pc.expires_at -le $NOW)) { $ctxText += " ${cDim}cold${R}" }
 }
 
-if ($needGit) {
+# --- Git info (cached 5s per session; one `git status` call) ---
+$tmpDir = $env:TEMP
+$gitDisplay = ""
+$hasGit = $false; $gitNested = $false
+if ($slShowGit) {
+    $gitCache = Join-Path $tmpDir ("claude-sl-git-" + $(if ($sidTag) { $sidTag } else { "nosid" }) + ".cache")
+    $branch = ""; $gitStaged = $false; $gitModified = $false; $gitRemote = ""
+    $needGit = $true
     try {
-        # Check projDir first, fall back to curDir (nested repo support)
-        $gitCheckDir = $projDir
-        $null = git -C $projDir rev-parse --git-dir 2>$null
-        if ($LASTEXITCODE -ne 0 -and $curDir -ne $projDir) {
-            $null = git -C $curDir rev-parse --git-dir 2>$null
-            if ($LASTEXITCODE -eq 0) { $gitCheckDir = $curDir; $gitNested = $true }
-        }
-        $null = git -C $gitCheckDir rev-parse --git-dir 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            $hasGit = $true
-            $branch = (git -C $gitCheckDir branch --show-current 2>$null)
-            if ($branch) { $branch = $branch.Trim() }
-            $stagedOut = @(git -C $gitCheckDir diff --cached --numstat 2>$null | Where-Object { $_ })
-            $gitStaged = $stagedOut.Count
-            $modOut = @(git -C $gitCheckDir diff --numstat 2>$null | Where-Object { $_ })
-            $gitModified = $modOut.Count
-            $remote = git -C $gitCheckDir remote get-url origin 2>$null
-            if ($remote) {
-                # Convert SSH → HTTPS for GitHub, GitLab, Bitbucket
-                $repoUrl = ($remote.Trim() -replace '^git@([^:]+):', 'https://$1/' -replace '\.git$', '')
+        $gl = [IO.File]::ReadAllLines($gitCache)
+        if ($gl.Count -ge 9 -and $gl[0] -match '^[0-9]+$' -and $gl[1] -ceq $projDir -and $gl[2] -ceq $curDir) {
+            $gTs = [long]$gl[0]
+            if ($NOW -ge $gTs -and ($NOW - $gTs) -lt 5) {
+                $needGit = $false
+                $hasGit = $gl[3] -eq '1'; $gitNested = $gl[4] -eq '1'; $branch = $gl[5]
+                $gitStaged = $gl[6] -eq '1'; $gitModified = $gl[7] -eq '1'; $gitRemote = $gl[8]
             }
         }
     } catch {}
-    @{ projDir="$projDir"; curDir="$curDir"; branch="$branch"; staged=[int]$gitStaged; modified=[int]$gitModified; repoUrl="$repoUrl"; hasGit=$hasGit; nested=$gitNested } |
-        ConvertTo-Json | Set-Content $gitCache -Encoding UTF8
-}
 
-# Build git display: icon + branch as clickable link + dot indicators for dirty state
-$gitIcon = [char]0x2387   # ⎇ (branch icon)
-$gitDisplay = ""
-$nestedPrefix = ""
-if ($hasGit -and $gitNested) {
-    $nestedPrefix = "${cDim}$([char]0x21B3) "   # ↳ nested repo indicator
-}
-if ($hasGit -and $branch) {
-    if ($repoUrl) {
-        # OSC 8 clickable link (broken in Claude Code >=2.1.3, see github.com/anthropics/claude-code/issues/21586)
-        # Keeping the code for when it's fixed — link just renders as plain text for now
-        $linkOpen = "${esc}]8;;${repoUrl}${bel}"
-        $linkClose = "${esc}]8;;${bel}"
-        $gitDisplay = "${nestedPrefix}${linkOpen}${cSlate}${gitIcon} ${branch}${R}${linkClose}"
-        $gitDisplay += " ${cTeal}$([char]0x2B21)${R}"   # ⬡ hosted repo indicator
-    } else {
-        $gitDisplay = "${nestedPrefix}${cSlate}${gitIcon} ${branch}${R}"
+    if ($needGit) {
+        # Check projDir first, fall back to curDir (nested repo support)
+        $gitDir = $projDir
+        $gitOut = @(& git --no-optional-locks -C $projDir status --porcelain=v2 --branch -uno 2>$null)
+        if ($LASTEXITCODE -eq 0) { $hasGit = $true }
+        elseif (-not $sameDir) {
+            $gitOut = @(& git --no-optional-locks -C $curDir status --porcelain=v2 --branch -uno 2>$null)
+            if ($LASTEXITCODE -eq 0) { $hasGit = $true; $gitNested = $true; $gitDir = $curDir }
+        }
+        if ($hasGit) {
+            foreach ($l in $gitOut) {
+                if ($l.StartsWith('# branch.head ')) {
+                    $branch = $l.Substring(14); if ($branch -eq '(detached)') { $branch = "" }
+                } elseif ($l -match '^[12u] ') {
+                    if ($l[2] -ne '.') { $gitStaged = $true }
+                    if ($l[3] -ne '.') { $gitModified = $true }
+                }
+            }
+            # Repo URL comes from stdin workspace.repo when it describes the repo we show (see below);
+            # otherwise ask git once per cache refresh.
+            if (-not $stdinRepo -or -not ($gitNested -or $sameDir)) {
+                $remote = [string](& git -C $gitDir remote get-url origin 2>$null)
+                # SSH -> HTTPS; drop any user:token@ so credentials never reach the OSC 8 link
+                if ($remote) {
+                    $gitRemote = ($remote.Trim() -replace '^git@([^:]+):', 'https://$1/' -replace '\.git$', '' `
+                        -replace '^([A-Za-z][A-Za-z0-9+.-]*://)[^/@]*@', '$1')
+                }
+            }
+        }
+        $b2 = { param($x) if ($x) { '1' } else { '0' } }
+        try {
+            [IO.File]::WriteAllText($gitCache, ((@("$NOW", $projDir, $curDir, (& $b2 $hasGit), (& $b2 $gitNested), $branch,
+                (& $b2 $gitStaged), (& $b2 $gitModified), $gitRemote) -join "`n") + "`n"))
+        } catch {}
     }
-    # Presence-based: sage ✔ = staged, salmon ~ = modified
-    if ($gitStaged -gt 0) { $gitDisplay += " ${cSage}$([char]0x2714)${R}" }
-    if ($gitModified -gt 0) { $gitDisplay += " ${cSalmon}~${R}" }
-} elseif ($hasGit) {
-    # Git repo but no branch (detached HEAD or empty repo)
-    $gitDisplay = "${cDimmer}${gitIcon} ${cDim}detached${R}"
-} else {
-    # No git initialized
-    $gitDisplay = "${cDimmer}${gitIcon} no git${R}"
+
+    # workspace.repo is parsed from cwd's origin, so it only matches the displayed repo when that repo is cwd's
+    $repoUrl = $gitRemote
+    if ($stdinRepo -and ($gitNested -or $sameDir)) { $repoUrl = $stdinRepo }
+
+    # Build git display: branch (OSC 8 link to repo) [worktree] [⬡ hosted] [#PR] [✔ staged] [~ modified]
+    $gitIcon = [char]0x2387   # ⎇
+    $nestedPrefix = if ($hasGit -and $gitNested) { "${cDim}$([char]0x21B3) " } else { "" }   # ↳ nested repo
+    if ($hasGit -and $branch) {
+        if ($repoUrl) {
+            $gitDisplay = "${nestedPrefix}${esc}]8;;${repoUrl}${bel}${cSlate}${gitIcon} ${branch}${R}${esc}]8;;${bel}"
+        } else {
+            $gitDisplay = "${nestedPrefix}${cSlate}${gitIcon} ${branch}${R}"
+        }
+        if ($worktreeName -and $worktreeName -cne $branch) { $gitDisplay += " ${cDim}$([char]0x22D4) ${worktreeName}${R}" }
+        if ($repoUrl) { $gitDisplay += " ${cTeal}$([char]0x2B21)${R}" }   # ⬡ hosted repo indicator
+        $prNum = [string]$data.pr.number
+        if ($prNum) {
+            $prC = switch ([string]$data.pr.review_state) {
+                'approved' { $cSage } 'changes_requested' { $cSalmon } 'draft' { $cDimmer } default { $cDim }
+            }
+            $prSig = if ([string]$data.pr.kind -eq 'mr') { '!' } else { '#' }
+            $prUrl = [string]$data.pr.url
+            if ($prUrl) { $gitDisplay += " ${esc}]8;;${prUrl}${bel}${prC}${prSig}${prNum}${R}${esc}]8;;${bel}" }
+            else { $gitDisplay += " ${prC}${prSig}${prNum}${R}" }
+        }
+        if ($gitStaged) { $gitDisplay += " ${cSage}$([char]0x2714)${R}" }
+        if ($gitModified) { $gitDisplay += " ${cSalmon}~${R}" }
+    } elseif ($hasGit) {
+        $gitDisplay = "${cDimmer}${gitIcon} ${cDim}detached${R}"
+    } else {
+        $gitDisplay = "${cDimmer}${gitIcon} no git${R}"
+    }
 }
-}  # end if ($slShowGit)
 
 # --- Session start detection (show limit % on first render only) ---
-$sessionMarker = Join-Path $env:TEMP "claude-sl-session.json"
 $showLimitPct = $false
-$sid = ""
-if ($data.PSObject.Properties['session_id'] -and $data.session_id) {
-    $sid = $data.session_id
-}
-if ($sid) {
-    $isFirstRender = $true
-    if (Test-Path $sessionMarker) {
+if ($sidTag) {
+    $sessionMarker = Join-Path $tmpDir "claude-sl-seen-$sidTag"
+    # Marker holds its last-touch epoch; refreshed hourly so the 24h sweep never hits a live session
+    $seenTs = $null
+    try { $seenTs = [IO.File]::ReadAllText($sessionMarker).Trim() } catch {}
+    if ($null -ne $seenTs) {
+        if ($seenTs -notmatch '^[0-9]+$' -or ($NOW - [long]$seenTs) -ge 3600) {
+            try { [IO.File]::WriteAllText($sessionMarker, "$NOW`n") } catch {}
+        }
+    } else {
+        try { [IO.File]::WriteAllText($sessionMarker, "$NOW`n") } catch {}
+        $showLimitPct = $true
+        # Once per new session: sweep claude-sl-* temp files untouched for a day
         try {
-            $sm = Get-Content $sessionMarker -Raw | ConvertFrom-Json
-            if ($sm.sid -eq $sid) { $isFirstRender = $false }
+            $cutoff = (Get-Date).AddDays(-1)
+            Get-ChildItem -LiteralPath $tmpDir -Filter 'claude-sl-*' -File |
+                Where-Object { $_.LastWriteTime -lt $cutoff } | Remove-Item -Force
         } catch {}
     }
-    if ($isFirstRender) {
-        @{ sid=$sid } | ConvertTo-Json | Set-Content $sessionMarker -Encoding UTF8
-        $showLimitPct = $true
-    }
 }
 
-# --- Rate limits from stdin JSON (live every refresh, v2.1.80+, zero API calls) ---
-$fhPct = 0; $fhReset = ""; $fhResetEpoch = 0; $sdPct = 0; $sdReset = ""; $sdResetEpoch = 0
-$exEnabled = $false; $exUsed = 0.0; $exLimit = 0.0; $exPct = 0
-$limitsOk = $false
-$limitsFailed = $false
-
-if ($data.PSObject.Properties['rate_limits'] -and $data.rate_limits) {
-    $rl = $data.rate_limits
-    if ($rl.PSObject.Properties['five_hour'] -and $rl.five_hour) {
-        $fhPct = [math]::Round([double]$rl.five_hour.used_percentage)
-        if ($rl.five_hour.PSObject.Properties['resets_at'] -and $rl.five_hour.resets_at) {
-            $fhResetEpoch = [long]$rl.five_hour.resets_at
-            $fhReset = ([DateTimeOffset]::FromUnixTimeSeconds($fhResetEpoch)).LocalDateTime.ToString("h:mmtt").ToLower()
-        }
-        $limitsOk = $true
+# --- Limit bars (brightness-based, gradient only on last pip) ---
+# Pip base color: identity within time budget, identity -> amber -> red past it
+function Get-PipBaseRGB([int]$idx, [int]$bW, [int]$budget, [int[]]$barRGB) {
+    if ($idx -lt $budget) { return $barRGB }
+    $pastCount = $bW - $budget
+    if ($pastCount -le 0) { return $barRGB }
+    $t = Q (($idx - $budget) * 1000) $pastCount
+    if ($t -le 500) {
+        $s = Q ($t * 1000) 500
+        return @(($barRGB[0] + (Q (($amberR - $barRGB[0]) * $s) 1000)), ($barRGB[1] + (Q (($amberG - $barRGB[1]) * $s) 1000)), ($barRGB[2] + (Q (($amberB - $barRGB[2]) * $s) 1000)))
     }
-    if ($rl.PSObject.Properties['seven_day'] -and $rl.seven_day) {
-        $sdPct = [math]::Round([double]$rl.seven_day.used_percentage)
-        if ($rl.seven_day.PSObject.Properties['resets_at'] -and $rl.seven_day.resets_at) {
-            $sdResetEpoch = [long]$rl.seven_day.resets_at
-            $sdDt = ([DateTimeOffset]::FromUnixTimeSeconds($sdResetEpoch)).LocalDateTime
-            $sdReset = $sdDt.ToString("ddd") + " " + $sdDt.ToString("h:mmtt").ToLower()
-        }
-        $limitsOk = $true
-    }
-    # Extra usage (may be present in rate_limits)
-    if ($rl.PSObject.Properties['extra_usage'] -and $rl.extra_usage) {
-        $ex = $rl.extra_usage
-        if ($ex.PSObject.Properties['is_enabled']) { $exEnabled = [bool]$ex.is_enabled }
-        if ($ex.PSObject.Properties['used_credits']) { $exUsed = [math]::Round([double]$ex.used_credits / 100, 2) }
-        if ($ex.PSObject.Properties['monthly_limit']) { $exLimit = [math]::Round([double]$ex.monthly_limit / 100, 2) }
-        if ($ex.PSObject.Properties['utilization']) { $exPct = [math]::Round([double]$ex.utilization) }
-    }
-} else {
-    $limitsFailed = $true
+    $s = Q (($t - 500) * 1000) 500
+    return @(($amberR + (Q (($warnRedR - $amberR) * $s) 1000)), ($amberG + (Q (($warnRedG - $amberG) * $s) 1000)), ($amberB + (Q (($warnRedB - $amberB) * $s) 1000)))
 }
 
-# --- Build limit bars (brightness-based, gradient only on last pip) ---
-$fc = [char]0x25B0  # ▰
-$ec = [char]0x25B1  # ▱
-# Amber/red waypoints for overspend gradient
-$amberR = 235; $amberG = 195; $amberB = 80
-$warnRedR = 210; $warnRedG = 95; $warnRedB = 85
-
-function Build-LimitBar([int]$lpct, [int]$barWidth, [int[]]$barRGB, [int]$budgetCount, [bool]$forceShowPct) {
+function Build-LimitBar([int]$lpct, [int]$bW, [int[]]$barRGB, [int]$budget, [bool]$forceShowPct) {
     $lpct = [math]::Max(0, [math]::Min(100, $lpct))
     $displayPct = $forceShowPct -or ($lpct -ge 80)
-    $pipW = 100.0 / $barWidth
-
-    # Compute overspend color for a pip past budget
-    # t: 0.0 (just past budget) → 1.0 (last pip), identity → amber → red
-    function Get-OverspendRGB([double]$t) {
-        $t = [math]::Max(0.0, [math]::Min(1.0, $t))
-        if ($t -le 0.5) {
-            $s = $t / 0.5
-            $r = [int]($barRGB[0] + ($amberR - $barRGB[0]) * $s)
-            $g = [int]($barRGB[1] + ($amberG - $barRGB[1]) * $s)
-            $b = [int]($barRGB[2] + ($amberB - $barRGB[2]) * $s)
-        } else {
-            $s = ($t - 0.5) / 0.5
-            $r = [int]($amberR + ($warnRedR - $amberR) * $s)
-            $g = [int]($amberG + ($warnRedG - $amberG) * $s)
-            $b = [int]($amberB + ($warnRedB - $amberB) * $s)
-        }
-        return @($r, $g, $b)
-    }
-
-    # Determine pip base color: identity if within budget, overspend gradient if past
-    function Get-PipBaseRGB([int]$pipIdx) {
-        if ($pipIdx -lt $budgetCount) {
-            return $barRGB
-        }
-        $pastCount = $barWidth - $budgetCount
-        if ($pastCount -le 0) { return $barRGB }
-        $t = ($pipIdx - $budgetCount) / [double]$pastCount
-        return (Get-OverspendRGB $t)
-    }
-
+    $pipW = Q 10000 $bW
+    $lpct100 = $lpct * 100
+    $pStr = ""; $txtC = ""; $tStart = -99
     if ($displayPct) {
-        if ($lpct -ge 100) { $pStr = "100" }
-        else { $pStr = "${lpct}%" }
-        $txtColor = Get-LimitGradColor $lpct
-        $tStart = [math]::Ceiling(($barWidth - $pStr.Length) / 2)
-        $result = ""
-        for ($i = 0; $i -lt $barWidth; $i++) {
-            $tIdx = $i - $tStart
-            if ($tIdx -ge 0 -and $tIdx -lt $pStr.Length) {
-                $result += "${txtColor}$($pStr[$tIdx])"
-                continue
-            }
-            $pipStart = $i * $pipW
-            $pipEnd = ($i + 1) * $pipW
-            if ($lpct -ge $pipEnd) {
-                $pRGB = Get-PipBaseRGB $i
-                $result += "$esc[38;2;$($pRGB[0]);$($pRGB[1]);$($pRGB[2])m${fc}"
-            } elseif ($lpct -gt $pipStart) {
-                $fill = [math]::Min(1.0, ($lpct - $pipStart) / $pipW)
-                $bri = 0.25 + 0.75 * $fill
-                $pRGB = Get-PipBaseRGB $i
-                $lr = [math]::Round($dimR + ($pRGB[0] - $dimR) * $bri)
-                $lg = [math]::Round($dimG + ($pRGB[1] - $dimG) * $bri)
-                $lb = [math]::Round($dimB + ($pRGB[2] - $dimB) * $bri)
-                $result += "$esc[38;2;${lr};${lg};${lb}m${fc}"
-            } else {
-                $result += "${cDim}${ec}"
-            }
+        $pStr = if ($lpct -ge 100) { "100" } else { "${lpct}%" }
+        $lg = Get-LimitGradRGB $lpct
+        $txtC = "$esc[38;2;$($lg[0]);$($lg[1]);$($lg[2])m"
+        $tStart = Q ($bW - $pStr.Length + 1) 2
+    }
+    $result = ""
+    for ($i = 0; $i -lt $bW; $i++) {
+        $tIdx = $i - $tStart
+        if ($tIdx -ge 0 -and $tIdx -lt $pStr.Length) { $result += "${txtC}$($pStr[$tIdx])"; continue }
+        $pipStart = $i * $pipW
+        $pipEnd = ($i + 1) * $pipW
+        if ($lpct100 -ge $pipEnd) {
+            $p = Get-PipBaseRGB $i $bW $budget $barRGB
+            $result += "$esc[38;2;$($p[0]);$($p[1]);$($p[2])m$([char]0x25B0)"
+        } elseif ($lpct100 -gt $pipStart) {
+            $fill = Q (($lpct100 - $pipStart) * 1000) $pipW
+            $bri = 250 + (Q (750 * $fill) 1000)
+            $p = Get-PipBaseRGB $i $bW $budget $barRGB
+            $result += "$esc[38;2;$($dimR + (Q (($p[0] - $dimR) * $bri) 1000));$($dimG + (Q (($p[1] - $dimG) * $bri) 1000));$($dimB + (Q (($p[2] - $dimB) * $bri) 1000))m$([char]0x25B0)"
+        } else {
+            $result += "${cDim}$([char]0x25B1)"
         }
-        return "${result}${R}"
+    }
+    return "${result}${R}"
+}
+
+function Get-PctOf($w) {
+    if ($null -eq $w) { return -1 }
+    if (IsNum $w.used_percentage) { return [long][math]::Floor([double]$w.used_percentage + 0.5) }
+    return 0
+}
+function Get-ResetOf($w) { if (IsNum $w.resets_at) { return [long][math]::Floor([double]$w.resets_at) } return [long]0 }
+function Format-LocalTime([long]$e) {
+    $dt = [DateTimeOffset]::FromUnixTimeSeconds($e).LocalDateTime
+    return @(($dt.ToString('h:mm', $inv) + $dt.ToString('tt', $inv).ToLowerInvariant()), $dt.ToString('ddd', $inv))
+}
+
+# --- Rate limits (stdin rate_limits: five_hour / seven_day for subscribers, spend_limit behind a gateway) ---
+$limitParts = @()
+if ($slShowLimitBars) {
+    $rl = $data.rate_limits
+    if ($null -ne $rl) {
+        $fhPct = Get-PctOf $rl.five_hour; $fhReset = Get-ResetOf $rl.five_hour
+        $sdPct = Get-PctOf $rl.seven_day; $sdReset = Get-ResetOf $rl.seven_day
+        $spPct = Get-PctOf $rl.spend_limit
+        if ($fhPct -ge 0) {
+            $fhBudget = 0; $fhTxt = ""
+            if ($fhReset -gt 0) {
+                $secsLeft = [math]::Max(0, $fhReset - $NOW)
+                $elapsed = [math]::Max(0, 5 * 3600 - $secsLeft)
+                $fhBudget = [math]::Min(5, (Q $elapsed 3600))
+            }
+            $bar = Build-LimitBar $fhPct 5 @(135, 180, 160) $fhBudget $showLimitPct   # 5 pips, sage
+            # Reset time: >=75% or within 30 min of reset
+            if ($fhReset -gt 0 -and ($fhPct -ge 75 -or (($fhReset - $NOW) -ge 0 -and ($fhReset - $NOW) -le 1800))) {
+                $ft = Format-LocalTime $fhReset; $fhTxt = " ${cSage}$($ft[0])${R}"
+            }
+            $limitParts += "${bar}${fhTxt}"
+        }
+        if ($sdPct -ge 0) {
+            $sdBudget = 0; $sdTxt = ""
+            if ($sdReset -gt 0) {
+                $secsLeft = [math]::Max(0, $sdReset - $NOW)
+                $elapsed = [math]::Max(0, 7 * 86400 - $secsLeft)
+                $sdBudget = [math]::Min(7, (Q $elapsed 86400))
+            }
+            $bar = Build-LimitBar $sdPct 7 @(185, 140, 160) $sdBudget $showLimitPct   # 7 pips, mauve
+            # Reset time: >=80% or within 4 hours of reset
+            if ($sdReset -gt 0 -and ($sdPct -ge 80 -or (($sdReset - $NOW) -ge 0 -and ($sdReset - $NOW) -le 14400))) {
+                $ft = Format-LocalTime $sdReset; $sdTxt = " ${cMauve}$($ft[1]) $($ft[0])${R}"
+            }
+            $limitParts += "${bar}${sdTxt}"
+        }
+        if ($spPct -ge 0) {
+            # Gateway spend limit: period length unknown, so no time-budget overspend tint
+            $bar = Build-LimitBar $spPct 5 @(205, 185, 165) 5 $showLimitPct   # 5 pips, sand
+            $limitParts += "${cDim}`$${bar}"
+        }
+        # Peak hours (13-19 UTC on weekdays): limits reportedly burn faster. Source unverified —
+        # community observation, not an official Anthropic statement.
+        if ($fhPct -ge 0 -or $sdPct -ge 0) {
+            $utcHour = (Q $NOW 3600) % 24; $utcDow = ((Q $NOW 86400) + 4) % 7   # 0 = Sunday
+            if ($utcDow -ge 1 -and $utcDow -le 5 -and $utcHour -ge 13 -and $utcHour -lt 19) { $limitParts += "${cDim}peak${R}" }
+        }
     } else {
-        $result = ""
-        for ($i = 0; $i -lt $barWidth; $i++) {
-            $pipStart = $i * $pipW
-            $pipEnd = ($i + 1) * $pipW
-            if ($lpct -ge $pipEnd) {
-                $pRGB = Get-PipBaseRGB $i
-                $result += "$esc[38;2;$($pRGB[0]);$($pRGB[1]);$($pRGB[2])m${fc}"
-            } elseif ($lpct -gt $pipStart) {
-                $fill = [math]::Min(1.0, ($lpct - $pipStart) / $pipW)
-                $bri = 0.25 + 0.75 * $fill
-                $pRGB = Get-PipBaseRGB $i
-                $lr = [math]::Round($dimR + ($pRGB[0] - $dimR) * $bri)
-                $lg = [math]::Round($dimG + ($pRGB[1] - $dimG) * $bri)
-                $lb = [math]::Round($dimB + ($pRGB[2] - $dimB) * $bri)
-                $result += "$esc[38;2;${lr};${lg};${lb}m${fc}"
-            } else {
-                $result += "${cDim}${ec}"
-            }
-        }
-        return "${result}${R}"
+        $limitParts += "${cDimmer}limits --${R}"
     }
 }
 
-# Compute budget: how many pips' worth of time has elapsed in each window
-$now = [DateTimeOffset]::Now
-$fhBudget = 0; $sdBudget = 0
-if ($fhResetEpoch -gt 0) {
-    $fhResetDt = [DateTimeOffset]::FromUnixTimeSeconds($fhResetEpoch)
-    $fhElapsed = 5.0 - ($fhResetDt - $now).TotalHours
-    $fhElapsed = [math]::Max(0, [math]::Min(5, $fhElapsed))
-    $fhBudget = [math]::Floor($fhElapsed)
+# --- Claude Code update check: stdin version vs one global npm cache (1h TTL, fetched in background) ---
+function Test-VerGt([string]$a, [string]$b) {
+    $pa = ($a -split '[-+ ]')[0].Split('.'); $pb = ($b -split '[-+ ]')[0].Split('.')
+    for ($i = 0; $i -lt 3; $i++) {
+        $x = 0; $y = 0
+        if ($i -lt $pa.Count -and $pa[$i] -match '^[0-9]+') { $x = [long]$Matches[0] }
+        if ($i -lt $pb.Count -and $pb[$i] -match '^[0-9]+') { $y = [long]$Matches[0] }
+        if ($x -gt $y) { return $true }
+        if ($x -lt $y) { return $false }
+    }
+    return $false
 }
-if ($sdResetEpoch -gt 0) {
-    $sdResetDt = [DateTimeOffset]::FromUnixTimeSeconds($sdResetEpoch)
-    $sdElapsed = 7.0 - ($sdResetDt - $now).TotalDays
-    $sdElapsed = [math]::Max(0, [math]::Min(7, $sdElapsed))
-    $sdBudget = [math]::Floor($sdElapsed)
-}
-
-$fhBar = Build-LimitBar $fhPct 5 @(135, 180, 160) $fhBudget $showLimitPct   # 5 pips, sage
-$sdBar = Build-LimitBar $sdPct 7 @(185, 140, 160) $sdBudget $showLimitPct   # 7 pips, mauve
-
-# Show 5h reset time if usage >= 75% OR within 30 minutes of reset
-$fhShowReset = ($fhPct -ge 75)
-if (-not $fhShowReset -and $fhResetEpoch -gt 0) {
-    $fhMinLeft = ([DateTimeOffset]::FromUnixTimeSeconds($fhResetEpoch).LocalDateTime - (Get-Date)).TotalMinutes
-    if ($fhMinLeft -ge 0 -and $fhMinLeft -le 30) { $fhShowReset = $true }
-}
-$fhResetTxt = if ($fhShowReset -and $fhReset) { " ${cSage}${fhReset}${R}" } else { "" }
-# Show 7d reset time if usage >= 80% OR within 4 hours of reset
-$sdShowReset = ($sdPct -ge 80)
-if (-not $sdShowReset -and $sdResetEpoch -gt 0) {
-    $sdHoursLeft = ([DateTimeOffset]::FromUnixTimeSeconds($sdResetEpoch).LocalDateTime - (Get-Date)).TotalHours
-    if ($sdHoursLeft -ge 0 -and $sdHoursLeft -le 4) { $sdShowReset = $true }
-}
-$sdResetTxt = if ($sdShowReset -and $sdReset) { " ${cMauve}${sdReset}${R}" } else { "" }
-
-# --- Claude Code update check (per-session cache, checked once per session) ---
-$hasUpdate = $false; $updateLocal = ""; $updateRemote = ""
-$needUpdateCheck = $true
-if ($slShowUpdate) {
-
-# Per-session cache: each session gets its own file, no cross-session pollution
-$updateCacheTag = if ($sid) { $sid.Substring(0, [Math]::Min(12, $sid.Length)) } else { "nosid" }
-$updateCache = Join-Path $env:TEMP "claude-sl-update-$updateCacheTag.json"
-
-if (Test-Path $updateCache) {
-    $updateAge = ((Get-Date) - (Get-Item $updateCache).LastWriteTime).TotalSeconds
-    if ($updateAge -lt 3600) {
+$updTxt = ""
+if ($slShowUpdate -and $ccVersion) {
+    $updCache = Join-Path $tmpDir 'claude-sl-update.cache'
+    $uTs = [long]0; $uRemote = ""
+    try {
+        $ul = [IO.File]::ReadAllLines($updCache)
+        if ($ul.Count -ge 1 -and $ul[0] -match '^[0-9]+$') { $uTs = [long]$ul[0] }
+        if ($ul.Count -ge 2) { $uRemote = $ul[1].Trim() }
+    } catch {}
+    if (($NOW - $uTs) -ge 3600 -or $uTs -gt ($NOW + 300)) {
+        # Claim the slot (bump the timestamp) so concurrent renders don't all fetch; worker overwrites on success
+        try { [IO.File]::WriteAllText($updCache, "$NOW`n$uRemote`n") } catch {}
+        $worker = @'
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    $v = [string](Invoke-RestMethod -Uri 'https://registry.npmjs.org/@anthropic-ai/claude-code/latest' -TimeoutSec 10 -UseBasicParsing).version
+    if ($v -match '^[0-9]+\.[0-9]+') {
+        $dst = '__CACHE__'; $tmp = $dst + '.' + $PID + '.tmp'
+        [IO.File]::WriteAllText($tmp, "__NOW__`n$v`n")
+        if ([IO.File]::Exists($dst)) { [IO.File]::Replace($tmp, $dst, [NullString]::Value) } else { [IO.File]::Move($tmp, $dst) }
+    }
+} catch {}
+'@
+        $worker = $worker.Replace('__CACHE__', $updCache.Replace("'", "''")).Replace('__NOW__', [string]$NOW)
+        $enc = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($worker))
+        # Spawn via WMI (Win32_Process.Create, SW_HIDE): no console window, not our child, and no handle
+        # inheritance. A ProcessStartInfo(UseShellExecute=$false) child inherits our stdout pipe, so Claude
+        # Code would wait for the fetch to finish (measured: render blocked ~5s). CREATE_NO_WINDOW isn't an
+        # accepted Win32_ProcessStartup CreateFlags value (the process silently never starts).
         try {
-            $uc = Get-Content $updateCache -Raw | ConvertFrom-Json
-            $updateLocal = (([string]$uc.local) -split '\s+')[0]
-            $updateRemote = (([string]$uc.remote) -split '\s+')[0]
-            $hasUpdate = ($updateLocal -and $updateRemote -and $updateLocal -ne $updateRemote)
-            $needUpdateCheck = $false
+            $su = New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ ShowWindow = [uint16]0 }
+            [void](Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
+                CommandLine = "powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand $enc"
+                ProcessStartupInformation = $su })
         } catch {}
     }
-}
-
-if ($needUpdateCheck) {
-    try {
-        # Get local version — first token of "2.1.37 (Claude Code)"
-        $rawVer = ((claude --version 2>$null) -join ' ').Trim()
-        if ($rawVer) { $updateLocal = ($rawVer -split '\s+')[0] }
-        # Get latest from npm registry
-        $npmResp = Invoke-RestMethod -Uri "https://registry.npmjs.org/@anthropic-ai/claude-code/latest" `
-            -Method Get -TimeoutSec 3
-        $updateRemote = "$($npmResp.version)".Trim()
-        if ($updateLocal -and $updateRemote -and $updateLocal -ne $updateRemote) {
-            $hasUpdate = $true
-        }
-        @{ hasUpdate=$hasUpdate; local="$updateLocal"; remote="$updateRemote" } |
-            ConvertTo-Json | Set-Content $updateCache -Encoding UTF8
-    } catch {
-        @{ hasUpdate=$false; local=""; remote="" } |
-            ConvertTo-Json | Set-Content $updateCache -Encoding UTF8
+    if ($uRemote -and (Test-VerGt $uRemote $ccVersion)) {
+        $updTxt = "  ${cAmber}$([char]0x2191) ${ccVersion} $([char]0x2192) ${uRemote}${R}"
     }
-}
-}  # end if ($slShowUpdate)
-
-# --- Session cost (from statusline JSON) ---
-$costTxt = ""
-if ($data.PSObject.Properties['cost'] -and $data.cost -and
-    $data.cost.PSObject.Properties['total_cost_usd'] -and $data.cost.total_cost_usd -gt 0) {
-    $costVal = [math]::Round([double]$data.cost.total_cost_usd, 2)
-    $costTxt = "${cDim}`$$costVal${R}"
-}
-
-# --- Extra usage detection ---
-# Active extra usage: enabled AND hit 100% on either limit (currently consuming extra credits)
-$activeExtra = $limitsOk -and $exEnabled -and ($fhPct -ge 100 -or $sdPct -ge 100)
-$nearExtra = $limitsOk -and ($fhPct -ge 90 -or $sdPct -ge 90)
-
-# --- Peak hours indicator (1pm-7pm GMT, limits burn faster during peak) ---
-$peakTxt = ""
-$utcHour = [DateTimeOffset]::UtcNow.Hour
-if ($utcHour -ge 13 -and $utcHour -lt 19) {
-    $peakTxt = "${cDim}peak${R}"
-}
-
-# --- Extra usage indicator ---
-$extraTxt = ""
-$bolt = [char]0x26A1  # ⚡
-if ($activeExtra) {
-    # Actively consuming extra usage — show spend/limit
-    $extraTxt = "${cAmber}${bolt} `$$exUsed/`$$exLimit${R}"
-} elseif ($nearExtra -and $exEnabled) {
-    # Approaching limit, extra usage will kick in
-    $extraTxt = "${cDim}${bolt} Extra${R}"
-} elseif ($nearExtra) {
-    # No extra usage — dim warning
-    $extraTxt = "${cDimmer}${bolt} No extra${R}"
 }
 
 # --- Output ---
-# Line 1: dir  model  context  [cost]  [agent]  [vim]  [extra msg]  [update]
+# Line 1: [account]  context [cold]  dir  model [effort] [fast]  [agent]  [vim]  [update]
 $line1 = "${ctxText}  ${cSand}${dirDisplay}${R}  ${cPeach}${model}${R}"
+if ($effort) { $line1 += " ${cDim}${effort}${R}" }
+if ($fastMode) { $line1 += " ${cPeach}$([char]0x21AF)${R}" }
 if ($accountLabel) { $line1 = "${accountColor}$([char]0x25C6) ${accountLabel}${R}  " + $line1 }
-# Show session cost when approaching or on extra usage
-if ($costTxt -and ($nearExtra -or $activeExtra)) { $line1 += "  ${costTxt}" }
 if ($agentName) { $line1 += "  ${cLav}$([char]0x2699) ${agentName}${R}" }
 if ($vimMode) { $line1 += "  ${cDim}${vimMode}${R}" }
-# Show "Extra Usage" on line 1 when actively consuming
-if ($activeExtra) {
-    $line1 += "  ${cAmber}Extra Usage${R}"
-}
-if ($hasUpdate) {
-    $line1 += "  ${cAmber}$([char]0x2191) ${updateLocal} $([char]0x2192) ${updateRemote}${R}"
-}
+$line1 += $updTxt
 
-# Line 2: git  limits  [extra]
+# Line 2: git  limits
 $line2Parts = @()
 if ($gitDisplay) { $line2Parts += $gitDisplay }
-if ($slShowLimitBars) {
-    if ($limitsOk) {
-        $line2Parts += "${fhBar}${fhResetTxt}"
-        $line2Parts += "${sdBar}${sdResetTxt}"
-        if ($peakTxt) { $line2Parts += $peakTxt }
-    } elseif ($limitsFailed) {
-        $line2Parts += "${cDimmer}limits --${R}"
-    }
-}
-if ($extraTxt) { $line2Parts += $extraTxt }
+$line2Parts += $limitParts
 $line2 = $line2Parts -join "  "
 
-[Console]::Out.WriteLine($line1)
-[Console]::Out.Write($line2)
+[Console]::Out.Write($line1 + "`n" + $line2)

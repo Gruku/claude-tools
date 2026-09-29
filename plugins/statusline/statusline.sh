@@ -1,30 +1,20 @@
 #!/usr/bin/env bash
 # Claude Code statusline — pastel, brightness squares, git+hosting, gradient limits
-# Line 1: ◆ account  ■■⬓□□ pct% Nk [◉◎○◌]  [$cost]  [agent]  [vim:MODE]  [↑ update]
-# Line 2: ⎇ branch [✔ ~]  limit_bars [reset times]  [peak]  [⚡ extra usage]
+# Line 1: ◆ account  ■■⬓□□ pct% Nk [◉◎○◌] [cold]  dir  model [effort] [↯]  [⚙ agent]  [vim]  [↑ update]
+# Line 2: [↳] ⎇ branch [⋔ worktree] [⬡] [#PR] [✔] [~]  5h-bar [reset]  7d-bar [reset]  [$ spend-bar]  [peak]
 #
-# Official docs:
-#   https://code.claude.com/docs/en/statusline
+# Bash port of statusline.ps1 (macOS/Linux/Git Bash) — keep the two in behavior parity.
+# Stdin schema (every field name used here): https://code.claude.com/docs/en/statusline
+# Install / uninstall: /statusline:custom-statusline-install
+# Requires: jq, git (curl for the update check). Runs on bash 3.2+; bash 4.2+/5 avoids extra forks.
 #
-# Reference implementations:
-#   https://github.com/NoobyGains/claude-pulse        — Python, rainbow animation, usage data, update notifications
-#   https://github.com/sirmalloc/ccstatusline          — pre-built themes and configs
-#   https://github.com/martinemde/starship-claude      — Starship prompt integration
-#
-# Rate limits: read from stdin rate_limits JSON (v2.1.80+, zero API calls).
-#
-# Installation (macOS/Linux):
-#   1. Save this script to ~/.claude/statusline.sh
-#   2. Make executable: chmod +x ~/.claude/statusline.sh
-#   3. Add to ~/.claude/settings.json:
-#        {
-#          "statusLine": {
-#            "command": "~/.claude/statusline.sh"
-#          }
-#        }
-#   4. Requires: jq, git
+# Perf note: Git Bash forks are expensive (~20-50ms each), so this script does one jq call for
+# stdin + settings + config, builtin-only arithmetic/formatting, and caches git state per session.
 
-command -v jq >/dev/null 2>&1 || { echo "statusline: jq required"; exit 1; }
+# Exit 0 so Claude Code still shows the hint instead of a blank line
+command -v jq >/dev/null 2>&1 || { printf 'statusline: jq required'; exit 0; }
+
+LC_TIME=C   # English day names for printf %()T
 
 # --- Pastel palette ---
 E=$'\e'
@@ -48,45 +38,48 @@ neuR=195 neuG=180 neuB=165
 # Amber/red waypoints for overspend gradient
 amberR=235 amberG=195 amberB=80
 warnRedR=210 warnRedG=95 warnRedB=85
-TMPD="${TMPDIR:-/tmp}"
 
-# --- OS-aware helpers ---
-IS_MAC=false
-[[ "$(uname)" == "Darwin" ]] && IS_MAC=true
+TMPD="${TMPDIR:-/tmp}"; TMPD="${TMPD%/}"
 
-file_age() {
-    if $IS_MAC; then
-        echo $(( $(date +%s) - $(stat -f "%m" "$1") ))
-    else
-        echo $(( $(date +%s) - $(stat -c "%Y" "$1") ))
-    fi
+HAS_PRINTF_T=false
+(( BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 2) )) && HAS_PRINTF_T=true
+if [[ -n "${EPOCHSECONDS:-}" ]]; then NOW=$EPOCHSECONDS
+elif $HAS_PRINTF_T; then printf -v NOW '%(%s)T' -1
+else NOW=$(date +%s); fi
+
+# Local time of epoch $1 -> FT_TIME ("3:45pm"), FT_DAY ("Wed")
+fmt_local() {
+    local s
+    if $HAS_PRINTF_T; then printf -v s '%(%H %M %a)T' "$1"
+    elif [[ "$OSTYPE" == darwin* ]]; then s=$(LC_ALL=C date -r "$1" '+%H %M %a' 2>/dev/null)
+    else s=$(LC_ALL=C date -d "@$1" '+%H %M %a' 2>/dev/null); fi
+    local h=${s%% *} rest=${s#* }
+    local m=${rest%% *}
+    FT_DAY=${rest#* }
+    h=$((10#${h:-0}))
+    local ap=am
+    (( h >= 12 )) && ap=pm
+    h=$((h % 12)); (( h == 0 )) && h=12
+    FT_TIME="${h}:${m}${ap}"
 }
 
-# Parse ISO 8601 → epoch (try GNU date, fall back to python3)
-iso_to_epoch() {
-    date -d "$1" +%s 2>/dev/null ||
-    python3 -c "from datetime import datetime; print(int(datetime.fromisoformat('$1').timestamp()))" 2>/dev/null ||
-    echo 0
+is_truthy() {
+    case "$1" in 1|true|TRUE|True|yes|YES|on|ON) return 0 ;; *) return 1 ;; esac
 }
 
-# Format epoch → "3:45pm"
-fmt_time() {
-    local raw
-    if $IS_MAC; then
-        raw=$(date -r "$1" "+%-I:%M%p" 2>/dev/null)
-    else
-        raw=$(date -d "@$1" "+%-I:%M%p" 2>/dev/null)
-    fi
-    echo "$raw" | tr '[:upper:]' '[:lower:]'
-}
-
-# Format epoch → "Wed"
-fmt_day() {
-    if $IS_MAC; then
-        date -r "$1" "+%a" 2>/dev/null
-    else
-        date -d "@$1" "+%a" 2>/dev/null
-    fi
+# Semver-ish "a > b" on major.minor.patch (pre-release/build suffixes ignored)
+ver_gt() {
+    local a=${1%%[-+ ]*} b=${2%%[-+ ]*} i x y
+    local IFS=.
+    local -a A=($a) B=($b)
+    for i in 0 1 2; do
+        x=${A[i]:-0}; y=${B[i]:-0}
+        x=${x%%[!0-9]*}; y=${y%%[!0-9]*}
+        x=$((10#${x:-0})); y=$((10#${y:-0}))
+        (( x > y )) && return 0
+        (( x < y )) && return 1
+    done
+    return 1
 }
 
 # --- Gradient RGB (green → amber → red) ---
@@ -110,11 +103,6 @@ grad_rgb() {
         GG=$((175 - 80 * t / 1000))
         GB=$((100 - 15 * t / 1000))
     fi
-}
-
-grad_color() {
-    grad_rgb "$1"
-    printf '%s' "${E}[38;2;${GR};${GG};${GB}m"
 }
 
 # --- Limit-bar gradient (80%=green, 100%=red, saturation ramps at high %) ---
@@ -142,83 +130,12 @@ limit_grad_rgb() {
     LB=$((dimB + (b - dimB) * mf / 1000))
 }
 
-limit_grad_color() {
-    limit_grad_rgb "$1"
-    printf '%s' "${E}[38;2;${LR};${LG};${LB}m"
-}
-
-# --- Read JSON from stdin ---
-INPUT=$(cat)
-
-# Extract fields (single jq call)
-J_MODEL="" J_CWD="" J_PROJ_DIR="" J_AGENT="" J_VIM="" J_SID="" J_COST="0"
-J_CW_SIZE=0 J_CW_USED_PCT=0 J_CW_INPUT=-1 J_CW_CACHE_CREATE=0 J_CW_CACHE_READ=0
-J_RL_FH_PCT=0 J_RL_FH_RESET=0 J_RL_SD_PCT=0 J_RL_SD_RESET=0 J_RL_HAS=false
-J_RL_EX_ENABLED=false J_RL_EX_USED=0 J_RL_EX_LIMIT=0 J_RL_EX_PCT=0
-eval "$(echo "$INPUT" | jq -r '
-    "J_MODEL=" + (.model.display_name // "" | @sh),
-    "J_CWD=" + (.workspace.current_dir // .cwd // "" | @sh),
-    "J_PROJ_DIR=" + (.workspace.project_dir // "" | @sh),
-    "J_AGENT=" + ((.agent.name // "") | @sh),
-    "J_VIM=" + ((.vim.mode // "") | @sh),
-    "J_SID=" + (.session_id // "" | @sh),
-    "J_COST=" + (.cost.total_cost_usd // 0 | tostring | @sh),
-    "J_CW_SIZE=" + (.context_window.context_window_size // 0 | tostring | @sh),
-    "J_CW_USED_PCT=" + (.context_window.used_percentage // 0 | tostring | @sh),
-    "J_CW_INPUT=" + (.context_window.current_usage.input_tokens // -1 | tostring | @sh),
-    "J_CW_CACHE_CREATE=" + (.context_window.current_usage.cache_creation_input_tokens // 0 | tostring | @sh),
-    "J_CW_CACHE_READ=" + (.context_window.current_usage.cache_read_input_tokens // 0 | tostring | @sh),
-    "J_RL_HAS=" + (if .rate_limits then "true" else "false" end | @sh),
-    "J_RL_FH_PCT=" + (.rate_limits.five_hour.used_percentage // 0 | tostring | @sh),
-    "J_RL_FH_RESET=" + (.rate_limits.five_hour.resets_at // 0 | tostring | @sh),
-    "J_RL_SD_PCT=" + (.rate_limits.seven_day.used_percentage // 0 | tostring | @sh),
-    "J_RL_SD_RESET=" + (.rate_limits.seven_day.resets_at // 0 | tostring | @sh),
-    "J_RL_EX_ENABLED=" + (.rate_limits.extra_usage.is_enabled // false | tostring | @sh),
-    "J_RL_EX_USED=" + (.rate_limits.extra_usage.used_credits // 0 | tostring | @sh),
-    "J_RL_EX_LIMIT=" + (.rate_limits.extra_usage.monthly_limit // 0 | tostring | @sh),
-    "J_RL_EX_PCT=" + (.rate_limits.extra_usage.utilization // 0 | tostring | @sh)
-' 2>/dev/null)" || true
-
-# --- Directory (project_dir:relative when cwd differs) ---
-projDir="${J_PROJ_DIR:-$J_CWD}"
-curDir="$J_CWD"
-projName=$(basename "$projDir")
-
-if [[ "$curDir" != "$projDir" && "$curDir" == "$projDir"/* ]]; then
-    relPath="${curDir#"$projDir"/}"
-    # Shorten: first/.../last when 3+ segments
-    IFS='/' read -ra _rparts <<< "$relPath"
-    if (( ${#_rparts[@]} >= 3 )); then
-        relPath="${_rparts[0]}/.../${_rparts[${#_rparts[@]}-1]}"
-    fi
-    dirDisplay="${projName}${cDim}:${cSand}${relPath}"
-elif [[ "$curDir" != "$projDir" ]]; then
-    dirDisplay="${projName}${cDim}:${cSand}$(basename "$curDir")"
-else
-    dirDisplay="$projName"
-fi
-
-# --- Read Claude Code config (autoCompact) ---
-autoCompactOn=true
-configPath="$HOME/.claude/settings.json"
-if [[ -f "$configPath" ]]; then
-    acVal=$(jq -r '.autoCompact // true' "$configPath" 2>/dev/null || echo "true")
-    [[ "$acVal" == "false" ]] && autoCompactOn=false
-fi
-
-# --- Statusline config (~/.claude/statusline.config.json, written by install.sh) ---
-slShowGit=true
-slShowUpdate=true
-slShowLimitBars=true
-slConfigPath="$HOME/.claude/statusline.config.json"
-if [[ -f "$slConfigPath" ]]; then
-    sg=$(jq -r '.showGit // true' "$slConfigPath" 2>/dev/null || echo "true")
-    [[ "$sg" == "false" ]] && slShowGit=false
-    su=$(jq -r '.showUpdateCheck // true' "$slConfigPath" 2>/dev/null || echo "true")
-    [[ "$su" == "false" ]] && slShowUpdate=false
-    sb=$(jq -r '.showLimitBars // true' "$slConfigPath" 2>/dev/null || echo "true")
-    [[ "$sb" == "false" ]] && slShowLimitBars=false
-fi
+# --- Paths: active account's config dir ($CLAUDE_CONFIG_DIR, else ~/.claude) ---
+cfgDir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+cfgDir="${cfgDir%[/\\]}"
+settingsPath="$cfgDir/settings.json"
+slConfigPath="$cfgDir/statusline.config.json"
+[[ -f "$slConfigPath" ]] || slConfigPath="$HOME/.claude/statusline.config.json"
 
 # --- Account (which CLAUDE_CONFIG_DIR this session runs under) ---
 # ~/.claude (or unset) -> "personal"; ~/.claude-<name> -> "<name>".
@@ -230,68 +147,153 @@ if [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then
     accountDir="${CLAUDE_CONFIG_DIR//\\//}"; accountDir="${accountDir%/}"
     accountDir="${accountDir##*/}"
 fi
-if [[ "$accountDir" == ".claude" ]]; then accountLabel="personal"
-elif [[ "$accountDir" == .claude-* ]]; then accountLabel="${accountDir#.claude-}"
-else accountLabel="${accountDir#.}"
-fi
-accountColorName=""
-if [[ -f "$slConfigPath" ]]; then
-    { read -r ovLabel; read -r accountColorName; } < <(jq -r --arg d "$accountDir" '
-        .accounts[$d] // null
-        | if type == "string" then ., ""
-          elif type == "object" then (.label // ""), (.color // "" | ascii_downcase)
-          else "", "" end' "$slConfigPath" 2>/dev/null | tr -d '\r')
-    [[ -n "$ovLabel" ]] && accountLabel="$ovLabel"
-fi
-case "$accountColorName" in
-    sage)     accountColor="$cSage" ;;
-    amber)    accountColor="$cAmber" ;;
-    orange)   accountColor="${E}[38;2;230;145;70m" ;;
-    teal)     accountColor="$cTeal" ;;
-    mauve)    accountColor="$cMauve" ;;
-    lavender) accountColor="$cLav" ;;
-    salmon)   accountColor="$cSalmon" ;;
-    slate)    accountColor="$cSlate" ;;
-    peach)    accountColor="$cPeach" ;;
-    sand)     accountColor="$cSand" ;;
-    *)        accountColor="" ;;
-esac
-if [[ -z "$accountColor" && "$accountColorName" =~ ^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$ ]]; then
-    accountColor="${E}[38;2;$((16#${BASH_REMATCH[1]}));$((16#${BASH_REMATCH[2]}));$((16#${BASH_REMATCH[3]}))m"
-fi
-if [[ -z "$accountColor" ]]; then
-    # No configured color: stable color per label so each account always reads the same
-    accountPalette=("$cSage" "$cAmber" "$cTeal" "$cMauve" "$cLav" "$cSalmon")
-    accountHash=0
-    for (( i=0; i<${#accountLabel}; i++ )); do
-        printf -v _c '%d' "'${accountLabel:$i:1}"; accountHash=$((accountHash + _c))
-    done
-    if [[ "$accountLabel" == "personal" ]]; then accountColor="$cSage"
-    else accountColor="${accountPalette[$((1 + accountHash % 5))]}"
+
+# --- Read stdin + settings + statusline config in ONE jq call ---
+IFS= read -r -d '' INPUT || true
+
+JQ_PROG='
+def obj: if type == "object" then . else {} end;
+# Settings/config arrive raw: strip a UTF-8 BOM and parse each on its own, so a bad file only loses its own values
+def parsefile: (ltrimstr("﻿") | try fromjson catch {}) | obj;
+def s: $s | parsefile;
+def c: $c | parsefile;
+def num: if type == "number" then . else null end;
+def rnd: if type == "number" then (. + 0.5 | floor) else null end;
+def v(n; x): n + "=" + ((x // "") | tostring | @sh);
+def win(x): if (x | type) == "number" then (x | floor)
+    elif (x | type) == "string" then
+        ((x | ascii_downcase | capture("^\\s*(?<n>[0-9]+(\\.[0-9]+)?)\\s*(?<u>[km]?)")) // null)
+        | if . == null then 0
+          else ((.n | tonumber) * (if .u == "m" then 1000000 elif .u == "k" then 1000 else 1 end) | floor) end
+    else 0 end;
+def pctOf(w): if w == null then -1 else ((w.used_percentage | rnd) // 0) end;
+. as $d
+| ($d.context_window // {} | obj) as $cw
+| (($cw.context_window_size | num) // 0 | floor) as $size
+| (if ($cw.current_usage | type) == "object" then
+      (($cw.current_usage.input_tokens // 0) + ($cw.current_usage.cache_creation_input_tokens // 0)
+       + ($cw.current_usage.cache_read_input_tokens // 0))
+   elif ($cw.used_percentage | type) == "number" and $size > 0 then ($size * $cw.used_percentage / 100)
+   else 0 end | floor) as $tok
+| ($d.rate_limits // null) as $rl
+| ($d.prompt_cache // null) as $pc
+| ($d.workspace.repo // null) as $repo
+| (c.accounts // {} | obj | [to_entries[] | select((.key | ascii_downcase) == ($acct | ascii_downcase))]
+   | first.value?) as $a
+| v("J_MODEL"; $d.model.display_name // $d.model.id),
+  v("J_CWD"; $d.workspace.current_dir // $d.cwd),
+  v("J_PROJ"; $d.workspace.project_dir),
+  v("J_AGENT"; $d.agent.name),
+  v("J_VIM"; $d.vim.mode),
+  v("J_SID"; $d.session_id),
+  v("J_VER"; $d.version),
+  v("J_SIZE"; $size),
+  v("J_TOK"; $tok),
+  v("J_EFFORT"; $d.effort.level),
+  v("J_FAST"; if $d.fast_mode == true then 1 else 0 end),
+  v("J_COLD"; if $pc == null or $pc.caching_observed != true then 0
+              elif $pc.warm == false then 1
+              elif ($pc.expires_at | type) == "number" and $pc.expires_at <= now then 1
+              else 0 end),
+  v("J_RL"; if $rl == null then 0 else 1 end),
+  v("J_FH"; pctOf($rl.five_hour)),
+  v("J_FHR"; ($rl.five_hour.resets_at | num) // 0 | floor),
+  v("J_SD"; pctOf($rl.seven_day)),
+  v("J_SDR"; ($rl.seven_day.resets_at | num) // 0 | floor),
+  v("J_SP"; pctOf($rl.spend_limit)),
+  v("J_PRN"; $d.pr.number),
+  v("J_PRU"; $d.pr.url),
+  v("J_PRS"; $d.pr.review_state),
+  v("J_PRK"; $d.pr.kind),
+  v("J_WT"; $d.workspace.git_worktree // $d.worktree.name),
+  v("J_REPO"; if $repo.host and $repo.owner and $repo.name
+              then "https://\($repo.host)/\($repo.owner)/\($repo.name)" else "" end),
+  v("S_ACE"; if s.autoCompactEnabled == false then 0 else 1 end),
+  v("S_ACW"; win(s.autoCompactWindow)),
+  v("C_GIT"; if c.showGit == false then 0 else 1 end),
+  v("C_UPD"; if c.showUpdateCheck == false then 0 else 1 end),
+  v("C_BARS"; if c.showLimitBars == false then 0 else 1 end),
+  v("C_ALBL"; if ($a | type) == "string" then $a elif ($a | type) == "object" then ($a.label // "") else "" end),
+  v("C_ASTR"; if ($a | type) == "string" then 1 else 0 end),
+  v("C_ACOL"; if ($a | type) == "object" then ($a.color // "" | tostring | ascii_downcase) else "" end),
+  "J_OK=1"
+'
+
+jqArgs=(--arg acct "$accountDir")
+if [[ -r "$settingsPath" ]]; then jqArgs+=(--rawfile s "$settingsPath"); else jqArgs+=(--arg s ''); fi
+if [[ -r "$slConfigPath" ]]; then jqArgs+=(--rawfile c "$slConfigPath"); else jqArgs+=(--arg c ''); fi
+J_OK=0
+eval "$(jq -r "${jqArgs[@]}" "$JQ_PROG" <<< "$INPUT" 2>/dev/null)"
+: "${J_SIZE:=0}" "${J_TOK:=0}" "${J_FAST:=0}" "${J_COLD:=0}" "${J_RL:=0}" "${J_FH:=-1}" "${J_SD:=-1}" "${J_SP:=-1}"
+: "${J_FHR:=0}" "${J_SDR:=0}" "${S_ACE:=1}" "${S_ACW:=0}" "${C_GIT:=1}" "${C_UPD:=1}" "${C_BARS:=1}" "${C_ASTR:=0}"
+
+sidTag="${J_SID//[^A-Za-z0-9_-]/}"; sidTag="${sidTag:0:40}"
+
+# --- Directory (project_dir:relative when cwd differs) ---
+projDir="${J_PROJ:-$J_CWD}"
+curDir="$J_CWD"
+_p="${projDir%[/\\]}"; projName="${_p##*[/\\]}"
+_c="${curDir%[/\\]}"; curName="${_c##*[/\\]}"
+dsep=/; [[ "$curDir" == *\\* ]] && dsep=\\
+# Compare with normalized separators; case-insensitive on Windows (like the PS version)
+cmpP="${_p//\\//}"; cmpC="${_c//\\//}"
+if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then cmpP="${cmpP,,}"; cmpC="${cmpC,,}"; fi
+sameDir=false; [[ "$cmpC" == "$cmpP" ]] && sameDir=true
+
+if ! $sameDir && [[ "$cmpC" == "$cmpP"/* ]]; then
+    relPath="${_c:${#_p}+1}"
+    # Shorten: first/.../last when 3+ segments
+    IFS='/\' read -ra _rparts <<< "$relPath"
+    if (( ${#_rparts[@]} >= 3 )); then
+        relPath="${_rparts[0]}${dsep}...${dsep}${_rparts[${#_rparts[@]}-1]}"
     fi
+    dirDisplay="${projName}${cDim}:${cSand}${relPath}"
+elif ! $sameDir; then
+    dirDisplay="${projName}${cDim}:${cSand}${curName}"
+else
+    dirDisplay="$projName"
 fi
 
-# --- Context percentage (adjusted for autocompact buffer) ---
-if $autoCompactOn; then autocompactBuffer=33000; else autocompactBuffer=0; fi
-pct=0; currentTokens=0
-cwSize=${J_CW_SIZE%%.*}   # truncate decimal
-cwInput=${J_CW_INPUT%%.*}
+# --- Context percentage: 100% = the point where auto-compaction fires ---
+# Documented (code.claude.com/docs/en/settings-reference, env-vars, model-config):
+#   autoCompactEnabled (settings.json, default true); DISABLE_AUTO_COMPACT=1 / DISABLE_COMPACT=1 turn it off.
+#   Window precedence: CLAUDE_CODE_AUTO_COMPACT_WINDOW (plain int; "500k" reads as 500) > autoCompactWindow
+#   > model default; clamped to 100K..1M and capped at the model's context window.
+#   CLAUDE_AUTOCOMPACT_PCT_OVERRIDE (1-100) can only lower the trigger.
+# An explicit window is documented as the compaction point itself, so it is used as-is.
+# Heuristic (unverified) for the model default only: trigger = context size - 33000 (20k output reserve
+#   + 13k buffer), which matches the documented ~967K default for 1M windows.
+# (--autocompact CLI flag isn't visible to a statusline process and is ignored.)
+acOn=true
+(( S_ACE == 0 )) && acOn=false
+is_truthy "${DISABLE_AUTO_COMPACT:-}" && acOn=false
+is_truthy "${DISABLE_COMPACT:-}" && acOn=false
 
-if (( cwInput >= 0 && cwSize > 0 )); then
-    ccCreate=${J_CW_CACHE_CREATE%%.*}
-    ccRead=${J_CW_CACHE_READ%%.*}
-    current=$((cwInput + ccCreate + ccRead))
-    currentTokens=$current
-    usable=$((cwSize - autocompactBuffer))
-    (( usable < 1 )) && usable=1
-    pct=$(( (current * 100 + usable / 2) / usable ))  # rounded
-elif (( cwSize > 0 )); then
-    rawPctInt=${J_CW_USED_PCT%%.*}
-    rawTokens=$((cwSize * rawPctInt / 100))
-    currentTokens=$rawTokens
-    usable=$((cwSize - autocompactBuffer))
-    (( usable < 1 )) && usable=1
-    pct=$(( (rawTokens * 100 + usable / 2) / usable ))  # rounded
+size=$J_SIZE; currentTokens=$J_TOK; pct=0
+if (( size > 0 )); then
+    if $acOn; then
+        win=$size; explicitWin=false
+        envW="${CLAUDE_CODE_AUTO_COMPACT_WINDOW:-}"; envW="${envW%%[!0-9]*}"
+        if [[ -n "$envW" ]]; then win=$((10#$envW)); explicitWin=true
+        elif (( S_ACW > 0 )); then win=$S_ACW; explicitWin=true; fi
+        if $explicitWin; then (( win < 100000 )) && win=100000; (( win > 1000000 )) && win=1000000; fi
+        (( win > size )) && win=$size
+        # Explicit window = the compaction point itself; reserve only applies to the model default
+        if $explicitWin; then threshold=$win; else threshold=$((win - 33000)); fi
+        pctO="${CLAUDE_AUTOCOMPACT_PCT_OVERRIDE:-}"; pctO="${pctO%%[!0-9]*}"
+        if [[ -n "$pctO" ]]; then
+            pctO=$((10#$pctO))
+            if (( pctO >= 1 && pctO <= 100 )); then
+                t2=$((win * pctO / 100)); (( t2 < threshold )) && threshold=$t2
+            fi
+        fi
+    else
+        threshold=$size
+    fi
+    (( threshold < 1 )) && threshold=1
+    pct=$(( (currentTokens * 100 + threshold / 2) / threshold ))  # round half up
+    # COMPACT (100) only once the threshold is actually reached, not at 99.5% via rounding
+    (( currentTokens < threshold && pct >= 100 )) && pct=99
 fi
 (( pct < 0 )) && pct=0; (( pct > 100 )) && pct=100
 
@@ -325,10 +327,10 @@ for (( i=0; i<sqCount; i++ )); do
 done
 squares+="$R"
 
-# --- Format token count ---
+# --- Format token count (round half up; 999.5k+ reads as 1.0M) ---
 tokenStr=""
-if (( currentTokens >= 1000000 )); then
-    tM=$((currentTokens / 100000))
+if (( currentTokens >= 999500 )); then
+    tM=$(( (currentTokens + 50000) / 100000 ))
     tokenStr="$((tM / 10)).$((tM % 10))M"
 elif (( currentTokens >= 1000 )); then
     tokenStr="$(( (currentTokens + 500) / 1000 ))k"
@@ -358,7 +360,7 @@ elif (( currentTokens >= 150000 )); then
     focusRing=" ${cDim}◉${R}"
 fi
 
-ctxColor=$(grad_color "$pct")
+ctxColor="${E}[38;2;${gradR};${gradG};${gradB}m"
 if (( pct >= 100 )); then
     ctxText="$squares ${ctxColor}COMPACT${R}"
 elif [[ -n "$tokenStr" ]]; then
@@ -366,367 +368,295 @@ elif [[ -n "$tokenStr" ]]; then
 else
     ctxText="$squares ${ctxColor}${pct}%${R}"
 fi
+# Prompt cache went cold (TTL expired / last response had no cache hits): next turn re-caches
+(( J_COLD )) && ctxText+=" ${cDim}cold${R}"
 
-# --- Git info (cached 30s, per-project) ---
+# --- Git info (cached 5s per session; one `git status` call) ---
 gitDisplay=""
-if $slShowGit; then
-gitCache="${TMPD}/claude-sl-git.json"
-branch="" gitStaged=0 gitModified=0 repoUrl="" hasGit=false gitNested=false
+if (( C_GIT )); then
+gitCache="${TMPD}/claude-sl-git-${sidTag:-nosid}.cache"
 needGit=true
-
 if [[ -f "$gitCache" ]]; then
-    age=$(file_age "$gitCache")
-    if (( age < 30 )); then
-        cachedProj=$(jq -r '.projDir // ""' "$gitCache" 2>/dev/null || echo "")
-        cachedCur=$(jq -r '.curDir // ""' "$gitCache" 2>/dev/null || echo "")
-        if [[ "$cachedProj" == "$projDir" && "$cachedCur" == "$curDir" ]]; then
-            needGit=false
-            branch=$(jq -r '.branch // ""' "$gitCache")
-            gitStaged=$(jq -r '.staged // 0' "$gitCache")
-            gitModified=$(jq -r '.modified // 0' "$gitCache")
-            repoUrl=$(jq -r '.repoUrl // ""' "$gitCache")
-            hasGitStr=$(jq -r '.hasGit // false' "$gitCache")
-            [[ "$hasGitStr" == "true" ]] && hasGit=true
-            nestedStr=$(jq -r '.nested // false' "$gitCache")
-            [[ "$nestedStr" == "true" ]] && gitNested=true
-        fi
+    { read -r g_ts; read -r g_proj; read -r g_cur; read -r hasGit; read -r gitNested
+      read -r branch; read -r gitStaged; read -r gitModified; read -r gitRemote; } < "$gitCache"
+    if [[ "$g_ts" =~ ^[0-9]+$ && "$g_proj" == "$projDir" && "$g_cur" == "$curDir" ]] &&
+       (( NOW >= g_ts && NOW - g_ts < 5 )); then
+        needGit=false
     fi
 fi
 
 if $needGit; then
+    hasGit=0 gitNested=0 branch="" gitStaged=0 gitModified=0 gitRemote=""
     # Check projDir first, fall back to curDir (nested repo support)
-    gitCheckDir="$projDir"
-    if ! git -C "$projDir" rev-parse --git-dir >/dev/null 2>&1; then
-        if [[ "$curDir" != "$projDir" ]] && git -C "$curDir" rev-parse --git-dir >/dev/null 2>&1; then
-            gitCheckDir="$curDir"
-            gitNested=true
+    gitDir="$projDir"
+    if gitOut=$(git --no-optional-locks -C "$projDir" status --porcelain=v2 --branch -uno 2>/dev/null); then
+        hasGit=1
+    elif ! $sameDir && gitOut=$(git --no-optional-locks -C "$curDir" status --porcelain=v2 --branch -uno 2>/dev/null); then
+        hasGit=1; gitNested=1; gitDir="$curDir"
+    fi
+    if (( hasGit )); then
+        while IFS= read -r _l; do
+            case "$_l" in
+                '# branch.head '*) branch="${_l#\# branch.head }"; [[ "$branch" == "(detached)" ]] && branch="" ;;
+                [12u]' '*) [[ "${_l:2:1}" != "." ]] && gitStaged=1; [[ "${_l:3:1}" != "." ]] && gitModified=1 ;;
+            esac
+        done <<< "$gitOut"
+        # Repo URL comes from stdin workspace.repo when it describes the repo we show (see below);
+        # otherwise ask git once per cache refresh.
+        if [[ -z "$J_REPO" ]] || ! { (( gitNested )) || $sameDir; }; then
+            gitRemote=$(git -C "$gitDir" remote get-url origin 2>/dev/null)
+            gitRemote="${gitRemote%$'\r'}"
+            if [[ "$gitRemote" =~ ^git@([^:]+):(.*)$ ]]; then
+                gitRemote="https://${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
+            fi
+            gitRemote="${gitRemote%.git}"
+            # Drop any user:token@ so credentials never reach the OSC 8 link
+            if [[ "$gitRemote" =~ ^([A-Za-z][A-Za-z0-9+.-]*://)[^/@]*@(.*)$ ]]; then
+                gitRemote="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
+            fi
         fi
     fi
-    if git -C "$gitCheckDir" rev-parse --git-dir >/dev/null 2>&1; then
-        hasGit=true
-        branch=$(git -C "$gitCheckDir" branch --show-current 2>/dev/null || echo "")
-        gitStaged=$(git -C "$gitCheckDir" diff --cached --numstat 2>/dev/null | wc -l | tr -d ' ')
-        gitModified=$(git -C "$gitCheckDir" diff --numstat 2>/dev/null | wc -l | tr -d ' ')
-        remote=$(git -C "$gitCheckDir" remote get-url origin 2>/dev/null || echo "")
-        if [[ -n "$remote" ]]; then
-            repoUrl=$(echo "$remote" | sed -E 's|^git@([^:]+):|https://\1/|; s|\.git$||')
-        fi
-    fi
-    jq -n --arg p "$projDir" --arg c "$curDir" --arg b "$branch" --argjson s "$gitStaged" \
-        --argjson m "$gitModified" --arg r "$repoUrl" --argjson h "$hasGit" --argjson n "$gitNested" \
-        '{projDir:$p,curDir:$c,branch:$b,staged:$s,modified:$m,repoUrl:$r,hasGit:$h,nested:$n}' \
+    printf '%s\n' "$NOW" "$projDir" "$curDir" "$hasGit" "$gitNested" "$branch" "$gitStaged" "$gitModified" "$gitRemote" \
         > "$gitCache" 2>/dev/null
 fi
 
-# Build git display
-gitDisplay=""
+# workspace.repo is parsed from cwd's origin, so it only matches the displayed repo when that repo is cwd's
+repoUrl="$gitRemote"
+if [[ -n "$J_REPO" ]] && { (( gitNested )) || $sameDir; }; then repoUrl="$J_REPO"; fi
+
+# Build git display: branch (OSC 8 link to repo) [worktree] [⬡ hosted] [#PR] [✔ staged] [~ modified]
 nestedPrefix=""
-if $hasGit && $gitNested; then
-    nestedPrefix="${cDim}↳ "
-fi
-if $hasGit && [[ -n "$branch" ]]; then
+(( hasGit && gitNested )) && nestedPrefix="${cDim}↳ "
+if (( hasGit )) && [[ -n "$branch" ]]; then
     if [[ -n "$repoUrl" ]]; then
         gitDisplay="${nestedPrefix}${E}]8;;${repoUrl}${BEL}${cSlate}⎇ ${branch}${R}${E}]8;;${BEL}"
-        gitDisplay+=" ${cTeal}⬡${R}"   # hosted repo indicator
     else
         gitDisplay="${nestedPrefix}${cSlate}⎇ ${branch}${R}"
     fi
-    (( gitStaged > 0 ))  && gitDisplay+=" ${cSage}✔${R}"
-    (( gitModified > 0 )) && gitDisplay+=" ${cSalmon}~${R}"
-elif $hasGit; then
+    [[ -n "$J_WT" && "$J_WT" != "$branch" ]] && gitDisplay+=" ${cDim}⋔ ${J_WT}${R}"
+    [[ -n "$repoUrl" ]] && gitDisplay+=" ${cTeal}⬡${R}"   # hosted repo indicator
+    if [[ -n "$J_PRN" ]]; then
+        case "$J_PRS" in
+            approved)          prC="$cSage" ;;
+            changes_requested) prC="$cSalmon" ;;
+            draft)             prC="$cDimmer" ;;
+            *)                 prC="$cDim" ;;
+        esac
+        prSig='#'; [[ "$J_PRK" == "mr" ]] && prSig='!'
+        if [[ -n "$J_PRU" ]]; then
+            gitDisplay+=" ${E}]8;;${J_PRU}${BEL}${prC}${prSig}${J_PRN}${R}${E}]8;;${BEL}"
+        else
+            gitDisplay+=" ${prC}${prSig}${J_PRN}${R}"
+        fi
+    fi
+    (( gitStaged ))   && gitDisplay+=" ${cSage}✔${R}"
+    (( gitModified )) && gitDisplay+=" ${cSalmon}~${R}"
+elif (( hasGit )); then
     gitDisplay="${cDimmer}⎇ ${cDim}detached${R}"
 else
     gitDisplay="${cDimmer}⎇ no git${R}"
 fi
-fi  # end if $slShowGit
+fi  # end if C_GIT
 
 # --- Session start detection (show limit % on first render only) ---
-sessionMarker="${TMPD}/claude-sl-session.json"
 showLimitPct=false
-
-if [[ -n "${J_SID:-}" ]]; then
-    isFirstRender=true
-    if [[ -f "$sessionMarker" ]]; then
-        cachedSid=$(jq -r '.sid // ""' "$sessionMarker" 2>/dev/null || echo "")
-        [[ "$cachedSid" == "$J_SID" ]] && isFirstRender=false
-    fi
-    if $isFirstRender; then
-        jq -n --arg s "$J_SID" '{sid:$s}' > "$sessionMarker" 2>/dev/null
-        showLimitPct=true
-    fi
-fi
-
-# --- Rate limits from stdin JSON (live every refresh, v2.1.80+, zero API calls) ---
-fhPct=0 fhReset="" fhResetEpoch=0 sdPct=0 sdReset="" sdResetEpoch=0
-exEnabled=false exUsed="0" exLimit="0" exPct=0
-limitsOk=false
-limitsFailed=false
-
-if [[ "$J_RL_HAS" == "true" ]]; then
-    fhPct=$(awk "BEGIN{printf \"%d\", $J_RL_FH_PCT+0.5}")
-    if (( J_RL_FH_RESET > 0 )); then
-        fhResetEpoch=$J_RL_FH_RESET
-        fhReset=$(fmt_time "$fhResetEpoch")
-    fi
-    limitsOk=true
-
-    sdPct=$(awk "BEGIN{printf \"%d\", $J_RL_SD_PCT+0.5}")
-    if (( J_RL_SD_RESET > 0 )); then
-        sdResetEpoch=$J_RL_SD_RESET
-        sdReset="$(fmt_day "$sdResetEpoch") $(fmt_time "$sdResetEpoch")"
-    fi
-
-    # Extra usage (may be present in rate_limits)
-    [[ "$J_RL_EX_ENABLED" == "true" ]] && exEnabled=true
-    exUsed=$(awk "BEGIN{printf \"%.2f\", $J_RL_EX_USED/100}")
-    exLimit=$(awk "BEGIN{printf \"%.2f\", $J_RL_EX_LIMIT/100}")
-    exPct=$(awk "BEGIN{printf \"%d\", $J_RL_EX_PCT+0.5}")
-else
-    limitsFailed=true
-fi
-
-# Compute overspend color for pip past budget
-# Args: $1=t_x1000 (0-1000), $2=barR, $3=barG, $4=barB
-# Sets: OSR OSG OSB
-overspend_rgb() {
-    local t=$1 bR=$2 bG=$3 bB=$4
-    (( t < 0 )) && t=0; (( t > 1000 )) && t=1000
-    if (( t <= 500 )); then
-        local s=$((t * 1000 / 500))
-        OSR=$((bR + (amberR - bR) * s / 1000))
-        OSG=$((bG + (amberG - bG) * s / 1000))
-        OSB=$((bB + (amberB - bB) * s / 1000))
-    else
-        local s=$(((t - 500) * 1000 / 500))
-        OSR=$((amberR + (warnRedR - amberR) * s / 1000))
-        OSG=$((amberG + (warnRedG - amberG) * s / 1000))
-        OSB=$((amberB + (warnRedB - amberB) * s / 1000))
-    fi
-}
-
-# Args: $1=lpct, $2=barWidth, $3=barR, $4=barG, $5=barB, $6=budgetCount, $7=forceShowPct
-build_limit_bar() {
-    local lpct=$1 bW=$2 barR=$3 barG=$4 barB=$5 budgetCount=$6 forceShow=$7
-    (( lpct < 0 )) && lpct=0; (( lpct > 100 )) && lpct=100
-    local displayPct=false
-    $forceShow && displayPct=true
-    (( lpct >= 80 )) && displayPct=true
-    local pipW=$((10000 / bW))
-    local result=""
-
-    # Get pip base color: identity if within budget, overspend if past
-    # Sets: PBR PBG PBB
-    pip_base_rgb() {
-        local idx=$1
-        if (( idx < budgetCount )); then
-            PBR=$barR; PBG=$barG; PBB=$barB
-        else
-            local pastCount=$((bW - budgetCount))
-            if (( pastCount <= 0 )); then
-                PBR=$barR; PBG=$barG; PBB=$barB
-                return
-            fi
-            local t=$(( (idx - budgetCount) * 1000 / pastCount ))
-            overspend_rgb "$t" "$barR" "$barG" "$barB"
-            PBR=$OSR; PBG=$OSG; PBB=$OSB
+if [[ -n "$sidTag" ]]; then
+    sessionMarker="${TMPD}/claude-sl-seen-${sidTag}"
+    # Marker holds its last-touch epoch; refreshed hourly so the 24h sweep never hits a live session
+    if [[ -e "$sessionMarker" ]]; then
+        seenTs=""; read -r seenTs < "$sessionMarker" 2>/dev/null
+        if [[ ! "$seenTs" =~ ^[0-9]+$ ]] || (( NOW - seenTs >= 3600 )); then
+            printf '%s\n' "$NOW" > "$sessionMarker" 2>/dev/null
         fi
-    }
-
-    local lpct100=$((lpct * 100))
-
-    if $displayPct; then
-        local pStr
-        if (( lpct >= 100 )); then pStr="100"
-        else pStr="${lpct}%"; fi
-        local txtC=$(limit_grad_color "$lpct")
-        local tLen=${#pStr}
-        local tStart=$(( (bW - tLen + 1) / 2 ))
-
-        for (( i=0; i<bW; i++ )); do
-            local tIdx=$((i - tStart))
-            if (( tIdx >= 0 && tIdx < tLen )); then
-                result+="${txtC}${pStr:$tIdx:1}"
-                continue
-            fi
-            local pipStart=$((i * pipW))
-            local pipEnd=$(((i + 1) * pipW))
-            if (( lpct100 >= pipEnd )); then
-                pip_base_rgb "$i"
-                result+="${E}[38;2;${PBR};${PBG};${PBB}m▰"
-            elif (( lpct100 > pipStart )); then
-                local fill=$(( (lpct100 - pipStart) * 1000 / pipW ))
-                local bri=$((250 + 750 * fill / 1000))
-                pip_base_rgb "$i"
-                local lr=$((dimR + (PBR - dimR) * bri / 1000))
-                local lg=$((dimG + (PBG - dimG) * bri / 1000))
-                local lb=$((dimB + (PBB - dimB) * bri / 1000))
-                result+="${E}[38;2;${lr};${lg};${lb}m▰"
-            else
-                result+="${cDim}▱"
-            fi
-        done
     else
-        for (( i=0; i<bW; i++ )); do
-            local pipStart=$((i * pipW))
-            local pipEnd=$(((i + 1) * pipW))
-            if (( lpct100 >= pipEnd )); then
-                pip_base_rgb "$i"
-                result+="${E}[38;2;${PBR};${PBG};${PBB}m▰"
-            elif (( lpct100 > pipStart )); then
-                local fill=$(( (lpct100 - pipStart) * 1000 / pipW ))
-                local bri=$((250 + 750 * fill / 1000))
-                pip_base_rgb "$i"
-                local lr=$((dimR + (PBR - dimR) * bri / 1000))
-                local lg=$((dimG + (PBG - dimG) * bri / 1000))
-                local lb=$((dimB + (PBB - dimB) * bri / 1000))
-                result+="${E}[38;2;${lr};${lg};${lb}m▰"
-            else
-                result+="${cDim}▱"
-            fi
-        done
+        printf '%s\n' "$NOW" > "$sessionMarker" 2>/dev/null
+        showLimitPct=true
+        # Once per new session: sweep claude-sl-* temp files untouched for a day
+        find "$TMPD" -maxdepth 1 -type f -name 'claude-sl-*' -mmin +1440 -delete >/dev/null 2>&1 </dev/null &
     fi
-    printf '%s' "${result}${R}"
+fi
+
+# --- Limit bars (brightness-based, gradient only on last pip) ---
+# Pip base color -> PBR PBG PBB: identity within time budget, identity → amber → red past it
+pip_base_rgb() {  # $1=idx $2=barW $3=budget $4..6=bar rgb
+    local idx=$1 bW=$2 budget=$3
+    PBR=$4; PBG=$5; PBB=$6
+    (( idx < budget )) && return
+    local pastCount=$((bW - budget))
+    (( pastCount <= 0 )) && return
+    local t=$(( (idx - budget) * 1000 / pastCount )) s
+    if (( t <= 500 )); then
+        s=$((t * 1000 / 500))
+        PBR=$(($4 + (amberR - $4) * s / 1000))
+        PBG=$(($5 + (amberG - $5) * s / 1000))
+        PBB=$(($6 + (amberB - $6) * s / 1000))
+    else
+        s=$(((t - 500) * 1000 / 500))
+        PBR=$((amberR + (warnRedR - amberR) * s / 1000))
+        PBG=$((amberG + (warnRedG - amberG) * s / 1000))
+        PBB=$((amberB + (warnRedB - amberB) * s / 1000))
+    fi
 }
 
-# Compute budget: how many pips' worth of time has elapsed in each window
-nowEpoch=$(date +%s)
-fhBudget=0; sdBudget=0
-if (( fhResetEpoch > 0 )); then
-    fhSecsLeft=$((fhResetEpoch - nowEpoch))
-    (( fhSecsLeft < 0 )) && fhSecsLeft=0
-    fhElapsedSecs=$((5 * 3600 - fhSecsLeft))
-    (( fhElapsedSecs < 0 )) && fhElapsedSecs=0
-    fhBudget=$((fhElapsedSecs / 3600))
-    (( fhBudget > 5 )) && fhBudget=5
-fi
-if (( sdResetEpoch > 0 )); then
-    sdSecsLeft=$((sdResetEpoch - nowEpoch))
-    (( sdSecsLeft < 0 )) && sdSecsLeft=0
-    sdElapsedSecs=$((7 * 86400 - sdSecsLeft))
-    (( sdElapsedSecs < 0 )) && sdElapsedSecs=0
-    sdBudget=$((sdElapsedSecs / 86400))
-    (( sdBudget > 7 )) && sdBudget=7
-fi
+# Sets BAR. Args: $1=lpct $2=barWidth $3..5=bar rgb $6=budgetCount $7=forceShowPct(true/false)
+build_limit_bar() {
+    local lpct=$1 bW=$2 barR=$3 barG=$4 barB=$5 budget=$6 forceShow=$7
+    (( lpct < 0 )) && lpct=0; (( lpct > 100 )) && lpct=100
+    local displayPct=$forceShow
+    (( lpct >= 80 )) && displayPct=true
+    local pipW=$((10000 / bW)) lpct100=$((lpct * 100))
+    local pStr="" txtC="" tLen=0 tStart=-99 i tIdx pipStart pipEnd fill bri
+    if $displayPct; then
+        if (( lpct >= 100 )); then pStr="100"; else pStr="${lpct}%"; fi
+        limit_grad_rgb "$lpct"
+        txtC="${E}[38;2;${LR};${LG};${LB}m"
+        tLen=${#pStr}
+        tStart=$(( (bW - tLen + 1) / 2 ))
+    fi
+    BAR=""
+    for (( i=0; i<bW; i++ )); do
+        tIdx=$((i - tStart))
+        if (( tIdx >= 0 && tIdx < tLen )); then
+            BAR+="${txtC}${pStr:$tIdx:1}"
+            continue
+        fi
+        pipStart=$((i * pipW))
+        pipEnd=$(((i + 1) * pipW))
+        if (( lpct100 >= pipEnd )); then
+            pip_base_rgb "$i" "$bW" "$budget" "$barR" "$barG" "$barB"
+            BAR+="${E}[38;2;${PBR};${PBG};${PBB}m▰"
+        elif (( lpct100 > pipStart )); then
+            fill=$(( (lpct100 - pipStart) * 1000 / pipW ))
+            bri=$((250 + 750 * fill / 1000))
+            pip_base_rgb "$i" "$bW" "$budget" "$barR" "$barG" "$barB"
+            BAR+="${E}[38;2;$((dimR + (PBR - dimR) * bri / 1000));$((dimG + (PBG - dimG) * bri / 1000));$((dimB + (PBB - dimB) * bri / 1000))m▰"
+        else
+            BAR+="${cDim}▱"
+        fi
+    done
+    BAR+="$R"
+}
 
-fhBar=$(build_limit_bar "$fhPct" 5 135 180 160 "$fhBudget" "$showLimitPct")
-sdBar=$(build_limit_bar "$sdPct" 7 185 140 160 "$sdBudget" "$showLimitPct")
-
-# 5h reset: show if >=75% or within 30 min of reset
-fhShowReset=false fhResetTxt=""
-(( fhPct >= 75 )) && fhShowReset=true
-if ! $fhShowReset && (( fhResetEpoch > 0 )); then
-    now=$(date +%s)
-    minLeft=$(( (fhResetEpoch - now) / 60 ))
-    (( minLeft >= 0 && minLeft <= 30 )) && fhShowReset=true
-fi
-$fhShowReset && [[ -n "$fhReset" ]] && fhResetTxt=" ${cSage}${fhReset}${R}"
-
-# 7d reset: show if >=80% or within 4 hours of reset
-sdShowReset=false sdResetTxt=""
-(( sdPct >= 80 )) && sdShowReset=true
-if ! $sdShowReset && (( sdResetEpoch > 0 )); then
-    now=$(date +%s)
-    hoursLeft=$(( (sdResetEpoch - now) / 3600 ))
-    (( hoursLeft >= 0 && hoursLeft <= 4 )) && sdShowReset=true
-fi
-$sdShowReset && [[ -n "$sdReset" ]] && sdResetTxt=" ${cMauve}${sdReset}${R}"
-
-# --- Claude Code update check (per-session cache, refreshed hourly) ---
-hasUpdate=false updateLocal="" updateRemote=""
-needUpdateCheck=true
-if $slShowUpdate; then
-updateCacheTag="${J_SID:0:12}"
-updateCacheTag="${updateCacheTag:-nosid}"
-updateCache="${TMPD}/claude-sl-update-${updateCacheTag}.json"
-
-if [[ -f "$updateCache" ]]; then
-    age=$(file_age "$updateCache")
-    if (( age < 3600 )); then
-        updateLocal=$(jq -r '.local // ""' "$updateCache" 2>/dev/null | awk '{print $1}')
-        updateRemote=$(jq -r '.remote // ""' "$updateCache" 2>/dev/null | awk '{print $1}')
-        [[ -n "$updateLocal" && -n "$updateRemote" && "$updateLocal" != "$updateRemote" ]] && hasUpdate=true
-        needUpdateCheck=false
+# --- Rate limits (stdin rate_limits: five_hour / seven_day for subscribers, spend_limit behind a gateway) ---
+limitParts=()
+if (( C_BARS )); then
+    if (( J_RL )); then
+        if (( J_FH >= 0 )); then
+            fhBudget=0 fhTxt=""
+            if (( J_FHR > 0 )); then
+                secsLeft=$((J_FHR - NOW)); (( secsLeft < 0 )) && secsLeft=0
+                elapsed=$((5 * 3600 - secsLeft)); (( elapsed < 0 )) && elapsed=0
+                fhBudget=$((elapsed / 3600)); (( fhBudget > 5 )) && fhBudget=5
+            fi
+            build_limit_bar "$J_FH" 5 135 180 160 "$fhBudget" "$showLimitPct"   # 5 pips, sage
+            # Reset time: >=75% or within 30 min of reset
+            if (( J_FHR > 0 )) && (( J_FH >= 75 || (J_FHR - NOW >= 0 && J_FHR - NOW <= 1800) )); then
+                fmt_local "$J_FHR"; fhTxt=" ${cSage}${FT_TIME}${R}"
+            fi
+            limitParts+=("${BAR}${fhTxt}")
+        fi
+        if (( J_SD >= 0 )); then
+            sdBudget=0 sdTxt=""
+            if (( J_SDR > 0 )); then
+                secsLeft=$((J_SDR - NOW)); (( secsLeft < 0 )) && secsLeft=0
+                elapsed=$((7 * 86400 - secsLeft)); (( elapsed < 0 )) && elapsed=0
+                sdBudget=$((elapsed / 86400)); (( sdBudget > 7 )) && sdBudget=7
+            fi
+            build_limit_bar "$J_SD" 7 185 140 160 "$sdBudget" "$showLimitPct"   # 7 pips, mauve
+            # Reset time: >=80% or within 4 hours of reset
+            if (( J_SDR > 0 )) && (( J_SD >= 80 || (J_SDR - NOW >= 0 && J_SDR - NOW <= 14400) )); then
+                fmt_local "$J_SDR"; sdTxt=" ${cMauve}${FT_DAY} ${FT_TIME}${R}"
+            fi
+            limitParts+=("${BAR}${sdTxt}")
+        fi
+        if (( J_SP >= 0 )); then
+            # Gateway spend limit: period length unknown, so no time-budget overspend tint
+            build_limit_bar "$J_SP" 5 205 185 165 5 "$showLimitPct"   # 5 pips, sand
+            limitParts+=("${cDim}\$${BAR}")
+        fi
+        # Peak hours (13-19 UTC on weekdays): limits reportedly burn faster. Source unverified —
+        # community observation, not an official Anthropic statement.
+        if (( J_FH >= 0 || J_SD >= 0 )); then
+            utcHour=$(( (NOW / 3600) % 24 )); utcDow=$(( (NOW / 86400 + 4) % 7 ))   # 0 = Sunday
+            (( utcDow >= 1 && utcDow <= 5 && utcHour >= 13 && utcHour < 19 )) && limitParts+=("${cDim}peak${R}")
+        fi
+    else
+        limitParts+=("${cDimmer}limits --${R}")
     fi
 fi
 
-if $needUpdateCheck; then
-    rawVer=$(claude --version 2>/dev/null || echo "")
-    [[ -n "$rawVer" ]] && updateLocal=$(echo "$rawVer" | awk '{print $1}')
-    updateRemote=$(curl -sf --max-time 3 "https://registry.npmjs.org/@anthropic-ai/claude-code/latest" 2>/dev/null \
-        | jq -r '.version // ""' || echo "")
-    if [[ -n "$updateLocal" && -n "$updateRemote" && "$updateLocal" != "$updateRemote" ]]; then
-        hasUpdate=true
+# --- Claude Code update check: stdin version vs one global npm cache (1h TTL, fetched in background) ---
+updTxt=""
+if (( C_UPD )) && [[ -n "$J_VER" ]]; then
+    updCache="${TMPD}/claude-sl-update.cache"
+    u_ts=0 u_remote=""
+    [[ -f "$updCache" ]] && { read -r u_ts; read -r u_remote; } < "$updCache"
+    [[ "$u_ts" =~ ^[0-9]+$ ]] || u_ts=0
+    if (( NOW - u_ts >= 3600 || u_ts > NOW + 300 )); then
+        # Claim the slot (bump the timestamp) so concurrent renders don't all fetch; worker overwrites on success
+        printf '%s\n%s\n' "$NOW" "$u_remote" > "$updCache" 2>/dev/null
+        (
+            v=$(curl -sf --max-time 10 "https://registry.npmjs.org/@anthropic-ai/claude-code/latest" | jq -r '.version // empty')
+            if [[ "$v" =~ ^[0-9]+\.[0-9]+ ]]; then
+                printf '%s\n%s\n' "$NOW" "$v" > "${updCache}.$$.tmp" && mv -f "${updCache}.$$.tmp" "$updCache"
+            fi
+        ) >/dev/null 2>&1 </dev/null &
     fi
-    jq -n --argjson h "$hasUpdate" --arg l "$updateLocal" --arg r "$updateRemote" \
-        '{hasUpdate:$h,local:$l,remote:$r}' > "$updateCache" 2>/dev/null
-fi
-fi  # end if $slShowUpdate
-
-# --- Session cost (from statusline JSON) ---
-costTxt=""
-costCheck=$(awk "BEGIN{print ($J_COST > 0) ? 1 : 0}")
-if [[ "$costCheck" == "1" ]]; then
-    costVal=$(awk "BEGIN{printf \"%.2f\", $J_COST}")
-    costTxt="${cDim}\$${costVal}${R}"
+    if [[ -n "$u_remote" ]] && ver_gt "$u_remote" "$J_VER"; then
+        updTxt="  ${cAmber}↑ ${J_VER} → ${u_remote}${R}"
+    fi
 fi
 
-# --- Extra usage detection ---
-# Active extra usage: enabled AND hit 100% on either limit (currently consuming extra credits)
-activeExtra=false
-$limitsOk && $exEnabled && (( fhPct >= 100 || sdPct >= 100 )) && activeExtra=true
-nearExtra=false
-$limitsOk && (( fhPct >= 90 || sdPct >= 90 )) && nearExtra=true
-
-# --- Peak hours indicator (1pm-7pm GMT, limits burn faster during peak) ---
-peakTxt=""
-utcHour=$(date -u +%H)
-utcHour=$((10#$utcHour))  # strip leading zero
-if (( utcHour >= 13 && utcHour < 19 )); then
-    peakTxt="${cDim}peak${R}"
+# --- Account badge color ---
+accountLabel="$accountDir"
+if [[ "$accountDir" == ".claude" ]]; then accountLabel="personal"
+elif [[ "$accountDir" == .claude-* ]]; then accountLabel="${accountDir#.claude-}"
+else accountLabel="${accountDir#.}"
 fi
-
-# --- Extra usage indicator ---
-extraTxt=""
-if $activeExtra; then
-    # Actively consuming extra usage — show spend/limit
-    extraTxt="${cAmber}⚡ \$${exUsed}/\$${exLimit}${R}"
-elif $nearExtra && $exEnabled; then
-    # Approaching limit, extra usage will kick in
-    extraTxt="${cDim}⚡ Extra${R}"
-elif $nearExtra; then
-    # No extra usage — dim warning
-    extraTxt="${cDimmer}⚡ No extra${R}"
+if (( C_ASTR )) || [[ -n "${C_ALBL:-}" ]]; then accountLabel="$C_ALBL"; fi
+accountColorName="${C_ACOL:-}"
+case "$accountColorName" in
+    sage)     accountColor="$cSage" ;;
+    amber)    accountColor="$cAmber" ;;
+    orange)   accountColor="${E}[38;2;230;145;70m" ;;
+    teal)     accountColor="$cTeal" ;;
+    mauve)    accountColor="$cMauve" ;;
+    lavender) accountColor="$cLav" ;;
+    salmon)   accountColor="$cSalmon" ;;
+    slate)    accountColor="$cSlate" ;;
+    peach)    accountColor="$cPeach" ;;
+    sand)     accountColor="$cSand" ;;
+    *)        accountColor="" ;;
+esac
+if [[ -z "$accountColor" && "$accountColorName" =~ ^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$ ]]; then
+    accountColor="${E}[38;2;$((16#${BASH_REMATCH[1]}));$((16#${BASH_REMATCH[2]}));$((16#${BASH_REMATCH[3]}))m"
+fi
+if [[ -z "$accountColor" ]]; then
+    # No configured color: stable color per label so each account always reads the same
+    accountPalette=("$cSage" "$cAmber" "$cTeal" "$cMauve" "$cLav" "$cSalmon")
+    accountHash=0
+    for (( i=0; i<${#accountLabel}; i++ )); do
+        printf -v _c '%d' "'${accountLabel:$i:1}"; accountHash=$((accountHash + _c))
+    done
+    if [[ "$accountLabel" == "personal" ]]; then accountColor="$cSage"
+    else accountColor="${accountPalette[$((1 + accountHash % 5))]}"
+    fi
 fi
 
 # --- Output ---
-# Line 1: dir  model  context  [cost]  [agent]  [vim]  [extra msg]  [update]
+# Line 1: [account]  context [cold]  dir  model [effort] [fast]  [agent]  [vim]  [update]
 line1="${ctxText}  ${cSand}${dirDisplay}${R}  ${cPeach}${J_MODEL}${R}"
+[[ -n "${J_EFFORT:-}" ]] && line1+=" ${cDim}${J_EFFORT}${R}"
+(( J_FAST )) && line1+=" ${cPeach}↯${R}"
 [[ -n "$accountLabel" ]] && line1="${accountColor}◆ ${accountLabel}${R}  ${line1}"
-# Show session cost when approaching or on extra usage
-if [[ -n "$costTxt" ]] && ($nearExtra || $activeExtra); then line1+="  ${costTxt}"; fi
 [[ -n "${J_AGENT:-}" ]] && line1+="  ${cLav}⚙ ${J_AGENT}${R}"
 [[ -n "${J_VIM:-}" ]]   && line1+="  ${cDim}${J_VIM}${R}"
-# Show "Extra Usage" on line 1 when actively consuming
-$activeExtra && line1+="  ${cAmber}Extra Usage${R}"
-if $hasUpdate; then
-    line1+="  ${cAmber}↑ ${updateLocal} → ${updateRemote}${R}"
-fi
+line1+="$updTxt"
 
-# Line 2: git  limits  [extra]
-line2=""
-sep=""
-[[ -n "$gitDisplay" ]] && { line2="$gitDisplay"; sep="  "; }
-if $slShowLimitBars; then
-    if $limitsOk; then
-        line2+="${sep}${fhBar}${fhResetTxt}  ${sdBar}${sdResetTxt}"
-        sep="  "
-        [[ -n "$peakTxt" ]] && line2+="  ${peakTxt}"
-    elif $limitsFailed; then
-        line2+="${sep}${cDimmer}limits --${R}"
-        sep="  "
-    fi
-fi
-[[ -n "$extraTxt" ]] && line2+="${sep}${extraTxt}"
+# Line 2: git  limits
+line2="$gitDisplay"
+for _part in "${limitParts[@]}"; do
+    if [[ -n "$line2" ]]; then line2+="  ${_part}"; else line2="$_part"; fi
+done
 
-printf '%s\n' "$line1"
-printf '%s' "$line2"
+printf '%s\n%s' "$line1" "$line2"
