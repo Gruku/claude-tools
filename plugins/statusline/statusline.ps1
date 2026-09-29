@@ -154,18 +154,35 @@ if (Test-Path $slConfigPath) {
 
 # --- Account (which CLAUDE_CONFIG_DIR this session runs under) ---
 # ~/.claude (or unset) -> "personal"; ~/.claude-<name> -> "<name>".
-# Override per dir in statusline.config.json: "accounts": { ".claude-work": "acme" }
+# Override per dir in statusline.config.json, as a label string or {label, color}:
+#   "accounts": { ".claude-work": { "label": "work", "color": "orange" } }
+# color = palette name (sage amber orange teal mauve lavender salmon slate peach sand) or "#RRGGBB"
 $accountDir = if ($env:CLAUDE_CONFIG_DIR) { Split-Path -Leaf ($env:CLAUDE_CONFIG_DIR.TrimEnd('\', '/')) } else { ".claude" }
 if ($accountDir -eq ".claude") { $accountLabel = "personal" }
 elseif ($accountDir -like ".claude-*") { $accountLabel = $accountDir.Substring(8) }
 else { $accountLabel = $accountDir.TrimStart('.') }
+$accountColorName = ""
 if ($slConfig -and $slConfig.PSObject.Properties['accounts'] -and $slConfig.accounts.PSObject.Properties[$accountDir]) {
-    $accountLabel = [string]$slConfig.accounts.$accountDir
+    $acct = $slConfig.accounts.$accountDir
+    if ($acct -is [string]) { $accountLabel = $acct }
+    else {
+        if ($acct.PSObject.Properties['label'] -and $acct.label) { $accountLabel = [string]$acct.label }
+        if ($acct.PSObject.Properties['color']) { $accountColorName = ([string]$acct.color).ToLower() }
+    }
 }
-# Stable color per label so each account always reads the same
-$accountPalette = @($cSage, $cAmber, $cTeal, $cMauve, $cLav, $cSalmon)
-$accountHash = 0; foreach ($ch in $accountLabel.ToCharArray()) { $accountHash += [int]$ch }
-$accountColor = if ($accountLabel -eq "personal") { $cSage } else { $accountPalette[1 + ($accountHash % ($accountPalette.Count - 1))] }
+$accountNamedColors = @{
+    sage = $cSage; amber = $cAmber; orange = "$esc[38;2;230;145;70m"; teal = $cTeal; mauve = $cMauve
+    lavender = $cLav; salmon = $cSalmon; slate = $cSlate; peach = $cPeach; sand = $cSand
+}
+if ($accountNamedColors.ContainsKey($accountColorName)) { $accountColor = $accountNamedColors[$accountColorName] }
+elseif ($accountColorName -match '^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$') {
+    $accountColor = "$esc[38;2;$([Convert]::ToInt32($Matches[1],16));$([Convert]::ToInt32($Matches[2],16));$([Convert]::ToInt32($Matches[3],16))m"
+} else {
+    # No configured color: stable color per label so each account always reads the same
+    $accountPalette = @($cSage, $cAmber, $cTeal, $cMauve, $cLav, $cSalmon)
+    $accountHash = 0; foreach ($ch in $accountLabel.ToCharArray()) { $accountHash += [int]$ch }
+    $accountColor = if ($accountLabel -eq "personal") { $cSage } else { $accountPalette[1 + ($accountHash % ($accountPalette.Count - 1))] }
+}
 
 # --- Context percentage (adjusted for autocompact buffer) ---
 # When autocompact is on, it reserves ~33000 tokens (20000 max_output + 13000 buffer).

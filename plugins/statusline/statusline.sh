@@ -222,7 +222,9 @@ fi
 
 # --- Account (which CLAUDE_CONFIG_DIR this session runs under) ---
 # ~/.claude (or unset) -> "personal"; ~/.claude-<name> -> "<name>".
-# Override per dir in statusline.config.json: "accounts": { ".claude-work": "acme" }
+# Override per dir in statusline.config.json, as a label string or {label, color}:
+#   "accounts": { ".claude-work": { "label": "work", "color": "orange" } }
+# color = palette name (sage amber orange teal mauve lavender salmon slate peach sand) or "#RRGGBB"
 accountDir=".claude"
 if [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then
     accountDir="${CLAUDE_CONFIG_DIR//\\//}"; accountDir="${accountDir%/}"
@@ -232,18 +234,41 @@ if [[ "$accountDir" == ".claude" ]]; then accountLabel="personal"
 elif [[ "$accountDir" == .claude-* ]]; then accountLabel="${accountDir#.claude-}"
 else accountLabel="${accountDir#.}"
 fi
+accountColorName=""
 if [[ -f "$slConfigPath" ]]; then
-    ov=$(jq -r --arg d "$accountDir" '.accounts[$d] // ""' "$slConfigPath" 2>/dev/null)
-    [[ -n "$ov" ]] && accountLabel="$ov"
+    { read -r ovLabel; read -r accountColorName; } < <(jq -r --arg d "$accountDir" '
+        .accounts[$d] // null
+        | if type == "string" then ., ""
+          elif type == "object" then (.label // ""), (.color // "" | ascii_downcase)
+          else "", "" end' "$slConfigPath" 2>/dev/null | tr -d '\r')
+    [[ -n "$ovLabel" ]] && accountLabel="$ovLabel"
 fi
-# Stable color per label so each account always reads the same
-accountPalette=("$cSage" "$cAmber" "$cTeal" "$cMauve" "$cLav" "$cSalmon")
-accountHash=0
-for (( i=0; i<${#accountLabel}; i++ )); do
-    printf -v _c '%d' "'${accountLabel:$i:1}"; accountHash=$((accountHash + _c))
-done
-if [[ "$accountLabel" == "personal" ]]; then accountColor="$cSage"
-else accountColor="${accountPalette[$((1 + accountHash % 5))]}"
+case "$accountColorName" in
+    sage)     accountColor="$cSage" ;;
+    amber)    accountColor="$cAmber" ;;
+    orange)   accountColor="${E}[38;2;230;145;70m" ;;
+    teal)     accountColor="$cTeal" ;;
+    mauve)    accountColor="$cMauve" ;;
+    lavender) accountColor="$cLav" ;;
+    salmon)   accountColor="$cSalmon" ;;
+    slate)    accountColor="$cSlate" ;;
+    peach)    accountColor="$cPeach" ;;
+    sand)     accountColor="$cSand" ;;
+    *)        accountColor="" ;;
+esac
+if [[ -z "$accountColor" && "$accountColorName" =~ ^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$ ]]; then
+    accountColor="${E}[38;2;$((16#${BASH_REMATCH[1]}));$((16#${BASH_REMATCH[2]}));$((16#${BASH_REMATCH[3]}))m"
+fi
+if [[ -z "$accountColor" ]]; then
+    # No configured color: stable color per label so each account always reads the same
+    accountPalette=("$cSage" "$cAmber" "$cTeal" "$cMauve" "$cLav" "$cSalmon")
+    accountHash=0
+    for (( i=0; i<${#accountLabel}; i++ )); do
+        printf -v _c '%d' "'${accountLabel:$i:1}"; accountHash=$((accountHash + _c))
+    done
+    if [[ "$accountLabel" == "personal" ]]; then accountColor="$cSage"
+    else accountColor="${accountPalette[$((1 + accountHash % 5))]}"
+    fi
 fi
 
 # --- Context percentage (adjusted for autocompact buffer) ---
