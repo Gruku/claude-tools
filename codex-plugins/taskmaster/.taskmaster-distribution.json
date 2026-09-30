@@ -1,5 +1,5 @@
 {
   "generated_from": "plugins/taskmaster",
-  "upstream_commit": "94c6e27fcd889e733954585fc766c30cffbeadf2",
-  "version": "6.0.3"
+  "upstream_commit": "287927f0dc42043a77c170480c8960a82cfbcc72",
+  "version": "7.0.0-rc.1"
 }

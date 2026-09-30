@@ -29,6 +29,7 @@ DIRECTORIES = (
 
 FILES = (
     "backlog_server.py",
+    "taskmaster_cli.py",
     "viewer/index.html",
 )
 

@@ -116,7 +116,7 @@ def _changelog_has(name: str, version: str) -> bool | None:
             return None
         text = changelog.read_text(encoding="utf-8")
     # Match a heading line like "## 3.9.0" or "## 3.9.0 — title".
-    return re.search(rf"^##\s+{re.escape(version)}\b", text, re.MULTILINE) is not None
+    return re.search(rf"^##\s+{re.escape(version)}(?=\s|$)", text, re.MULTILINE) is not None
 
 
 def _plugins_changed_since(base: str) -> set[str]:
