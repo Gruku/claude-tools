@@ -81,13 +81,29 @@ class ModelCache:
 
 class Rotary(nn.Module):
     """RoPE on the first ``rope_frac`` of each head's dims; the rest stay
-    position-free "content" channels (arXiv 2410.06205, modded-nanogpt)."""
+    position-free "content" channels (arXiv 2410.06205, modded-nanogpt).
 
-    def __init__(self, head_dim: int, frac: float, base: float, max_len: int):
+    Context extension beyond the trained length (``orig_len``) by ``factor``:
+      ntk   raise the base: base * factor^(rd/(rd-2)) (training-free, ~2x)
+      yarn  YaRN (arXiv 2309.00071): interpolate only the low-frequency dims that
+            never completed a rotation within orig_len, keep high-frequency dims
+            (local order) intact, and sharpen attention by (0.1 ln factor + 1)^2.
+    """
+
+    def __init__(self, head_dim: int, frac: float, base: float, max_len: int,
+                 scaling: str = "none", factor: float = 1.0, orig_len: int = 2048):
         super().__init__()
         rd = int(head_dim * frac) // 2 * 2
         self.rd = rd
+        self.attn_factor = 1.0
+        if scaling == "ntk" and factor > 1 and rd > 2:
+            base = base * factor ** (rd / (rd - 2))
         inv = base ** (-torch.arange(0, rd, 2, dtype=torch.float32) / max(rd, 1))
+        if scaling == "yarn" and factor > 1:
+            rotations = orig_len * inv / (2 * math.pi)  # turns completed within the trained length
+            keep = ((rotations - 1.0) / (32.0 - 1.0)).clamp(0, 1)  # alpha=1, beta=32
+            inv = inv / factor * (1 - keep) + inv * keep
+            self.attn_factor = (0.1 * math.log(factor) + 1) ** 2
         f = torch.outer(torch.arange(max_len, dtype=torch.float32), inv)
         self.register_buffer("cos", f.cos(), persistent=False)
         self.register_buffer("sin", f.sin(), persistent=False)
@@ -149,23 +165,23 @@ class Attention(nn.Module):
         self.vres = (nn.Parameter(torch.tensor([0.5, 0.5]))
                      if cfg.value_residual and not is_first else None)
 
-    def _attend(self, q, k, v, pos0):
+    def _attend(self, q, k, v, pos0, scale):
         # q: [B, H, Tq, D], k/v: [B, Hkv, Tk, D]
         Tq, Tk = q.size(2), k.size(2)
         gqa = self.H != self.Hkv
         if (self.window is not None and _flash_attn_func is not None and q.is_cuda
                 and pos0 == 0 and Tq == Tk and q.dtype in (torch.bfloat16, torch.float16)):
             y = _flash_attn_func(q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2),
-                                 softmax_scale=self.scale, causal=True,
+                                 softmax_scale=scale, causal=True,
                                  window_size=(self.window - 1, 0))
             return y.transpose(1, 2)
         if self.window is None and pos0 == 0 and Tq == Tk:
-            return F.scaled_dot_product_attention(q, k, v, is_causal=True, scale=self.scale,
+            return F.scaled_dot_product_attention(q, k, v, is_causal=True, scale=scale,
                                                   enable_gqa=gqa)
         if self.window is None and Tq == 1:
-            return F.scaled_dot_product_attention(q, k, v, scale=self.scale, enable_gqa=gqa)
+            return F.scaled_dot_product_attention(q, k, v, scale=scale, enable_gqa=gqa)
         mask = causal_mask(Tq, Tk, pos0, self.window, q.device)
-        return F.scaled_dot_product_attention(q, k, v, attn_mask=mask, scale=self.scale,
+        return F.scaled_dot_product_attention(q, k, v, attn_mask=mask, scale=scale,
                                               enable_gqa=gqa)
 
     def forward(self, x, rope: Rotary, pos0: int, v_first=None, ve=None, cache=None):
@@ -185,7 +201,7 @@ class Attention(nn.Module):
             k_all, v_all = k_all.to(q.dtype), v_all.to(q.dtype)
         else:
             k_all, v_all = k, v
-        y = self._attend(q, k_all, v_all, pos0)  # [B, H, T, D]
+        y = self._attend(q, k_all, v_all, pos0, self.scale * rope.attn_factor)  # [B, H, T, D]
         if self.xsa_alpha is not None:
             vs = v.repeat_interleave(self.H // self.Hkv, dim=1) if self.H != self.Hkv else v
             coef = (y * vs).sum(-1, keepdim=True) / (vs.pow(2).sum(-1, keepdim=True) + 1e-6)
@@ -195,6 +211,46 @@ class Attention(nn.Module):
             g = torch.sigmoid(self.gate(x)).view(B, T, self.H, -1)
             y = y * g
         return self.o(y.reshape(B, T, self.H * self.hd)), v_out
+
+
+class ConvCache:
+    """Last (kernel-1) conv inputs: a constant-size state, whatever the context length."""
+
+    def __init__(self, B, width, d, device, dtype):
+        self.conv = torch.zeros(B, width, d, device=device, dtype=dtype)
+
+    def copy_from(self, other: "ConvCache", pos: int, T: int):
+        self.conv.copy_(other.conv)
+
+
+class GatedShortConv(nn.Module):
+    """LFM2's double-gated short convolution (LFM2 tech report, arXiv 2511.23404):
+
+        (b, c, h) = W_in x ;  y = c * causal_depthwise_conv_k(b * h) ;  out = W_out y
+
+    A token mixer with a fixed 3-token receptive field and a constant-size
+    cache. LFM2/2.5 use 10 of these per 6 attention layers, which is what makes
+    their 32K context cheap at 350M parameters.
+    """
+
+    def __init__(self, cfg: ModelConfig, kernel: int = 3):
+        super().__init__()
+        d = cfg.d_model
+        self.k = kernel
+        self.in_proj = nn.Linear(d, 3 * d, bias=False)
+        self.conv_w = nn.Parameter(torch.randn(d, 1, kernel) / math.sqrt(kernel))
+        self.out = zero_init(nn.Linear(d, d, bias=False))
+
+    def forward(self, x, cache=None):
+        B, T, d = x.shape
+        b, c, h = self.in_proj(x).chunk(3, dim=-1)
+        bx = b * h
+        prev = cache.conv.to(bx.dtype) if cache is not None else bx.new_zeros(B, self.k - 1, d)
+        xp = torch.cat([prev, bx], dim=1)
+        if cache is not None:
+            cache.conv = xp[:, -(self.k - 1):].detach().clone()
+        y = F.conv1d(xp.transpose(1, 2), self.conv_w.to(bx.dtype), groups=d).transpose(1, 2)
+        return self.out(c * y)
 
 
 class MLP(nn.Module):
@@ -250,6 +306,8 @@ class Block(nn.Module):
         if kind == "D":
             from .deltanet import GatedDeltaNet
             self.mixer = GatedDeltaNet(cfg)
+        elif kind == "C":
+            self.mixer = GatedShortConv(cfg)
         else:
             window = cfg.local_window if kind == "L" else None
             self.mixer = Attention(cfg, window, use_ve, is_first)
@@ -261,7 +319,7 @@ class Block(nn.Module):
             self.gr_mlp = GatedResidual(cfg.d_model, self.n_streams, rank)
 
     def _mix(self, h_in, rope, pos0, v_first, ve, cache):
-        if self.kind == "D":
+        if self.kind in "CD":
             return self.mixer(h_in, cache=cache), None
         return self.mixer(h_in, rope, pos0, v_first=v_first, ve=ve, cache=cache)
 
@@ -277,7 +335,7 @@ class Block(nn.Module):
             if self.sandwich:
                 x = rms_norm(x)
             return x, v
-        if self.kind == "D":
+        if self.kind in "CD":
             h, v = self.mixer(rms_norm(x), cache=cache), None
         else:
             h, v = self.mixer(rms_norm(x), rope, pos0, v_first=v_first, ve=ve, cache=cache)

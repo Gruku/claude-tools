@@ -33,7 +33,7 @@ def test_deltanet_chunk_matches_recurrent():
     assert torch.allclose(o1, o2, atol=1e-5) and torch.allclose(s1, s2, atol=1e-5)
 
 
-@pytest.mark.parametrize("pattern", ["G", "GL", "GDLG"])
+@pytest.mark.parametrize("pattern", ["G", "GL", "GDLG", "GC", "GCCDCG"])
 def test_causal(pattern):
     m = _randomize(NanoLoop(make_config("tiny", layer_pattern=pattern))).eval()
     idx = torch.randint(0, 512, (1, 32))
@@ -44,7 +44,7 @@ def test_causal(pattern):
     assert torch.allclose(a[0, :20], b[0, :20], atol=1e-5)
 
 
-@pytest.mark.parametrize("pattern", ["G", "GL", "GDLG"])
+@pytest.mark.parametrize("pattern", ["G", "GL", "GDLG", "GC", "GCCDCG"])
 def test_kv_cache_matches_full_forward(pattern):
     m = _randomize(NanoLoop(make_config("tiny", layer_pattern=pattern))).eval()
     idx = torch.randint(0, 512, (2, 40))

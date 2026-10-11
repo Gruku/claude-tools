@@ -94,7 +94,7 @@ footer { font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--ru
 
 <div class="wrap">
 <header>
-  <div class="eyebrow">nanoloop · architecture v0.3 · Oct 2026</div>
+  <div class="eyebrow">nanoloop · architecture v0.4 · Oct 2026</div>
   <h1>NanoLoop</h1>
   <p class="lede">A GPT-2-sized language model that thinks in depth. A small, weight-shared transformer core is looped a variable number of times per token, so the same 61M block parameters can act like a 28-layer network, and more loops at inference buy more latent compute. Stage 2 adds continuous "neuralese" thoughts on top.</p>
   <div class="specs">
@@ -346,6 +346,25 @@ footer { font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--ru
     </tbody>
   </table>
   </div>
+</section>
+
+<section>
+  <div class="eyebrow">Context length</div>
+  <h2>Long context without LFM's 28T tokens</h2>
+  <p class="note"><a href="https://huggingface.co/LiquidAI/LFM2.5-350M">LFM2.5-350M</a> reaches 32K because 10 of its 16 layers are gated short convolutions with a constant-size state (<a href="https://arxiv.org/abs/2511.23404">LFM2 report</a>), and because it was trained on 28T tokens. <code>loop-long</code> copies the architecture and uses targeted training in place of the token budget.</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Lever</th><th>How</th><th>Cost</th></tr></thead>
+    <tbody>
+      <tr><td class="area">architecture</td><td><code>loop-long</code>: GC · [CDCG]×r · CG. Only 3 of 8 unique layers are attention; the others are LFM2 short convs (C) and Gated DeltaNet (D), both constant-state. 3.3 vs 8.2 GFLOP/token at 32K</td><td>Same tokens</td></tr>
+      <tr><td class="area">curriculum</td><td><code>--seq-schedule 512:0.1,1024:0.3,2048:0.6,4096:1.0</code>: shorter early steps at constant tokens per step</td><td>Saves compute</td></tr>
+      <tr><td class="area">long stage</td><td>~200M tokens at 16K: PG-19 books + FineWeb-Edu docs of 4K+ tokens + 10% synthetic needle / key-value retrieval; RoPE base raised to 500K</td><td>~2–4 GPU-hours (est.)</td></tr>
+      <tr><td class="area">no-train extension</td><td>YaRN / NTK RoPE scaling flags on <code>sample.py</code> and <code>eval_niah.py</code></td><td>Zero</td></tr>
+      <tr><td class="area">measure</td><td><code>eval_niah.py</code>: needle grid (length × depth, held-out words) + loss by position</td><td>Minutes</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">Expected (estimate): a 16–32K window that is cheap to run, with dependable retrieval to about 8K. <code>loop-base</code> stays at a 2K trained context (4K hard limit). Checkpoints record their trained length, and the agent budgets prompts against it.</p>
 </section>
 
 <section>

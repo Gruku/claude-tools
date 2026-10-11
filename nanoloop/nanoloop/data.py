@@ -51,15 +51,16 @@ class TokenLoader:
         self._tokens = load_shard(self.files[self.shard_idx])
         self.pos = 0
 
-    def next_batch(self, device="cpu"):
-        span = self.B * self.T
+    def next_batch(self, device="cpu", B=None, T=None):
+        B, T = B or self.B, T or self.T
+        span = B * T
         while self.pos + span * self.world + 1 > len(self._tokens):
             self._advance_shard()
         start = self.pos + self.rank * span
         buf = torch.from_numpy(self._tokens[start:start + span + 1].astype(np.int64))
         self.pos += span * self.world
-        x = buf[:-1].view(self.B, self.T)
-        y = buf[1:].view(self.B, self.T)
+        x = buf[:-1].view(B, T)
+        y = buf[1:].view(B, T)
         if str(device).startswith("cuda"):
             return x.pin_memory().to(device, non_blocking=True), y.pin_memory().to(device, non_blocking=True)
         return x.to(device), y.to(device)
@@ -91,9 +92,9 @@ class MixtureLoader:
         self.loaders, self.weights = loaders, [w / total for w in weights]
         self._rng = random.Random(seed)
 
-    def next_batch(self, device="cpu"):
+    def next_batch(self, device="cpu", B=None, T=None):
         i = self._rng.choices(range(len(self.loaders)), self.weights)[0]
-        return self.loaders[i].next_batch(device)
+        return self.loaders[i].next_batch(device, B, T)
 
     def state_dict(self):
         return dict(rng=self._rng.getstate(), loaders=[l.state_dict() for l in self.loaders])

@@ -37,7 +37,7 @@ pip install -r requirements.txt
 # optional speedups:
 pip install flash-attn --no-build-isolation   # native sliding windows (loop-swa preset)
 pip install flash-linear-attention           # Triton Gated DeltaNet kernels (loop-hybrid preset)
-python -m pytest tests -q                    # 35 CPU tests: kernels, cache exactness, training, post-training, tools, LOTUS
+python -m pytest tests -q                    # 44 CPU tests: kernels, cache exactness, training, post-training, tools, LOTUS, long context
 ```
 
 ## 1. Data
@@ -71,6 +71,30 @@ python train.py --preset loop-base --set mean_recurrence=8 --set attn_gate=headw
 **Checkpoints.** Resume a run with `--resume runs/<name>/ckpt_latest.pt`.
 
 **Timing (estimate, not yet measured on a 4090):** budget roughly 15–20 h for loop-base at 2.5B tokens. Measure `tok_s` in the first few minutes and size `--tokens` from it.
+
+### Long context (LFM2-style, on a small budget)
+
+LFM2.5-350M reaches 32K with mostly constant-state layers plus 28T tokens. `loop-long` copies the architecture and uses targeted training in place of the token budget.
+
+```bash
+# pretrain: constant-state mixers + sequence-length curriculum up to 4K (cheaper than a flat 2K run)
+python train.py --preset loop-long --data fineweb-edu --tokens 2.5e9 --seq-len 4096 --device-batch 4 \
+    --seq-schedule 512:0.1,1024:0.3,2048:0.6,4096:1.0
+# long-context stage: ~200M tokens at 16K with long documents + synthetic retrieval, RoPE base raised
+python prepare_data.py pg19 --max-tokens 3e8
+python prepare_data.py fineweb-edu --min-doc-tokens 4096 --max-tokens 1e8
+python prepare_data.py synth-retrieval --max-tokens 3e7
+python train.py --init runs/long/ckpt_final.pt --data pg19:0.4,fineweb-edu-long:0.25,fineweb-edu:0.25,synth-retrieval:0.1 \
+    --tokens 2e8 --seq-len 16384 --device-batch 1 --warmup-steps 20 --warmdown-frac 0.5 --lr-scale 0.3 \
+    --set rope_base=500000 --set max_seq_len=32768
+# measure usable context (and try training-free extension on any checkpoint)
+python eval_niah.py runs/long2/ckpt_final.pt --lengths 2048,4096,8192,16384,32768
+python eval_niah.py runs/base/ckpt_final.pt --rope-scaling yarn --rope-factor 4
+```
+
+**Context limits:**
+- `loop-base` trains at 2K, with a 4K RoPE table as the hard limit. Checkpoints record their trained length (`context_len`), and the agent budgets prompts against it.
+- `loop-long` after the long-context stage: 16–32K. Expect dependable retrieval up to about 8K (estimate).
 
 ## 3. Evaluate and sample
 
@@ -189,5 +213,6 @@ nanoloop/tools.py      calculator, tool registry, JSON-prefix validator
 nanoloop/agent.py      constrained tool-call decoding + agent loop
 nanoloop/tool_data.py  xlam / hermes / smoltalk2 / synthetic tool data
 nanoloop/ngram.py      Engram/PLE hashed n-gram memory
-sft.py  rl.py  merge.py  agent.py  lotus.py  coconut.py
+nanoloop/longctx.py    synthetic needle / key-value retrieval data (training + NIAH eval)
+sft.py  rl.py  merge.py  agent.py  lotus.py  coconut.py  eval_niah.py
 ```

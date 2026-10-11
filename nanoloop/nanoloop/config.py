@@ -65,11 +65,14 @@ class ModelConfig:
     # --- token mixers --------------------------------------------------------
     # One letter per unique layer (prelude + core + coda), repeated cyclically
     # if shorter: G = global attention, L = sliding-window attention,
-    # D = Gated DeltaNet (linear attention).
+    # D = Gated DeltaNet (linear attention), C = LFM2 gated short convolution.
     layer_pattern: str = "G"
     local_window: int = 512
     rope_frac: float = 0.5  # partial RoPE: rotate half the head dims
     rope_base: float = 10000.0
+    rope_scaling: str = "none"  # none | ntk | yarn  (context extension past rope_orig_len)
+    rope_factor: float = 1.0
+    rope_orig_len: int = 2048  # the context length the model was trained at
     attn_scale: float = 0.12  # softmax scale under QK-norm (modded-nanogpt)
     attn_gate: str = "elementwise"  # Qwen gated attention: elementwise|headwise|none
     xsa: bool = True  # gated exclusive self-attention (init as no-op)
@@ -89,12 +92,14 @@ class ModelConfig:
     hc_rank: int = 0  # low-rank gate width (0 -> d_model // 4)
 
     logit_softcap: float = 15.0
-    max_seq_len: int = 4096  # RoPE table size (inference can exceed training T)
+    max_seq_len: int = 4096  # RoPE table size: a hard limit, not the usable context
+    context_len: int = 0  # length the model was trained at (train.py records it); 0 = unknown
 
     def __post_init__(self):
         assert self.n_head % self.n_kv_head == 0
         assert self.n_value_embeds <= min(self.n_prelude, self.n_coda) or self.n_value_embeds == 0
-        assert set(self.layer_pattern) <= set("GLD"), self.layer_pattern
+        assert set(self.layer_pattern) <= set("GLDC"), self.layer_pattern
+        assert self.rope_scaling in ("none", "ntk", "yarn"), self.rope_scaling
 
     @property
     def n_unique_layers(self) -> int:
@@ -123,6 +128,11 @@ PRESETS: dict[str, dict] = {
     "loop-frontier": dict(ngram_memory=True, hc_streams=2),
     # Hybrid linear attention in the loop: 3 Gated DeltaNet : 1 global per core.
     "loop-hybrid": dict(layer_pattern="GG" + "DDDG" + "GG"),
+    # Long context on a small budget (LFM2-style): gated short convs + Gated
+    # DeltaNet carry constant-size state; only 3 of 8 unique layers are global
+    # attention (1 of 4 in the loop), so 16-32K stays cheap. Pretrain with
+    # --seq-len 4096 --seq-schedule, then run the long-context stage (README).
+    "loop-long": dict(layer_pattern="GC" + "CDCG" + "CG", n_value_embeds=1, max_seq_len=32768),
     # nanochat-style sliding windows (3 short : 1 long), for long-context runs.
     "loop-swa": dict(layer_pattern="LG" + "LLLG" + "LG"),
     # Tiny config for CPU smoke tests.

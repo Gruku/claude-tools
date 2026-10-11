@@ -318,3 +318,23 @@ Coconut + CODI was the frontier in early 2025. Two 2026 shifts:
 - **RLTT** per-loop credit, already in `rl.py --loop-credit all`.
 - **SLPO / Dropout-GRPO**, to make latent rollouts stochastic for RL.
 - **LLoCoT** (2610.11472, Oct 2026): a probabilistic latent head that makes the latents samplable.
+
+## 10. Long context on a small budget
+
+**Reference point.** LFM2.5-350M ([card](https://huggingface.co/LiquidAI/LFM2.5-350M), [LFM2 report 2511.23404](https://arxiv.org/abs/2511.23404)) reaches 32K context with:
+- 16 layers: 10 double-gated short-convolution blocks and only 6 GQA attention blocks;
+- **28T** pretraining tokens;
+- a long-context stage.
+
+The architecture is what makes 32K cheap; the token budget is what makes it usable. We can copy the architecture, and replace most of the budget with targeted training:
+
+| Lever | Cost | Implementation |
+|---|---|---|
+| Sequence-length curriculum (512 → 4K) | Saves compute: short early steps are cheaper at equal tokens per step | `train.py --seq-schedule 512:0.1,1024:0.3,2048:0.6,4096:1.0` |
+| Constant-state mixers | Same tokens | `loop-long` preset: 3 global attention layers of 8 unique (1 in 4 inside the loop). The rest are LFM2 gated short convs (`C`) and Gated DeltaNet (`D`). 3.3 vs 8.2 GFLOP/token at 32K against loop-base |
+| RoPE scaling | Zero for ~2×; short finetune for 4–8× | `--rope-scaling yarn/ntk --rope-factor F` in `sample.py` / `eval_niah.py`. YaRN per 2309.00071, with attention sharpening (0.1 ln s + 1)² |
+| Long-context stage | ~100–300M tokens (estimate: 2–4 GPU-hours) | `train.py --init … --seq-len 16384 --set rope_base=500000 --set max_seq_len=32768`, on PG19 books + FineWeb-Edu ≥4K-token docs + synthetic retrieval (Fu et al. 2402.10171; ProLong 2410.02660) |
+| Synthetic retrieval data (~5–10% of the stage) | Free (generated locally) | `prepare_data.py synth-retrieval`: needles and key-value lookups in real web text (2406.19292) |
+| Measure usable context | — | `eval_niah.py`: needle grid (held-out words) plus loss by position |
+
+**Expected result:** about 16–32K context that is affordable to train and run, with dependable retrieval up to roughly 8K and degrading beyond that. These are estimates to confirm with `eval_niah.py`. Checkpoints now record `context_len` (the trained length), and the agent budgets prompts against it rather than the RoPE table size.

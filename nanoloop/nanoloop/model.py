@@ -24,8 +24,8 @@ from torch.utils.checkpoint import checkpoint
 
 from .config import ModelConfig
 from .deltanet import DeltaCache
-from .layers import (Block, GatedResidual, KVCache, ModelCache, Rotary, init_linear_, rms_norm,
-                     zero_init)
+from .layers import (Block, ConvCache, GatedResidual, KVCache, ModelCache, Rotary, init_linear_,
+                     rms_norm, zero_init)
 from .ngram import NgramMemory
 
 
@@ -42,7 +42,7 @@ class NanoLoop(nn.Module):
         if cfg.smear:
             self.smear_gate = zero_init(nn.Linear(12, 1, bias=False))
             self.smear_lambda = nn.Parameter(torch.zeros(1))
-        self.rope = Rotary(cfg.head_dim, cfg.rope_frac, cfg.rope_base, cfg.max_seq_len)
+        self.rope = self._make_rope(cfg)
 
         nve = cfg.n_value_embeds
         self.prelude = nn.ModuleList(
@@ -75,6 +75,31 @@ class NanoLoop(nn.Module):
 
     # ------------------------------------------------------------------ utils
 
+    @staticmethod
+    def _make_rope(cfg):
+        return Rotary(cfg.head_dim, cfg.rope_frac, cfg.rope_base, cfg.max_seq_len,
+                      cfg.rope_scaling, cfg.rope_factor, cfg.rope_orig_len)
+
+    def usable_context(self) -> int:
+        """Tokens the model can be trusted with: the trained length (times the
+        RoPE scaling factor when NTK/YaRN is on), capped by the RoPE table."""
+        cfg = self.cfg
+        n = cfg.context_len or cfg.max_seq_len
+        if cfg.rope_scaling != "none":
+            n = int(n * cfg.rope_factor)
+        return min(n, cfg.max_seq_len)
+
+    def set_context(self, *, max_seq_len=None, rope_scaling=None, rope_factor=None,
+                    rope_orig_len=None, rope_base=None):
+        """Change positional settings in place (no parameters change): extend
+        the RoPE table and/or apply NTK / YaRN scaling at inference."""
+        for k, v in dict(max_seq_len=max_seq_len, rope_scaling=rope_scaling, rope_factor=rope_factor,
+                         rope_orig_len=rope_orig_len, rope_base=rope_base).items():
+            if v is not None:
+                setattr(self.cfg, k, v)
+        dev = self.embed.weight.device
+        self.rope = self._make_rope(self.cfg).to(dev)
+
     def param_counts(self) -> dict:
         n = lambda ps: sum(p.numel() for p in ps)
         emb = n(self.embed.parameters()) + n(self.value_embeds.parameters())
@@ -87,20 +112,26 @@ class NanoLoop(nn.Module):
                     core=n(self.core.parameters()), other=total - emb - head - blocks)
 
     def flops_per_token(self, T: int, r: float | None = None, k: int | None = None) -> float:
-        """Approximate training FLOPs/token (6N rule + attention) at mean loop r,
-        backprop depth k. No-grad loops cost only the 2N forward."""
+        """Approximate training FLOPs/token (6N rule + attention, counted only in
+        attention layers) at mean loop r and backprop depth k. No-grad loops
+        cost only the 2N forward."""
         cfg = self.cfg
         r = cfg.mean_recurrence if r is None else r
         k = min(cfg.backprop_depth, r) if k is None else k
-        per_layer = sum(p.numel() for p in self.core[0].parameters())
-        attn = 2 * cfg.n_head * cfg.head_dim * T  # QK^T + AV per token, fwd, causal-halved x2
-        outer = (cfg.n_prelude + cfg.n_coda) * (per_layer + attn)
-        core_layer = per_layer + attn
-        head = self.lm_head.weight.numel()
-        adapter = self.adapter.weight.numel()
-        fwd = 2 * (outer + head + r * (cfg.n_core * core_layer + adapter))
-        bwd = 4 * (outer + head + k * (cfg.n_core * core_layer + adapter))
-        return fwd + bwd
+
+        def cost(blocks):
+            tot = 0
+            for b in blocks:
+                tot += sum(p.numel() for p in b.parameters())
+                if b.kind == "G":
+                    tot += 2 * cfg.n_head * cfg.head_dim * T  # QK^T + AV, causal-halved, x2 for MAC
+                elif b.kind == "L":
+                    tot += 4 * cfg.n_head * cfg.head_dim * min(T, cfg.local_window)
+            return tot
+
+        outer = cost(self.prelude) + cost(self.coda) + self.lm_head.weight.numel()
+        core = cost(self.core) + self.adapter.weight.numel()
+        return 2 * (outer + r * core) + 4 * (outer + k * core)
 
     def sample_num_steps(self, mean: float | None = None) -> int:
         """Log-normal Poisson loop count with mean ~= ``mean`` (default: the
@@ -127,6 +158,9 @@ class NanoLoop(nn.Module):
         if cache is None:
             return None
         cfg = self.cfg
+        if block.kind == "C":
+            return cache.get(key, lambda: ConvCache(cache.B, block.mixer.k - 1, cfg.d_model,
+                                                    cache.device, cache.dtype))
         if block.kind == "D":
             return cache.get(key, lambda: DeltaCache(cache.B, cfg.n_head, cfg.head_dim,
                                                      cfg.head_dim, block.mixer.qkv_dim,

@@ -29,12 +29,20 @@ def main():
     ap.add_argument("--exit-threshold", type=float, default=None, help="adaptive exit (KL or latent delta)")
     ap.add_argument("--exit-criterion", choices=["kl", "latent"], default="kl")
     ap.add_argument("--num-samples", type=int, default=1)
+    ap.add_argument("--rope-scaling", choices=["none", "ntk", "yarn"], default=None,
+                    help="extend context past the trained length without retraining")
+    ap.add_argument("--rope-factor", type=float, default=None)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     a = ap.parse_args()
 
     torch.manual_seed(a.seed)
     model = load_model(a.ckpt, a.device)
+    if a.rope_scaling:
+        f = a.rope_factor or 2.0
+        n = model.cfg.context_len or model.cfg.max_seq_len
+        model.set_context(rope_scaling=a.rope_scaling, rope_factor=f, rope_orig_len=n,
+                          max_seq_len=max(model.cfg.max_seq_len, int(n * f)))
     enc = gpt2_tokenizer()
     if a.chat:
         prompt = render_prompt(enc, [dict(role="user", content=a.chat)])

@@ -108,7 +108,7 @@ def generate_turn(model, enc, prompt_ids, *, tool_names=(), num_steps=None, max_
     model.eval()
     dev = model.embed.weight.device
     num_steps = num_steps or model.cfg.mean_recurrence
-    max_new = max(1, min(max_new, model.cfg.max_seq_len - len(prompt_ids) - 16))
+    max_new = max(1, min(max_new, model.usable_context() - len(prompt_ids) - 16))
     cache = model.new_cache(1, len(prompt_ids) + max_new + 64, n_slots=num_steps)
 
     def feed(t):
@@ -201,7 +201,7 @@ def run_agent(model, enc, messages, tools: dict, *, max_steps=3, num_steps=None,
     The final step disallows tool calls so the model must answer. Returns the
     updated message list."""
     messages = list(messages)
-    budget = model.cfg.max_seq_len - min(max_new, 128) - 16
+    budget = model.usable_context() - min(max_new, 128) - 16
     for step in range(max_steps):
         allow = step < max_steps - 1
         prompt = render_prompt(enc, messages)

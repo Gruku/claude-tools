@@ -70,6 +70,20 @@ s3 = boto3.client("s3", config=Config(signature_version=UNSIGNED))
 text = gzip.decompress(s3.get_object(Bucket="softwareheritage", Key=f"content/{blob_id}")["Body"].read()).decode("utf-8", "replace")
 ```
 
+## 2b. Long-context stage
+
+| Dataset | Id | Size | License |
+|---|---|---|---|
+| PG-19 books (~70K tokens each) | `fla-hub/pg19` (parquet copy of DeepMind PG-19; **check** that the column is `text`) | ~2B tokens; train shards ~250–340 MB each | Public domain (Project Gutenberg) |
+| Long web documents | FineWeb-Edu filtered to ≥4K tokens | ~1–3% of documents qualify | ODC-By |
+| Synthetic retrieval | generated locally from your FineWeb-Edu shards | as much as you like | — |
+
+```bash
+python prepare_data.py pg19 --max-tokens 3e8
+python prepare_data.py fineweb-edu --min-doc-tokens 4096 --max-tokens 1e8   # -> data/fineweb-edu-long
+python prepare_data.py synth-retrieval --max-tokens 3e7 --max-len 16384
+```
+
 ## 3. SFT / chat (stages B and C)
 
 Download everything here (a few GB in total). `sft.py` loads these automatically by source name.

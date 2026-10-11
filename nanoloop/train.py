@@ -44,6 +44,10 @@ def parse_args():
     ap.add_argument("--seq-len", type=int, default=2048)
     ap.add_argument("--device-batch", type=int, default=8)
     ap.add_argument("--max-steps", type=int, default=None, help="cap steps (smoke tests)")
+    ap.add_argument("--seq-schedule", default=None,
+                    help="sequence-length curriculum 'len:until_frac,...' ending at --seq-len, e.g. "
+                         "'512:0.1,1024:0.3,2048:0.6,4096:1.0'. Tokens per step stay constant (the "
+                         "micro-batch grows as sequences shrink), so short early steps are cheaper")
     # optimisation
     ap.add_argument("--lr-scale", type=float, default=1.0)
     ap.add_argument("--warmup-steps", type=int, default=100)
@@ -92,9 +96,10 @@ class SyntheticLoader:
         self.B, self.T, self.V = B, T, vocab
         self.g = torch.Generator().manual_seed(seed)
 
-    def next_batch(self, device="cpu"):
-        start = torch.randint(0, self.V, (self.B, 1), generator=self.g)
-        steps = torch.randint(1, 4, (self.B, self.T), generator=self.g)
+    def next_batch(self, device="cpu", B=None, T=None):
+        B, T = B or self.B, T or self.T
+        start = torch.randint(0, self.V, (B, 1), generator=self.g)
+        steps = torch.randint(1, 4, (B, T), generator=self.g)
         seq = torch.cat([start, (start + steps.cumsum(1)) % self.V], dim=1)
         return seq[:, :-1].to(device), seq[:, 1:].to(device)
 
@@ -150,8 +155,10 @@ def main():
 
     src = a.resume or a.init
     ck = torch.load(src, map_location=device, weights_only=False) if src else None
-    if ck is not None:  # the checkpoint's config wins over --preset/--set
-        cfg = ModelConfig(**ck["config"])
+    if ck is not None:  # the checkpoint's config wins over --preset; with --init, --set
+        # may still change non-parameter fields (rope_base, max_seq_len, rope_scaling, ...)
+        over = {k: coerce(v) for k, v in (s.split("=", 1) for s in a.set)} if a.init else {}
+        cfg = ModelConfig(**{**ck["config"], **over})
     else:
         cfg = make_config(a.preset, **{k: coerce(v) for k, v in (s.split("=", 1) for s in a.set)})
     model = NanoLoop(cfg, seed=a.seed).to(device)
@@ -198,6 +205,20 @@ def main():
         for blk in [*model.prelude, *model.core, *model.coda]:
             blk.compile(dynamic=False)
 
+    schedule = []
+    if a.seq_schedule:
+        for part in a.seq_schedule.split(","):
+            L, _, frac = part.partition(":")
+            schedule.append((int(L), float(frac)))
+        assert schedule[-1][0] == T and schedule[-1][1] >= 1.0, "schedule must end at --seq-len:1.0"
+        assert all(T % L == 0 for L, _ in schedule), "every length must divide --seq-len"
+        assert T <= cfg.max_seq_len, "--seq-len exceeds max_seq_len"
+
+    def seq_len_at(step):
+        frac = step / max(1, total_steps)
+        return next((L for L, until in schedule if frac < until), T) if schedule else T
+
+    cfg.context_len = max(cfg.context_len, T)  # recorded in every checkpoint
     mtp_w = [float(w) for w in a.mtp.split(",") if w]
     flops_tok = model.flops_per_token(T)
     if master:
@@ -272,8 +293,9 @@ def main():
         loss_acc, steps_acc = 0.0, 0
         in_decay = step >= int(total_steps * (1 - a.warmdown_frac))
         loader = decay_loader if (decay_loader is not None and in_decay) else train_loader
+        T_now = seq_len_at(step)
         for _ in range(accum):
-            x, y = loader.next_batch(device)
+            x, y = loader.next_batch(device, B * T // T_now, T_now)
             r = model.sample_num_steps(mean_r)
             with amp:
                 out = model(x, y, num_steps=r, mtp_weights=mtp)
@@ -299,7 +321,7 @@ def main():
                 torch.cuda.synchronize()
             dt = time.time() - t_last
             tps = tok_last / dt
-            log(dict(step=step, loss=loss_acc, lr_mult=m, mean_r=round(steps_acc / accum, 2),
+            log(dict(step=step, loss=loss_acc, lr_mult=m, mean_r=round(steps_acc / accum, 2), seq_len=T_now,
                      tok_s=round(tps), mfu=tps * flops_tok / (a.peak_tflops * 1e12 * world),
                      tokens=step * a.batch_tokens))
             t_last, tok_last = time.time(), 0
