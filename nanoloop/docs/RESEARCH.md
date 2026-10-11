@@ -1,0 +1,202 @@
+# NanoLoop research notes (October 2026)
+
+These notes condense the research sweeps behind NanoLoop's design. Each sweep searched papers, repositories and records from 2024 to October 2026. Tags:
+- **[code]**: read directly from the official repository.
+- **[abs]**: abstract or secondary summary only.
+- **[mem]**: not re-verified. Check before citing.
+
+The sweeps were:
+1. Attention, KV cache and sequence mixing.
+2. Recurrent depth and latent ("neuralese") reasoning.
+3. Small-model training recipes.
+4. Post-training. Added at the end of this file.
+
+---
+
+## 1. Recurrent depth: the main bet
+
+**Huginn: "Scaling up Test-Time Compute with Latent Reasoning" (arXiv 2502.05171) [code]**
+- Layout: a prelude P, then a core R iterated r times, then a coda C. Every iteration runs `s = core(adapter([s; e]))`, where e is the prelude output.
+- The released 3.5B model uses 2/4/2 layers. It was trained on 800B tokens with r̄=32.
+- Sampling:
+  - The loop count is drawn from a log-normal Poisson with σ=0.5.
+  - Only the last k=8 loops are backpropagated.
+  - The initial state is s₀ ~ TruncNormal(std √(2/5)).
+- Blocks use a sandwich norm: `n2(x + attn(n1 x))`.
+- Adaptive exit is training-free: stop when KL(p_t‖p_{t−1}) < 1e-3.
+- KV caches can be shared across iterations. A token reads the latest computed state of earlier tokens, using slots taken modulo 4.
+- Failure modes from the paper [mem]:
+  - States collapse to token-independent values.
+  - The model learns to ignore the recurrence.
+  - Fixes were sandwich norm, careful init and embedding scale, and a modest LR.
+
+**Ouro / LoopLM (arXiv 2510.25741) [abs]**
+- Loops the whole stack 4 times.
+- Adds an LM loss at every step plus a learned exit gate with an entropy regularizer.
+- Ouro-1.4B-R4 roughly matches 4B dense models.
+- Loss spikes appeared at 8 steps and were resolved by going back to 4.
+- Follow-up "Closing the Loop" (arXiv 2610.00673): a 1.4B LoopLM beats its parameter-matched dense twin on 12/12 benchmarks [abs].
+
+**Parcae (arXiv 2604.12946) [abs]**
+- Treats the loop as a dynamical system.
+- Constrains the spectral radius of the injection and normalizes the injected embedding to avoid late-stage loss spikes.
+- FLOP-optimal training scales loop count together with data.
+
+**Mixture-of-Recursions (arXiv 2507.10524) [abs]**
+- Routes a recursion depth to each token. Pareto gains from 135M to 1.7B.
+- Requires routers and depth-aware KV caching.
+
+**Retrofitted recurrence (arXiv 2511.07384) [abs]**
+- Converts a pretrained dense model into a looped one.
+- A curriculum that ramps the mean recurrence helps.
+
+**TRM (arXiv 2510.04871) and HRM (arXiv 2506.21734)**
+- Tiny recursive networks for ARC and Sudoku.
+- Lessons that transfer: deep supervision and EMA weights. Neither model is a language model.
+
+**What NanoLoop takes**
+- Huginn's layout, sampling, truncated BPTT, sandwich norm and cache sharing, at r̄=6, k=4, cap 16.
+- Parcae's normalized injection.
+- A loop-count ramp from retrofitted recurrence.
+- KL-based adaptive exit at inference.
+
+**Deferred:** Ouro's exit gates and MoR routers. Revisit both if the basic loop works.
+
+**Compute.** At r̄=6 and k=4, a training token costs about 1.74 GFLOP. The 12-layer dense control costs about 1.02 GFLOP. Compare runs at equal tokens and at equal FLOPs.
+
+## 2. Attention and the KV cache
+
+| Technique | Evidence | Decision |
+|---|---|---|
+| Gated attention: `Y·σ(XW_g)` after SDPA (arXiv 2505.06708) | PPL 6.03 → 5.76 in ablations. Removes sinks and massive activations. Used in Qwen3-Next | **default**, elementwise |
+| QK-norm (OLMo 2, Qwen3, Gemma 3 arXiv 2503.19786) | Replaces attention softcap; makes QK-clip unnecessary | **default**, scale 0.12 |
+| Partial RoPE (arXiv 2410.06205; modded-nanogpt) | Rotates half the dims; the other half are content channels. nanochat saw no gain | **default** 50%, ablate |
+| Exclusive self-attention, gated (arXiv 2603.09078) | Beats SDPA up to 2.7B; modded-nanogpt record #82 | **default**, α init 0 |
+| Value residual (arXiv 2410.17897) + value embeddings | Same loss with 16% fewer params; speedrun staple | **default** |
+| Learned sink logits (gpt-oss) | Overlaps with the output gate | skipped |
+| Sliding window 3:1–5:1 (Gemma 3, gpt-oss, nanochat SSSL) | Saves little at ≤2k context | preset `loop-swa` |
+| Gated DeltaNet hybrid 3:1 (arXiv 2412.06464; Qwen3-Next; Kimi Linear arXiv 2510.26692) | Parity or slight win at 340M–1.3B; recall needs some full attention. 3:1–6:1 is the sweet spot (arXiv 2507.06457) | preset `loop-hybrid` |
+| MLA, TPA, MFA, NSA, MoBA, DSA | Benefits appear only at long context and scale | skipped |
+| Differential attention, FoX, PaTH, Canon layers | Need custom kernels or overlap with the above | future ablations |
+
+**fla API notes [code]**
+- Signature: `chunk_gated_delta_rule(q, k, v, g, beta, scale, initial_state, output_final_state, use_qk_l2norm_in_kernel, ...)`.
+- Layout is `[B, T, H, D]`. g is a log decay ≤ 0, and beta is post-sigmoid.
+- `head_first` has been removed, so pin your fla version.
+- NanoLoop ships an exact pure-PyTorch fallback (WY chunked form). It matches the recurrent form to 1e-7.
+
+## 3. Training recipe
+
+**modded-nanogpt speedrun**
+- The current record (#92, Aug 2026) reaches the 3.28 FineWeb val loss in about 40 s on 8×H100.
+- Its latest tricks are not portable to one 24 GB GPU:
+  - an 84.6M-row hashed n-gram table;
+  - FP8 MLPs;
+  - FA3, which is Hopper-only.
+- Portable pieces, by record:
+  - #3: Muon.
+  - #5: ReLU², QK-norm, zero-init projections.
+  - #8: untied head.
+  - #9: logit softcap.
+  - #11: U-net skips.
+  - #14–16: value embeddings.
+  - #34: smear.
+  - #38: Polar Express.
+  - #41: NorMuon.
+  - #43: cautious WD.
+  - #82: XSA.
+
+**nanochat (current, Jul 2026)**
+- Architecture: 32k BPE, ReLU², QK-norm, parameter-free RMSNorm, untied head, softcap 15, SSSL windows, gated value embeddings, smear.
+- Optimizers:
+  - Muon side: Polar Express, NorMuon and cautious WD, lr 0.02.
+  - AdamW side: embeddings 0.3, head 0.008.
+- Schedule: warmdown over the last 65% to 0.05×.
+- Negative results: MTP, SwiGLU, MoE, grad clipping, EMA, partial RoPE.
+- ClimbMix-400B was the only dataset that beat FineWeb-Edu (27% faster to GPT-2 CORE).
+
+**Optimizer.** Muon is about 1.4× better than well-tuned AdamW at 0.1B, shrinking to 1.1× at 1.2B (arXiv 2509.02046).
+
+**Polar Express coefficients (arXiv 2505.16932)**, 5 iterations:
+`(8.1566,−22.4833,15.8788), (4.0429,−2.8089,0.5), (3.8917,−2.7725,0.5061), (3.2858,−2.3681,0.4645), (2.3465,−1.7098,0.4232)`.
+
+**Schedule.** WSD: short warmup, a flat phase, then linear decay to a few percent or zero (arXiv 2405.18392, 2502.15938).
+
+**Batch.** 2¹⁹ tokens for runs up to about 2.5B tokens, and 2²⁰ around 10B tokens (nanochat B ∝ D^0.383).
+
+**Single GPU**
+- An RTX 4090 gives 165 TFLOPS bf16. A community single-4090 speedrun port reports 130–163k tok/s for a dense 124M model with FP8.
+- Expect about 2× fewer tok/s for loop-base at r̄=6.
+- Prefer WSL2 or Linux. Native Windows needs triton-windows to use `torch.compile`.
+
+**Reference numbers**
+
+| Model | HellaSwag | Other |
+|---|---|---|
+| GPT-2 124M | 29.4 | CORE 0.114; the 3.28 FineWeb val target |
+| SmolLM2-135M | 42.1 | 2T tokens |
+
+## 4. Latent reasoning (stage 2)
+
+**Coconut (arXiv 2412.06769) [code]**
+- Special tokens: `<|start-latent|> <|latent|>×n <|end-latent|>`. Each latent slot receives the previous position's last hidden state.
+- Curriculum: c=2 thoughts per removed step, 3 epochs per stage, 3 stages, then all language reasoning is dropped. The optimizer is reset at each stage.
+- Data: GSM8k-Aug (`whynlp/gsm8k-aug`, about 385k rows).
+- GPT-2 GSM8K results: no-CoT 16.5, Coconut 34.1, CoT 42.9.
+
+**CODI (arXiv 2502.21074) [code]**
+- The same model is both teacher (with CoT) and student (with latents).
+- Loss: L1 on the hidden state at the answer anchor, divided by the teacher's std.
+- Reaches 43.7% on GPT-2, about the level of explicit CoT.
+
+**Follow-ups**
+- SIM-CoT (arXiv 2509.20317): step-level supervision of the latents. +8.2 over Coconut.
+- PMPS (arXiv 2609.09928): claims to beat CoT-SFT on GPT-2 [abs].
+- LOTUS (arXiv 2606.31779): loops plus supervised latents close the gap to explicit CoT at 3B [abs].
+
+**Caution.** arXiv 2512.21711 finds Coconut latents behave like placeholders. Run perturbation tests before claiming the latents reason.
+
+**What NanoLoop takes.** The Coconut curriculum, the CODI distillation term, and a zero-initialized latent projector. With the looped core there are two compute dials: loops per token and number of thoughts.
+
+---
+
+## 5. Post-training
+
+**Calibration.** General chat at about 200M parameters stays weak whatever you do. Numbers become real only on narrow, task-finetuned targets.
+
+| Model | Benchmark | Result |
+|---|---|---|
+| SmolLM2-135M-Instruct | IFEval | 29.9 |
+| | GSM8K (5-shot) | 1.4 |
+| nanochat d20 (561M) | GSM8K | 4.6 after SFT, 7.6 after RL |
+| GPT-2 124M on GSM8k-Aug | GSM8K | 42.9 (CoT), 34.1 (Coconut), about 43 (CODI) |
+
+| Technique | Evidence | Relevance at about 200M |
+|---|---|---|
+| Decay-phase mid-training: math, code and QA in the last 10–20% of tokens | SmolLM2 decay mix is about 58% web, 24% code, 14% math, 4% Cosmopedia (2502.02737). OLMo 3 Dolmino. SmolLM3 reasoning mid-training | **High, almost free.** Biggest lever for ARC and GSM8K readiness |
+| SFT: smol-smoltalk + MMLU-aux + GSM8K (nanochat `chat_sft.py`) | Assistant-only loss. Packing with padding, never cropping. Warm-started optimizer with init LR 0.8× | High. Gives coherent chat and an IFEval of about 20–30 |
+| DPO family (APO-zero, SimPO, length-normalized DPO, Delta Learning 2507.06187) | SmolLM2-135M used DPO with LR 1e-6, β 0.5 | Low. A few IFEval points; no help on reasoning |
+| RLVR: GRPO, Dr. GRPO (2503.20783), DAPO (2503.14476), nanochat REINFORCE | Fails below about 0.5B on raw base models (TinyZero; L20-Edu-135M got worse). Works after task SFT (Nautile-370M: 28 → 33) | Use **only** when pass@16 on train prompts is above 30% |
+| Rejection-sampling FT / expert iteration (STaR) | Positive-only on-policy learning. More robust than GRPO at tiny scale | High after task SFT |
+| Distillation: sequence-level KD, on-policy distillation (Thinking Machines, Oct 2025), GKD, MiniPLM (2410.17215), distillation scaling laws (2502.08606) | GPT-2 BPE blocks direct logit KD from Qwen/SmolLM. Cross-tokenizer KD needs ULD (2402.12030) or TRL GOLD | Sequence-level KD (SFT on teacher text): yes. Logit KD: experimental |
+| Loop-aware RL: RLTT (2602.10520) spreads GRPO credit over loop iterations; LoopRPT (2603.19714) | RLTT reports +5.8 and +10.9 over GRPO on Ouro-1.4B and 2.6B [abs] | **Most interesting experiment** for the GSM8K RL stage |
+| Latent RL: Dropout-GRPO (2606.10184), HRPO (2505.18454), CoLaR (2505.16552), SLPO (2607.19691) | Deterministic latent rollouts kill GRPO's group variance; these methods re-inject stochasticity. About +1–2 points | Experimental, after CODI |
+| Learned exit gates (Ouro; TaH2 2609.35748; diagnostics 2607.20519) | Learned gates rarely beat KL-exit at matched compute | Skip. Keep training-free KL exit |
+| Checkpoint averaging and WiSE interpolation (2505.12082) | Averaging decay-phase checkpoints approximates annealing. L20-Edu: 0.875·SFT + 0.125·base is slightly better | Cheap. Do it |
+
+**Constraints specific to the looped model**
+- Keep the loop-count *distribution* identical across mid-training, SFT and RL. Rollouts and updates must use the same depth, otherwise RL goes off-policy.
+- Record the accuracy-versus-loops curve after every stage. Single-depth finetuning can collapse test-time scaling.
+
+**Recommended pipeline (one 4090, about 15–35 GPU-hours after pretraining) [estimates]**
+
+| Stage | What | Expected gain | Time |
+|---|---|---|---|
+| A. Decay mid-training | Mix in the last 15% of pretraining: 50% web, 15–20% FineMath, 10% Stack-Edu, 10% Cosmopedia, 3–5% QA/instruction. Average the last checkpoints | +2–5 ARC-E / HellaSwag | About free |
+| B. General SFT | smol-smoltalk + MMLU-aux + GSM8K, ChatML tokens, assistant-only loss, 1–2 epochs, randomized loops. WiSE-interpolate with base | IFEval 20–30 | 2–5 GPU-h |
+| C. Task SFT | GSM8k-Aug explicit CoT, 3–6 epochs. This is `coconut.py` stage 0 and the CODI teacher | 35–45% GSM8K | 3–8 GPU-h |
+| D. Rejection-sampling FT | k=16 samples, keep the correct ones, 2 rounds, LR 5e-5 | +2–4 | 2–4 GPU-h |
+| E. Dr. GRPO, β=0, G=16 | Only if pass@16 > 30%. LR 1e-6–3e-6, 1–2 epochs; RLTT trajectory credit as the ablation | +1–5 | 4–10 GPU-h |
+| F. Coconut/CODI latents | Then optionally Dropout-GRPO on the latents | Same accuracy with ~3× shorter reasoning | 5–10 GPU-h |
+
+**Skip:** RL on the base or general-SFT model, long reasoning-trace SFT, QAT, chasing MMLU (near chance at this size).
