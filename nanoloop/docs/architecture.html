@@ -94,7 +94,7 @@ footer { font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--ru
 
 <div class="wrap">
 <header>
-  <div class="eyebrow">nanoloop · architecture v0.2 · Oct 2026</div>
+  <div class="eyebrow">nanoloop · architecture v0.3 · Oct 2026</div>
   <h1>NanoLoop</h1>
   <p class="lede">A GPT-2-sized language model that thinks in depth. A small, weight-shared transformer core is looped a variable number of times per token, so the same 61M block parameters can act like a 28-layer network, and more loops at inference buy more latent compute. Stage 2 adds continuous "neuralese" thoughts on top.</p>
   <div class="specs">
@@ -278,6 +278,10 @@ footer { font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--ru
       <tr><td class="area">scale</td><td>MoE, FP8, hashed n-gram tables, 8-GPU kernels</td><td>Lost on wall-clock at this size, or need Hopper / 8 GPUs</td><td class="src"><a href="https://github.com/karpathy/nanochat">nanochat log</a></td><td class="used">DeepSeek-V3/V4, Qwen3.8-Flash-Next (n-gram embeddings)</td><td><span class="pill off">skipped</span></td></tr>
       <tr><td class="area">neuralese</td><td>Coconut curriculum: k steps → k×2 continuous thoughts</td><td>Designed on GPT-2 124M: 34.1% GSM8K vs 16.5% without CoT</td><td class="src"><a href="https://arxiv.org/abs/2412.06769">2412.06769</a></td><td class="used"><a href="https://huggingface.co/internlm/SIM_COT-GPT2-Coconut">SIM_COT-GPT2-Coconut</a> · <a href="https://huggingface.co/ModalityDance/slpo-coconut-gpt2">slpo-coconut-gpt2</a> (research checkpoints)</td><td><span class="pill on">stage F</span></td></tr>
       <tr><td class="area">neuralese</td><td>CODI self-distillation</td><td>43.7% on GPT-2, about the level of explicit CoT</td><td class="src"><a href="https://arxiv.org/abs/2502.21074">2502.21074</a></td><td class="used"><a href="https://huggingface.co/zen-E">zen-E CODI-gpt2</a> (official, per the CODI repo)</td><td><span class="pill on">stage F</span></td></tr>
+      <tr><td class="area">memory</td><td>Engram / PLE hashed 2–3-gram tables at the prelude output (<code>loop-frontier</code>)</td><td>~51M parameters at ~zero FLOPs; static local patterns move out of the looped core</td><td class="src"><a href="https://github.com/deepseek-ai/Engram">Engram</a></td><td class="used"><a href="https://arxiv.org/abs/2609.19969">DeepSeek V4.1-Flash</a> · <a href="https://github.com/huggingface/transformers/tree/main/src/transformers/models/qwen4_exp">Qwen3.8-Flash-Next</a> (as "PLE")</td><td><span class="pill opt">frontier</span></td></tr>
+      <tr><td class="area">residual</td><td>GatedResidual, 2 residual streams (<code>loop-frontier</code>)</td><td>Stability at high LR; Qwen reports no batch-size warmup needed</td><td class="src"><a href="https://arxiv.org/abs/2608.30320">2608.30320</a></td><td class="used">Qwen3.8-Flash-Next (4 streams) · DeepSeek V4 / GLM-5.3-Flash (mHC relative)</td><td><span class="pill opt">frontier</span></td></tr>
+      <tr><td class="area">neuralese</td><td>LOTUS parallel latent workspace: K×c slots refined by the loop, every slot supervised</td><td>GPT-2 44.1% vs CoT 42.7; gap to CoT does not grow with scale; one pass instead of n+1</td><td class="src"><a href="https://arxiv.org/abs/2606.31779">2606.31779</a></td><td class="used">research only (Jun 2026)</td><td><span class="pill on">stage F</span></td></tr>
+      <tr><td class="area">tools</td><td>Special-token tool calls + constrained decoding + inline calculator</td><td>Every call parses; at 270M, task finetuning takes FunctionGemma from 58% to 85%</td><td class="src"><a href="https://arxiv.org/abs/2404.01744">Octopus v2</a> · <a href="https://github.com/karpathy/nanochat">nanochat</a></td><td class="used"><a href="https://huggingface.co/google/functiongemma-270m-it">FunctionGemma 270M</a> · <a href="https://huggingface.co/HuggingFaceTB/SmolLM3-3B">SmolLM3</a></td><td><span class="pill on">stage T</span></td></tr>
     </tbody>
   </table>
   </div>
@@ -297,15 +301,63 @@ footer { font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--ru
 </section>
 
 <section>
-  <div class="eyebrow">Stage 2 · whynlp/gsm8k-aug</div>
-  <h2>From written reasoning to continuous thought</h2>
+  <div class="eyebrow">Stage F · frontier latent reasoning</div>
+  <h2>LOTUS: a latent workspace the loop refines in parallel</h2>
   <div class="timeline">
-    <div><b>stage 0 · 6 ep</b><span>Plain CoT SFT</span><code>Q \n &lt;&lt;a=b&gt;&gt; &lt;&lt;c=d&gt;&gt; ### 42</code></div>
-    <div class="latent"><b>stage 1 · 3 ep</b><span>Step 1 → 2 thoughts</span><code>Q ⟨bot⟩ ● ● ⟨eot⟩ &lt;&lt;c=d&gt;&gt; ### 42</code></div>
-    <div class="latent"><b>stage 2 · 3 ep</b><span>Steps 1–2 → 4 thoughts</span><code>Q ⟨bot⟩ ● ● ● ● ⟨eot⟩ … ### 42</code></div>
-    <div class="latent"><b>stage 3 · 3 ep</b><span>All language dropped</span><code>Q ⟨bot⟩ ●×6 ⟨eot⟩ ### 42</code></div>
+    <div><b>input</b><span>Question, then the workspace</span><code>⟨user⟩ Q ⟨assistant⟩ ⟨bot⟩ [Z₁,₁…Z₁,₁₃] … [Z₆,₁…Z₆,₁₃] ⟨eot⟩ #### 42</code></div>
+    <div class="latent"><b>slot input</b><span>Learned, no feedback</span><code>base + block_pos[k] + slot_pos[j]</code></div>
+    <div class="latent"><b>slot target</b><span>Its own step token</span><code>Z₁,₁…₁₀ → &lt;&lt;3*4=12&gt;&gt;, then ⟨pad-step⟩</code></div>
+    <div class="latent"><b>refinement</b><span>The core loop, r ≈ 6</span><code>all 78 slots updated together at every loop</code></div>
   </div>
-  <p class="note">● = the model's own last hidden state, projected and fed back as the next input embedding. Each thought also runs r loops of the core, so the model can think in two directions: depth (loops per token) and length (number of thoughts). Caveat: <a href="https://arxiv.org/abs/2512.21711">2512.21711</a> finds Coconut latents can act as placeholders, so perturbation tests come before any claim about reasoning.</p>
+  <p class="note">Coconut (kept as a baseline) feeds thoughts back one at a time and supervises them weakly. 2026 work shows that invites shortcuts. LOTUS supervises every slot and costs one forward pass. Decoding the slots shows the model's thought trace. The eval includes a zero-workspace shortcut test and an accuracy-vs-loops sweep, as the critiques recommend (<a href="https://arxiv.org/abs/2512.21711">2512.21711</a>, <a href="https://arxiv.org/abs/2602.22441">2602.22441</a>).</p>
+</section>
+
+<section>
+  <div class="eyebrow">Stage T · tool use</div>
+  <h2>Tool calling and agents: narrow, by design</h2>
+  <div class="two">
+    <ol class="steps">
+      <li><span>format</span><span><code>&lt;|tool_call|&gt;{"name":…,"arguments":{…}}&lt;|/tool_call|&gt;</code> → <code>&lt;|tool|&gt;&lt;|tool_response|&gt;…</code>; calculator inline as <code>&lt;|calc|&gt;48/2&lt;|/calc|&gt;&lt;|out|&gt;24&lt;|/out|&gt;</code></span></li>
+      <li><span>decoding</span><span>Names limited to registered tools, arguments to valid JSON, over-budget arguments closed deterministically. Every call parses.</span></li>
+      <li><span>loop</span><span>ReAct-lite, at most 3 steps; the last step must answer. Tool outputs are never trained on.</span></li>
+      <li><span>data</span><span>Per-tool synthetic data (most important) + xLAM-60k (30% name masking) + Hermes FC + SmolTalk2 tool traces + no-call negatives.</span></li>
+    </ol>
+    <ol class="steps">
+      <li><span>will work</span><span>Choosing 1 of ≤20 known tools and filling a few arguments: ~90% exact match on finetuned tools. BFCL simple about 25–45.</span></li>
+      <li><span>won't work</span><span>Unseen tools from schema text alone, long tool outputs, error recovery, multi-step plans. Even 0.5–0.6B models score 3–4% on BFCL multi-turn.</span></li>
+      <li><span>math</span><span>The calculator removes arithmetic errors but not decomposition errors. nanochat-561M: GSM8K 4.6 → 7.6 with RL.</span></li>
+      <li><span>if you need agents</span><span>Use a pretrained 0.6–1.7B base (Qwen3, <a href="https://huggingface.co/google/functiongemma-270m-it">FunctionGemma</a>), with NanoLoop as a router in front.</span></li>
+    </ol>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">Frontier check · Oct 2026</div>
+  <h2>What the newest frontier models do, and what we took</h2>
+  <div class="tablewrap">
+  <table class="ledger">
+    <thead><tr><th>Model</th><th>Architecture highlights</th><th>Taken for NanoLoop</th><th>Links</th></tr></thead>
+    <tbody>
+      <tr><td class="area">Qwen3.8-Flash-Next<br>(Qwen4-Exp, Aug 26)</td><td>48 layers = 12 × (3 Gated DeltaNet + 1 QSA block-sparse attention), MoE 512 experts, <b>GatedResidual × 4 streams</b>, <b>PLE n-gram embeddings</b>, (1+w) RMSNorm, Muon only on true matrices</td><td>GatedResidual (2 streams), PLE/Engram, optimizer partition, GDN init</td><td class="src"><a href="https://arxiv.org/abs/2608.30320">paper</a> · <a href="https://github.com/QwenLM/Qwen3.8-Flash-Next">repo</a> · <a href="https://github.com/huggingface/transformers/tree/main/src/transformers/models/qwen4_exp">code</a></td></tr>
+      <tr><td class="area">DeepSeek V4 / V4.1-Flash<br>(Apr / Sep 26)</td><td>CSA (top-512 compressed KV) + HCA (128:1), shared-KV MQA with 128-token window, partial RoPE 64/512, sinks, <b>mHC</b> n=4, hash-MoE, MTP. V4.1: CSA2 cross-layer reuse, <b>Engram</b> tables, FP4 KV</td><td>Engram. mHC noted as the heavier alternative to GatedResidual</td><td class="src"><a href="https://arxiv.org/abs/2606.19348">V4</a> · <a href="https://arxiv.org/abs/2609.19969">V4.1</a> · <a href="https://github.com/deepseek-ai/Engram">Engram</a></td></tr>
+      <tr><td class="area">GLM-5.3 / 5.3-Flash<br>(Z.ai)</td><td>5.3 = post-training on 5.2 (DSA + IndexShare, MTP). 5.3-Flash: KDA:MLA 3:1, NoPE MLA, KPool-16 DSA, mHC, 288 experts</td><td>Nothing yet: sparse indexers only pay beyond ~32k context</td><td class="src"><a href="https://github.com/huggingface/transformers/tree/main/src/transformers/models/glm5_next">code</a> · <a href="https://www.baseten.co/blog/glm-53/">Baseten</a></td></tr>
+      <tr><td class="area">Kimi K3 (Jul 26)</td><td>KDA + gated MLA, <b>Block Attention Residuals</b>, per-head Muon</td><td>Candidate: attention over loop iterations (untested)</td><td class="src"><a href="https://arxiv.org/abs/2603.15031">AttnRes</a></td></tr>
+      <tr><td class="area">Gemma 4 / MiniMax-M3</td><td>5:1 sliding window, p-RoPE 0.25, K=V, cross-layer KV / QK-norm, partial RoPE, block-sparse attention</td><td>Already covered (QK-norm, partial RoPE, <code>loop-swa</code>)</td><td class="src"><a href="https://github.com/huggingface/transformers/tree/main/src/transformers/models/gemma4">code</a></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">Data</div>
+  <h2>Where to download</h2>
+  <ol class="steps">
+    <li><span>pretrain</span><span><a href="https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu">FineWeb-Edu sample-10BT</a> (ODC-By, 28.5 GB parquet → ~20 GB shards) · <a href="https://huggingface.co/datasets/karpathy/climbmix-400b-shuffle">ClimbMix</a> (best measured, non-commercial) · <a href="https://huggingface.co/datasets/kjj0/fineweb10B-gpt2">FineWeb10B GPT-2 shards</a> (3.28 benchmark)</span></li>
+    <li><span>decay mix</span><span><a href="https://huggingface.co/datasets/HuggingFaceTB/finemath">FineMath-4+</a> · <a href="https://huggingface.co/datasets/HuggingFaceTB/smollm-corpus">Cosmopedia v2</a> · chat-mix (rendered locally)</span></li>
+    <li><span>SFT</span><span><a href="https://huggingface.co/datasets/HuggingFaceTB/smol-smoltalk">smol-smoltalk</a> · <a href="https://huggingface.co/datasets/cais/mmlu">MMLU aux</a> · <a href="https://huggingface.co/datasets/openai/gsm8k">GSM8K</a> · <a href="https://huggingface.co/datasets/whynlp/gsm8k-aug">GSM8k-Aug</a></span></li>
+    <li><span>tools</span><span><a href="https://huggingface.co/datasets/Salesforce/xlam-function-calling-60k">xLAM-60k</a> (gated) · <a href="https://huggingface.co/datasets/NousResearch/hermes-function-calling-v1">Hermes FC</a> · <a href="https://huggingface.co/datasets/HuggingFaceTB/smoltalk2">SmolTalk2 tool splits</a> · BFCL eval</span></li>
+    <li><span>total</span><span>About 25–45 GB kept on disk. The full guide with commands is in <code>docs/DATASETS.md</code>.</span></li>
+  </ol>
 </section>
 
 <section>
@@ -322,7 +374,7 @@ footer { font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--ru
       <tr><td class="area">C · task SFT</td><td><code>sft.py --mix gsm8k-aug:3</code></td><td>GSM8k-Aug explicit CoT in the chat template. Also the base for D, E and F</td><td>35–45% GSM8K</td><td class="src"><a href="https://arxiv.org/abs/2412.06769">2412.06769</a></td><td class="used">Coconut / CODI GPT-2 baselines</td></tr>
       <tr><td class="area">D · RFT</td><td><code>rl.py --algo rft</code></td><td>Online rejection-sampling finetune: 16 samples per prompt, keep the unique correct ones</td><td>+2–4</td><td class="src">STaR / expert iteration</td><td class="used">Qwen3 / OLMo 3 SFT data pipelines</td></tr>
       <tr><td class="area">E · RLVR</td><td><code>rl.py --algo drgrpo [--loop-credit all]</code></td><td>Dr. GRPO, no KL and no reference model, constant normalizer, groups with no reward variation skipped. <code>--loop-credit all</code> = RLTT: every loop's read-out gets the advantage</td><td>+1–5 (RLTT reports +6–11 over GRPO on Ouro)</td><td class="src"><a href="https://arxiv.org/abs/2503.20783">2503.20783</a> · <a href="https://arxiv.org/abs/2602.10520">2602.10520</a></td><td class="used"><a href="https://huggingface.co/allenai/Olmo-3-7B-Think">OLMo 3 Think</a> (RLVR) · <a href="https://huggingface.co/BytedTsinghua-SIA/DAPO-Qwen-32B">DAPO-Qwen-32B</a></td></tr>
-      <tr><td class="area">F · latents</td><td><code>coconut.py --cot-epochs 0</code></td><td>Coconut curriculum + CODI distillation, starting from the stage-C checkpoint (same chat template)</td><td>Same accuracy, ~3× shorter reasoning</td><td class="src"><a href="https://arxiv.org/abs/2502.21074">2502.21074</a></td><td class="used"><a href="https://huggingface.co/internlm/SIM_COT-GPT2-Coconut">SIM-CoT GPT-2</a></td></tr>
+      <tr><td class="area">F · latents</td><td><code>lotus.py</code> (baseline: <code>coconut.py</code>)</td><td>LOTUS parallel latent workspace from the stage-C checkpoint; Coconut + CODI kept as the baseline</td><td>About CoT accuracy with no written reasoning (LOTUS GPT-2: 44.1 vs 42.7)</td><td class="src"><a href="https://arxiv.org/abs/2502.21074">2502.21074</a></td><td class="used"><a href="https://huggingface.co/internlm/SIM_COT-GPT2-Coconut">SIM-CoT GPT-2</a></td></tr>
       <tr><td class="area">next</td><td>not built</td><td>Dropout-GRPO on latents; cross-tokenizer on-policy distillation (TRL GOLD); APO/SimPO preference tuning</td><td>+1–2 each, experimental</td><td class="src"><a href="https://arxiv.org/abs/2606.10184">2606.10184</a></td><td class="used">Thinking Machines on-policy distillation · SmolLM3 APO</td></tr>
     </tbody>
   </table>

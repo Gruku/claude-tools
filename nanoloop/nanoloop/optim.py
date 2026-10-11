@@ -76,13 +76,20 @@ class Muon(torch.optim.Optimizer):
 
 
 def build_optimizers(model: nn.Module, *, muon_lr=0.02, muon_wd=0.2, embed_lr=0.3,
-                     value_embed_lr=0.15, head_lr=0.008, scalar_lr=0.04, lr_scale=1.0):
-    """Partition parameters (Muon never touches embeddings, head, or 1-D params)."""
-    muon, embed, vembed, head, scalars = [], [], [], [], []
+                     value_embed_lr=0.15, head_lr=0.008, scalar_lr=0.04, hc_lr=0.004,
+                     ngram_lr=0.1, lr_scale=1.0):
+    """Partition parameters. Muon never touches embeddings, head, 1-D params,
+    hyper-connection gates or n-gram tables (Qwen3.8 / DeepSeek V4 practice:
+    Muon for true weight matrices only, AdamW for routing/gating parameters)."""
+    muon, embed, vembed, head, scalars, hc, ngram = [], [], [], [], [], [], []
     for name, p in model.named_parameters():
         if not p.requires_grad:
             continue
-        if name.startswith("embed."):
+        if name.startswith("ngram.table"):
+            ngram.append(p)
+        elif ".gr_" in name or name.startswith("collapse_"):
+            hc.append(p)
+        elif name.startswith("embed."):
             embed.append(p)
         elif name.startswith("value_embeds."):
             vembed.append(p)
@@ -97,6 +104,8 @@ def build_optimizers(model: nn.Module, *, muon_lr=0.02, muon_wd=0.2, embed_lr=0.
         dict(params=vembed, lr=value_embed_lr * lr_scale, betas=(0.8, 0.95)),
         dict(params=head, lr=head_lr * lr_scale, betas=(0.8, 0.95)),
         dict(params=scalars, lr=scalar_lr * lr_scale, betas=(0.9, 0.99)),
+        dict(params=hc, lr=hc_lr * lr_scale, betas=(0.9, 0.95)),
+        dict(params=ngram, lr=ngram_lr * lr_scale, betas=(0.8, 0.95)),
     ]
     adam_groups = [g for g in adam_groups if g["params"]]
     fused = next(model.parameters()).is_cuda

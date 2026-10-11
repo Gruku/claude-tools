@@ -1,8 +1,19 @@
 """Chat template, answer extraction and the post-training data sources.
 
 Template (one conversation):
-    <|endoftext|> [<|system|> text <|end|>] <|user|> text <|end|> <|assistant|> text <|end|> ...
-Loss is applied to assistant text and its closing <|end|> only.
+    <|endoftext|> [<|system|> text <|end|>] <|user|> text <|end|>
+    <|assistant|> text [<|calc|>48/2<|/calc|><|out|>24<|/out|> text]
+                  [<|tool_call|>{"name":"f","arguments":{...}}<|/tool_call|>] <|end|>
+    <|tool|><|tool_response|>...<|/tool_response|><|end|>  <|assistant|> ... <|end|>
+
+Messages follow the OpenAI shape: {"role", "content", "tool_calls": [{"name",
+"arguments"}]}; assistant "content" may also be a list of parts
+({"type": "text", "text"} / {"type": "calc", "expr", "result"}). A system
+message may carry "tools": [Tool or schema dict].
+
+Loss is applied to assistant-written tokens only: text, calculator
+expressions, tool calls and the closing <|end|>. System/user turns, tool
+responses and calculator outputs (which the engine injects) are never trained on.
 """
 
 from __future__ import annotations
@@ -10,22 +21,73 @@ from __future__ import annotations
 import random
 import re
 
-from .config import ASSISTANT, END_TURN, GPT2_EOT, SPECIAL_TOKENS, SYSTEM, USER
+import json
 
-ROLE_TOKEN = {"system": SYSTEM, "user": USER, "assistant": ASSISTANT}
+from .config import (ASSISTANT, CALC, END_CALC, END_OUT, END_TOOL_CALL, END_TOOL_RESPONSE,
+                     END_TURN, GPT2_EOT, OUT, SPECIAL_TOKENS, SYSTEM, TOOL, TOOL_CALL,
+                     TOOL_RESPONSE, USER)
+
+ROLE_TOKEN = {"system": SYSTEM, "user": USER, "assistant": ASSISTANT, "tool": TOOL}
+
+# Tool calls are tokenised piecewise so training sees exactly the token
+# boundaries the constrained decoder produces at inference.
+CALL_PREFIX, CALL_ARGS = '{"name":"', ',"arguments":'
+
+
+def encode_tool_call(enc, call: dict):
+    args = json.dumps(call.get("arguments") or {}, separators=(",", ":"), ensure_ascii=False)
+    return (enc.encode_ordinary(CALL_PREFIX) + enc.encode_ordinary(call["name"] + '"')
+            + enc.encode_ordinary(CALL_ARGS) + enc.encode_ordinary(args) + enc.encode_ordinary("}"))
+
+
+def _system_text(m):
+    text = m.get("content") or ""
+    if m.get("tools"):
+        from .tools import tools_system_prompt
+        tools = [t if hasattr(t, "schema") else _SchemaTool(t) for t in m["tools"]]
+        text = (text + "\n\n" if text else "") + tools_system_prompt(tools)
+    return text
+
+
+class _SchemaTool:
+    def __init__(self, schema):
+        self._s = schema
+
+    def schema(self):
+        return self._s
 
 
 def render_conversation(enc, messages):
     """Returns (ids, mask) where mask marks tokens the model is trained on."""
     ids, mask = [GPT2_EOT], [0]
+
+    def add(toks, m):
+        ids.extend(toks)
+        mask.extend([m] * len(toks))
+
     for m in messages:
         role = m["role"]
         if role not in ROLE_TOKEN:
             continue
-        body = enc.encode_ordinary(m["content"])
-        train = 1 if role == "assistant" else 0
-        ids += [ROLE_TOKEN[role]] + body + [END_TURN]
-        mask += [0] + [train] * (len(body) + 1)
+        if role == "assistant":
+            add([ASSISTANT], 0)
+            content = m.get("content") or ""
+            parts = content if isinstance(content, list) else [{"type": "text", "text": content}]
+            for p in parts:
+                if p.get("type") == "calc":
+                    add([CALC] + enc.encode_ordinary(p["expr"]) + [END_CALC], 1)
+                    add([OUT] + enc.encode_ordinary(str(p["result"])) + [END_OUT], 0)
+                elif p.get("text"):
+                    add(enc.encode_ordinary(p["text"]), 1)
+            for call in m.get("tool_calls") or []:
+                add([TOOL_CALL] + encode_tool_call(enc, call) + [END_TOOL_CALL], 1)
+            add([END_TURN], 1)
+        elif role == "tool":
+            add([TOOL, TOOL_RESPONSE] + enc.encode_ordinary(str(m.get("content", ""))[:2000])
+                + [END_TOOL_RESPONSE, END_TURN], 0)
+        else:
+            text = _system_text(m) if role == "system" else m.get("content") or ""
+            add([ROLE_TOKEN[role]] + enc.encode_ordinary(text) + [END_TURN], 0)
     return ids, mask
 
 
@@ -100,8 +162,36 @@ def load_source(name: str, split: str = "train"):
                                       dict(role="assistant", content=body)],
                             answer=normalize_number(ex["answer"])))
         return out
+    if name == "gsm8k-calc":  # GSM8K with <<expr=result>> annotations -> calculator spans (nanochat)
+        ds = load_dataset("openai/gsm8k", "main", split=split)
+        out = []
+        for r in ds:
+            reasoning, ans = r["answer"].split("####")
+            parts = calc_parts(reasoning.strip()) + [{"type": "text", "text": f"\n#### {ans.strip()}"}]
+            out.append(dict(messages=[dict(role="user", content=r["question"].strip()),
+                                      dict(role="assistant", content=parts)],
+                            answer=normalize_number(ans)))
+        return out
+    if name == "gsm8k-aug-calc":
+        from .gsm8k_aug import load_gsm8k_aug
+        out = []
+        for ex in load_gsm8k_aug(split):
+            parts = []
+            for st in ex["steps"]:
+                parts += calc_parts(st) + [{"type": "text", "text": "\n"}]
+            parts.append({"type": "text", "text": f"#### {ex['answer']}"})
+            out.append(dict(messages=[dict(role="user", content=ex["question"]),
+                                      dict(role="assistant", content=parts)],
+                            answer=normalize_number(ex["answer"])))
+        return out
+    if name in ("xlam", "hermes", "smoltalk2-tools", "tools-synth"):
+        from .tool_data import load_tool_source
+        return load_tool_source(name, split)
     if name == "mmlu":  # auxiliary_train: ~100k multiple-choice items (RACE, ARC, OBQA, ...)
-        ds = load_dataset("cais/mmlu", "auxiliary_train", split="train")
+        try:
+            ds = load_dataset("cais/mmlu", "all", split="auxiliary_train")
+        except Exception:
+            ds = load_dataset("cais/mmlu", "auxiliary_train", split="train")
         out = []
         for r in ds:
             r = r.get("train", r)
@@ -112,6 +202,28 @@ def load_source(name: str, split: str = "train"):
                 dict(role="assistant", content=letters[int(r["answer"])])]))
         return out
     raise KeyError(f"unknown SFT source {name!r}")
+
+
+_CALC = re.compile(r"<<([^=<>]+)=([^<>]*)>>")
+
+
+def calc_parts(text: str):
+    """'48/2 = <<48/2=24>>24 clips' -> text / calc(expr, result) / text parts.
+    The calculator output is recomputed so training never teaches a wrong value."""
+    from .tools import calculate
+    parts, pos = [], 0
+    for m in _CALC.finditer(text):
+        if m.start() > pos:
+            parts.append({"type": "text", "text": text[pos:m.start()]})
+        expr = m.group(1).strip()
+        result = calculate(expr)
+        if result == "error":
+            result = m.group(2).strip()
+        parts.append({"type": "calc", "expr": expr, "result": result})
+        pos = m.end()
+    if pos < len(text):
+        parts.append({"type": "text", "text": text[pos:]})
+    return parts
 
 
 def parse_mix(spec: str):

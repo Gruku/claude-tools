@@ -66,6 +66,7 @@ class ModelCache:
         self.pos = 0
         self.layers: dict = {}
         self.smear_prev = None  # last (normed) embedding, for the smear gate
+        self.ngram_prev = None  # last tokens, for the n-gram memory
 
     def get(self, key, factory):
         if key not in self.layers:
@@ -209,6 +210,35 @@ class MLP(nn.Module):
         return self.proj(F.relu(self.fc(x)).square())
 
 
+class GatedResidual(nn.Module):
+    """Qwen3.8-Flash-Next "GatedResidual" over n residual streams x: [..., n, d].
+
+        xn = RMSNorm per stream;  g = sigmoid(W_up silu(W_down flat(xn) / n))   (elementwise)
+        h_in = mean_k g_k * xn_k                                              -> sublayer input
+        w = 2 sigmoid(W_inj flat(xn) / n)                                     -> per-stream injection
+        x = x + w_k * Sublayer(h_in)
+
+    No stream-mixing matrix (so no Sinkhorn, unlike DeepSeek's mHC). W_up and
+    W_inj start at zero: gates 0.5, injections 1. Optimised with AdamW.
+    """
+
+    def __init__(self, d: int, n: int, rank: int, inject: bool = True):
+        super().__init__()
+        self.n = n
+        self.down = nn.Linear(n * d, rank, bias=False)
+        self.up = zero_init(nn.Linear(rank, n * d, bias=False))
+        self.inj = zero_init(nn.Linear(n * d, n, bias=False)) if inject else None
+
+    def forward(self, x):
+        xn = rms_norm(x)
+        flat = xn.flatten(-2)
+        g = torch.sigmoid(self.up(F.silu(self.down(flat) / self.n))).view_as(xn)
+        h = (g * xn).mean(-2)
+        if self.inj is None:
+            return h
+        return h, 2 * torch.sigmoid(self.inj(flat) / self.n)
+
+
 class Block(nn.Module):
     """Transformer block. ``sandwich=True`` adds post-sublayer norms (Huginn's
     SandwichBlock), which keeps the looped state bounded across iterations."""
@@ -224,8 +254,29 @@ class Block(nn.Module):
             window = cfg.local_window if kind == "L" else None
             self.mixer = Attention(cfg, window, use_ve, is_first)
         self.mlp = MLP(cfg)
+        self.n_streams = cfg.hc_streams
+        if self.n_streams > 1:
+            rank = cfg.hc_rank or cfg.d_model // 4
+            self.gr_mix = GatedResidual(cfg.d_model, self.n_streams, rank)
+            self.gr_mlp = GatedResidual(cfg.d_model, self.n_streams, rank)
+
+    def _mix(self, h_in, rope, pos0, v_first, ve, cache):
+        if self.kind == "D":
+            return self.mixer(h_in, cache=cache), None
+        return self.mixer(h_in, rope, pos0, v_first=v_first, ve=ve, cache=cache)
 
     def forward(self, x, rope, pos0, v_first=None, ve=None, cache=None):
+        if self.n_streams > 1:  # x: [B, T, n, d]
+            h_in, w = self.gr_mix(x)
+            h, v = self._mix(h_in, rope, pos0, v_first, ve, cache)
+            x = x + w.unsqueeze(-1).to(h.dtype) * h.unsqueeze(-2)
+            if self.sandwich:
+                x = rms_norm(x)
+            h_in, w = self.gr_mlp(x)
+            x = x + w.unsqueeze(-1).to(h.dtype) * self.mlp(h_in).unsqueeze(-2)
+            if self.sandwich:
+                x = rms_norm(x)
+            return x, v
         if self.kind == "D":
             h, v = self.mixer(rms_norm(x), cache=cache), None
         else:

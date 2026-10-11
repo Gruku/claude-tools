@@ -114,7 +114,7 @@ class GatedDeltaNet(nn.Module):
         self.ab = nn.Linear(d, 2 * self.H, bias=False)  # decay-rate input a, write-strength b
         self.g_proj = nn.Linear(d, self.H * self.V, bias=False)
         self.o = zero_init(nn.Linear(self.H * self.V, d, bias=False))
-        A = torch.empty(self.H).uniform_(1, 16)
+        A = torch.empty(self.H).uniform_(0.01, 16)  # Qwen3.8 / Qwen4-Exp init
         self.A_log = nn.Parameter(A.log())
         dt = torch.exp(torch.rand(self.H) * (math.log(0.1) - math.log(1e-3)) + math.log(1e-3))
         self.dt_bias = nn.Parameter(dt + torch.log(-torch.expm1(-dt)))  # softplus^-1(dt)

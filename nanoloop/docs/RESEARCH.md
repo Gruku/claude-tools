@@ -225,3 +225,96 @@ How this list was checked:
 | MLA / sparse attention (skipped) | DeepSeek-V4 (CSA / HCA) · [GLM-5](https://github.com/zai-org/GLM-5) (DSA) · DeepSeek-V3.2 (DSA) · DeepSeek-V3 (MLA) |
 | Latent reasoning | Research checkpoints only: [internlm/SIM_COT-GPT2-Coconut](https://huggingface.co/internlm/SIM_COT-GPT2-Coconut) · [zen-E CODI](https://huggingface.co/zen-E) · [ModalityDance/slpo-coconut-gpt2](https://huggingface.co/ModalityDance/slpo-coconut-gpt2). Meta has no official Coconut checkpoint |
 | Post-training | [OLMo 3 Think](https://huggingface.co/allenai/Olmo-3-7B-Think) (SFT → DPO → RLVR) · [SmolLM3](https://huggingface.co/HuggingFaceTB/SmolLM3-3B) (APO, then merged with a mid-training checkpoint) · Qwen3 small models (strong-to-weak on-policy distillation, [2505.09388](https://arxiv.org/abs/2505.09388)) · [DAPO-Qwen-32B](https://huggingface.co/BytedTsinghua-SIA/DAPO-Qwen-32B) · RLTT / LoopRPT applied to Ouro (papers only, no weights) |
+
+---
+
+## 7. Tool calling and agentic use (Oct 2026)
+
+**Verdict: narrow tool use works at this size; general agents do not.** Evidence from the smallest tool-calling models:
+
+| Model | Size | Result |
+|---|---|---|
+| FunctionGemma (Google, Dec 2025) | 270M | BFCL Simple 61.6, Relevance 61.1. Mobile Actions 58% → **85% after task finetuning**. Built on Gemma 3's ~6T-token pretraining |
+| Octopus v2 | — | 98–99% on its own ~20 Android functions, using one special token per tool (functional tokens) |
+| TinyAgent | 1.1B | 80% on its macOS tools, with a tool retriever in front |
+| Hammer2.1-0.5B, Qwen3-0.6B | 0.5–0.6B | ~62 BFCL overall, but **multi-turn 3–4%** |
+| Toolformer | GPT-2 sizes | Tool *judgment* only emerged at ~775M |
+| nanochat d20 (561M, calculator tool) | 561M | GSM8K 2.5 → 4.6 (SFT) → 7.6 (RL) |
+
+**What NanoLoop implements:**
+- Single special tokens per tool-use element, with the Hermes/Qwen JSON call body (`<|tool_call|>{"name":…,"arguments":{…}}<|/tool_call|>`).
+- Tool responses and calculator outputs are never trained on.
+- **Constrained decoding** (`nanoloop/agent.py`): the tool name is restricted to registered tools and the arguments to valid JSON. Arguments that run past their budget are closed deterministically. Every emitted call parses.
+- A nanochat-style **inline calculator** (`<|calc|>expr<|/calc|><|out|>result<|/out|>`) for math. The engine injects the result, and RL masks it out of the loss.
+- A **ReAct-lite loop** capped at 3 steps. The last step must answer.
+- Data:
+  - per-tool synthetic data, the most important part (`tools-synth`), with ~15% no-call negatives;
+  - `xlam` with 30% Hammer-style name masking;
+  - `hermes` and `smoltalk2-tools`.
+
+**Realistic targets:**
+
+| Task | Target |
+|---|---|
+| Our own finetuned tools | ~90% exact match |
+| BFCL simple | 25–45 |
+| BFCL irrelevance | 50–70 |
+| GSM8K with calculator, SFT then RL | 3–8% |
+| Multi-step autonomy | none meaningful |
+
+For real agentic work, use a larger pretrained base (Qwen3-0.6B/1.7B, FunctionGemma), with NanoLoop as a router or classifier in front of it.
+
+**Sources:** FunctionGemma, Octopus v2 (2404.01744), TinyAgent (2409.00608), Hammer (2410.04587), HyFunc (2602.13665), When2Call (2504.18851), ToolRL (2504.13958), Toolformer (2302.04761), nanochat `engine.py` and `tasks/gsm8k.py`.
+
+## 8. Frontier architectures, Oct 2026: what we adopted
+
+Most of this was read from source code (`huggingface/transformers` main and vLLM). Hugging Face pages could not be opened from the sandbox.
+
+| Model | What's new | Adopt at 200M / 2k / 1 GPU? |
+|---|---|---|
+| **Qwen3.8-Flash-Next** (`qwen4_exp`, "Qwen4 preview"; [paper 2608.30320](https://arxiv.org/abs/2608.30320), [code](https://github.com/huggingface/transformers/tree/main/src/transformers/models/qwen4_exp)) | 3 Gated DeltaNet : 1 **QSA** (block-sparse attention, mean-pooled 4-token keys, ReLU indexer). **GatedResidual** with 4 streams. **PLE** hashed n-gram embeddings. Muon only on true matrices | **GatedResidual: yes** (`hc_streams`). **PLE: yes** (`ngram_memory`). QSA: no, a no-op at 2k |
+| **DeepSeek V4 / V4.1-Flash** ([V4 2606.19348](https://arxiv.org/abs/2606.19348), [V4.1 2609.19969](https://arxiv.org/abs/2609.19969)) | CSA/HCA compressed sparse attention (V4.1: CSA2 with cross-layer KV/index reuse). **mHC** (Sinkhorn-mixed hyper-connections). **Engram** n-gram tables. Hash-MoE. MTP | **Engram: yes** (same mechanism as PLE). mHC: maybe, since GatedResidual is the cheaper relative. CSA/MoE: no |
+| **GLM-5.3** (post-training on GLM-5.2) / **GLM-5.3-Flash** (`glm5_next`) | DSA + **IndexShare** (one indexer per 4 layers). Flash: KDA:MLA 3:1, NoPE MLA, KPool=16, mHC | No: these pay off beyond ~32k context |
+| Kimi K3 | KDA + gated MLA, **Block Attention Residuals** (2603.15031) | Experimental: attention over loop iterations is untested in looped models |
+| Gemma 4 | 5:1 sliding window, p-RoPE 0.25 on global layers, K=V, cross-layer KV sharing, per-layer embeddings | Our `loop-swa` preset covers the pattern |
+| MiniMax-M3-preview | QK-norm, partial RoPE 64, max-pooled block-sparse attention | Already have QK-norm and partial RoPE |
+
+The new `loop-frontier` preset is `loop-base` plus **Engram/PLE** (2–3-gram, 4 hashes per order, ~51M table parameters, signed-sqrt sigmoid gate, ~zero FLOPs) plus **2-stream GatedResidual**. The optimizer was also tidied: GatedResidual gates and n-gram tables go to AdamW (Qwen3.8 / DeepSeek V4 practice), and Gated DeltaNet uses `A_log ~ log U(0.01, 16)`.
+
+**Expected effect (estimate, not measured):** about −0.02 to −0.04 val loss from Engram, and better high-LR stability from GatedResidual. Run it against `loop-base` at equal tokens.
+
+**Skipped:** QSA, DSA, CSA, IndexShare, KPool (sparse attention only pays at long context), MoE / hash-MoE (we are dense), and MTP (weak at small scale).
+
+## 9. Latent-space reasoning, Oct 2026: moving past Coconut
+
+Coconut + CODI was the frontier in early 2025. Two 2026 shifts:
+1. **Every latent gets its own supervision.** SIM-CoT gives +8 over Coconut. Chen et al. (2606.20075) show that answer-only latent training falls to the No-CoT level.
+2. **Latents are refined in parallel by a looped backbone** (LOTUS, LLoCoT).
+
+| Method | GPT-2 GSM8K | Larger models |
+|---|---|---|
+| Coconut | 34.1 | — |
+| CODI | ~43.7 | — |
+| SIM-CoT + Coconut | ~44.8 | — |
+| PCCoT | ~49.5 (uncertain) | — |
+| **LOTUS (2606.31779)** | **44.1** (CoT 42.7) | 1B: **57.3**; 3B: 70.0 vs CoT 71.5. The first latent method whose gap to CoT does not grow with scale |
+
+**Implemented: `lotus.py`.**
+- The workspace is K=6 blocks × c=13 latent slots. Each slot is a learned base embedding plus a block position plus a slot position.
+- The workspace is refined in parallel by NanoLoop's recurrent core, which plays the role of LOTUS's weight-shared refinement loop.
+- Every slot is trained to read out its own token of the gold step, with `<|pad-step|>` past the end of the step.
+- Optional per-loop deep supervision.
+- One forward pass per example, against n+1 sequential passes for Coconut.
+- Decoding the slots gives a readable thought trace.
+- Evaluation follows the critiques: an accuracy-vs-loops sweep, and a **zero-workspace shortcut test**.
+
+**Critiques that shape the evaluation:**
+- 2512.21711: Coconut latents act as placeholders.
+- 2602.22441: weakly supervised latents take shortcuts.
+- 2604.06374: real superposition shows up only when training from scratch, which is NanoLoop's regime.
+- 2605.26733: accuracy can collapse past the best loop depth, so always sweep r.
+
+**Next upgrades:**
+- **RLTT** per-loop credit, already in `rl.py --loop-credit all`.
+- **SLPO / Dropout-GRPO**, to make latent rollouts stochastic for RL.
+- **LLoCoT** (2610.11472, Oct 2026): a probabilistic latent head that makes the latents samplable.

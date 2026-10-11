@@ -21,9 +21,25 @@ USER = 50260
 ASSISTANT = 50261
 END_TURN = 50262
 SYSTEM = 50263
+# Tool use (docs/RESEARCH.md §7). Single special tokens are cheaper and less
+# ambiguous for a small model than multi-token XML tags.
+TOOL = 50264            # role token for a tool-response turn
+TOOL_CALL = 50265       # <|tool_call|>{"name": ..., "arguments": {...}}<|/tool_call|>
+END_TOOL_CALL = 50266
+TOOL_RESPONSE = 50267   # <|tool_response|>...<|/tool_response|>  (never trained on)
+END_TOOL_RESPONSE = 50268
+CALC = 50269            # inline calculator: <|calc|>48/2<|/calc|><|out|>24<|/out|>
+END_CALC = 50270
+OUT = 50271             # calculator output is forced by the engine, never trained on
+END_OUT = 50272
+PAD_STEP = 50273        # LOTUS latent-slot target past the end of a reasoning step
 SPECIAL_TOKENS = {START_LATENT: "<|start-latent|>", LATENT: "<|latent|>",
                   END_LATENT: "<|end-latent|>", USER: "<|user|>", ASSISTANT: "<|assistant|>",
-                  END_TURN: "<|end|>", SYSTEM: "<|system|>"}
+                  END_TURN: "<|end|>", SYSTEM: "<|system|>", TOOL: "<|tool|>",
+                  TOOL_CALL: "<|tool_call|>", END_TOOL_CALL: "<|/tool_call|>",
+                  TOOL_RESPONSE: "<|tool_response|>", END_TOOL_RESPONSE: "<|/tool_response|>",
+                  CALC: "<|calc|>", END_CALC: "<|/calc|>", OUT: "<|out|>", END_OUT: "<|/out|>",
+                  PAD_STEP: "<|pad-step|>"}
 
 
 @dataclass
@@ -64,6 +80,14 @@ class ModelConfig:
     smear: bool = True  # 1-token lookback gate on the embedding stream
     unet_skips: bool = True  # prelude outputs feed the mirrored coda layer
 
+    # --- frontier additions (Oct 2026; docs/RESEARCH.md §8) -------------------
+    ngram_memory: bool = False  # Engram / PLE hashed 2-3-gram tables at the prelude output
+    ngram_rows: int = 100_003  # rows per hash head (rounded up to distinct primes)
+    ngram_heads: int = 4  # hash heads per n-gram order
+    ngram_dim: int = 64
+    hc_streams: int = 1  # >1: Qwen3.8 GatedResidual multi-stream residual (hyper-connections)
+    hc_rank: int = 0  # low-rank gate width (0 -> d_model // 4)
+
     logit_softcap: float = 15.0
     max_seq_len: int = 4096  # RoPE table size (inference can exceed training T)
 
@@ -94,6 +118,9 @@ PRESETS: dict[str, dict] = {
     # ~0.6x the FLOPs/token of loop-base). Compare at equal tokens AND equal FLOPs.
     "dense-base": dict(n_prelude=4, n_core=4, n_coda=4, mean_recurrence=1,
                        backprop_depth=1, sample_recurrence=False),
+    # Frontier: + Engram/PLE n-gram memory (DeepSeek V4.1, Qwen3.8) and 2-stream
+    # GatedResidual (Qwen3.8-Flash-Next / Qwen4-Exp). Run against loop-base.
+    "loop-frontier": dict(ngram_memory=True, hc_streams=2),
     # Hybrid linear attention in the loop: 3 Gated DeltaNet : 1 global per core.
     "loop-hybrid": dict(layer_pattern="GG" + "DDDG" + "GG"),
     # nanochat-style sliding windows (3 short : 1 long), for long-context runs.
@@ -102,7 +129,7 @@ PRESETS: dict[str, dict] = {
     "tiny": dict(vocab_size=512, d_model=64, n_head=4, n_kv_head=2, head_dim=16,
                  n_prelude=1, n_core=2, n_coda=1, mean_recurrence=3,
                  backprop_depth=2, max_recurrence=6, n_value_embeds=1,
-                 local_window=8, max_seq_len=256),
+                 local_window=8, max_seq_len=256, ngram_rows=1009, ngram_heads=2, ngram_dim=8),
 }
 
 

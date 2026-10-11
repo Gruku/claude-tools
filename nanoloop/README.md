@@ -4,6 +4,7 @@ NanoLoop is a GPT-2-sized language model that tests how far a small model can go
 
 - **Architecture diagram and technique ledger:** https://claude.ai/artifact/P4s3Y9c1tjk1g47p9y85QL
 - **Research behind every choice:** [`docs/RESEARCH.md`](docs/RESEARCH.md)
+- **Where to download every dataset:** [`docs/DATASETS.md`](docs/DATASETS.md)
 
 ```
 tokens → embed+smear → PRELUDE×2 → e=norm(·) ─┐
@@ -36,7 +37,7 @@ pip install -r requirements.txt
 # optional speedups:
 pip install flash-attn --no-build-isolation   # native sliding windows (loop-swa preset)
 pip install flash-linear-attention           # Triton Gated DeltaNet kernels (loop-hybrid preset)
-python -m pytest tests -q                    # 23 CPU tests: kernels, cache exactness, training, post-training
+python -m pytest tests -q                    # 35 CPU tests: kernels, cache exactness, training, post-training, tools, LOTUS
 ```
 
 ## 1. Data
@@ -59,6 +60,8 @@ python train.py --preset loop-base --data fineweb-edu --tokens 2.5e9
 
 # the control run (same tokens), plus optional ablations
 python train.py --preset dense-base --data fineweb-edu --tokens 2.5e9
+python train.py --preset loop-frontier ...               # + Engram/PLE n-gram memory + 2-stream GatedResidual
+                                                         #   (DeepSeek V4.1 / Qwen3.8-Flash-Next pieces, 280M total)
 python train.py --preset loop-hybrid ...                 # 3:1 Gated DeltaNet in the loop
 python train.py --preset loop-base --set mean_recurrence=8 --set attn_gate=headwise ...
 ```
@@ -94,12 +97,13 @@ python train.py --preset loop-base --data fineweb-edu --tokens 2.5e9 \
 #   (already pretrained? run only the decay phase:)
 #   python train.py --init runs/base/ckpt_final.pt --data <mix> --tokens 5e8 --warmup-steps 0 --warmdown-frac 1
 
-# B — general chat SFT, then WiSE-merge with the base
-python sft.py --init runs/base/ckpt_final_avg.pt --mix smoltalk:1,mmlu:1,gsm8k:4 --out-dir runs/sft
+# B — general chat SFT (+ calculator and tool calling), then WiSE-merge with the base
+python sft.py --init runs/base/ckpt_final_avg.pt --out-dir runs/sft \
+    --mix smoltalk:1,mmlu:1,gsm8k-calc:4,tools-synth:1,xlam:0.5,hermes:1
 python merge.py runs/sft/ckpt_final.pt runs/base/ckpt_final_avg.pt --weights 0.875,0.125 --out runs/sft/wise.pt
 
-# C — task SFT: GSM8k-Aug explicit chain-of-thought
-python sft.py --init runs/sft/wise.pt --mix gsm8k-aug:3 --out-dir runs/sft-math
+# C — task SFT: GSM8k-Aug explicit chain-of-thought with inline calculator calls
+python sft.py --init runs/sft/wise.pt --mix gsm8k-aug-calc:3 --out-dir runs/sft-math
 
 # D — online rejection-sampling finetuning (keep only correct samples)
 python rl.py --init runs/sft-math/ckpt_final.pt --algo rft --out-dir runs/rft
@@ -119,7 +123,35 @@ Guardrails built into the scripts:
 
 Timing (estimates, not measured): about 15–35 GPU-hours on a 4090 for stages A–E.
 
-## 5. Stage F: latent reasoning (Coconut + CODI on GSM8k-Aug)
+## 5. Tools and agents
+
+```bash
+python agent.py runs/sft/wise.pt                          # chat; the model may call calculator / convert_units / word_count
+python agent.py runs/sft/wise.pt --once "Convert 12 km to mi"
+```
+
+- Tool calls use dedicated special tokens with a JSON body.
+- Decoding is constrained: names are limited to registered tools and arguments to valid JSON, so every call parses.
+- Tool results are fed back for up to 3 agent steps.
+- Math uses an inline calculator that the engine executes.
+
+To add a tool:
+1. Define a `Tool` in `nanoloop/tools.py`.
+2. Generate ~500–1000 examples of it (template: `tools-synth` in `nanoloop/tool_data.py`).
+3. Finetune with `sft.py`.
+
+Realistic expectations at this size: reliable single calls on familiar phrasing, and no open-ended multi-step agency. See `docs/RESEARCH.md` §7.
+
+## 6. Stage F: latent reasoning
+
+**Frontier: LOTUS parallel latent workspace** (2026). The looped core refines all latent slots at once, and every slot is supervised.
+
+```bash
+python lotus.py --init runs/sft-math/ckpt_final.pt --out-dir runs/lotus
+python lotus.py --eval-only runs/lotus/ckpt_final.pt --eval-steps 2,4,6,8,12 --show 3   # + shortcut test
+```
+
+**Baseline: Coconut + CODI.**
 
 ```bash
 python coconut.py --init runs/sft-math/ckpt_final.pt --cot-epochs 0 --out-dir runs/coconut  # from stage C
@@ -153,5 +185,9 @@ nanoloop/data.py       llm.c-format token shards
 nanoloop/chat.py       chat template, answer parsing, SFT data sources
 nanoloop/engine.py     batched KV-cached group sampling, GSM8K accuracy
 train.py  prepare_data.py  sample.py  eval_hellaswag.py  eval_gsm8k.py
-sft.py  rl.py  merge.py  coconut.py
+nanoloop/tools.py      calculator, tool registry, JSON-prefix validator
+nanoloop/agent.py      constrained tool-call decoding + agent loop
+nanoloop/tool_data.py  xlam / hermes / smoltalk2 / synthetic tool data
+nanoloop/ngram.py      Engram/PLE hashed n-gram memory
+sft.py  rl.py  merge.py  agent.py  lotus.py  coconut.py
 ```

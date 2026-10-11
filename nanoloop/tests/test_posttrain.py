@@ -107,3 +107,62 @@ def test_mixture_loader(tmp_path):
     nxt = [mix.next_batch()[0][0, 0].item() for _ in range(20)]
     mix.load_state_dict(st)
     assert [mix.next_batch()[0][0, 0].item() for _ in range(20)] == nxt
+
+
+def test_constrained_tool_call_is_always_valid():
+    from nanoloop.agent import generate_turn, parse_assistant_tokens
+    from nanoloop.tools import BUILTIN_TOOLS
+    enc = _FakeEnc()
+    names = list(BUILTIN_TOOLS)
+    for seed in range(3):
+        torch.manual_seed(seed)
+        m = _tiny().eval()
+        res = generate_turn(m, enc, [1, 2, 3], tool_names=names, num_steps=2, max_new=300,
+                            temperature=1.0, force_call=True)
+        assert res["calls"], "constrained decoding must complete a call"
+        for call in res["calls"]:
+            assert call["name"] in names and isinstance(call["arguments"], dict)
+
+
+def test_parse_assistant_tokens_roundtrip():
+    from nanoloop.agent import parse_assistant_tokens
+    from nanoloop.chat import render_conversation
+    enc = _FakeEnc()
+    msg = dict(role="assistant", content=[{"type": "text", "text": "a="},
+                                          {"type": "calc", "expr": "2*3", "result": "6"}],
+               tool_calls=[{"name": "word_count", "arguments": {"text": "x y"}}])
+    ids, _ = render_conversation(enc, [msg])
+    parts, calls = parse_assistant_tokens(enc, ids[2:])
+    assert parts == msg["content"] and calls == msg["tool_calls"]
+
+
+def test_json_prefix_and_calculator():
+    from nanoloop.tools import calculate, json_prefix_state as j
+    assert j('{"a":[1,{"b":null}]}') == (True, True)
+    assert j('{"a":1') == (True, False) and j('{"a" 1')[0] is False and j('{"a":01')[0] is False
+    assert calculate("48/2") == "24" and calculate("2**10") == "error"
+    assert calculate("__import__('os')") == "error" and calculate("7/3") == "2.333333"
+
+
+def test_engine_forces_calculator_output():
+    from nanoloop.config import CALC, END_CALC, OUT, END_OUT
+    from nanoloop.engine import calc_injection, _forced_mask
+    enc = _FakeEnc()
+    row = [5, CALC] + enc.encode("6*7") + [END_CALC]
+    inj = calc_injection(enc, row)
+    assert inj == [OUT] + enc.encode("42") + [END_OUT]
+    assert _forced_mask(row + inj + [9]) == [0] * len(row) + [1] * len(inj) + [0]
+
+
+def test_run_agent_loop_smoke():
+    from nanoloop.agent import run_agent
+    from nanoloop.tools import BUILTIN_TOOLS
+    enc = _FakeEnc()
+    m = _randomize(NanoLoop(make_config("tiny", vocab_size=50304, max_seq_len=2048))).eval()
+    events = []
+    msgs = [dict(role="system", content="", tools=list(BUILTIN_TOOLS.values())),
+            dict(role="user", content="What is 6*7?")]
+    out = run_agent(m, enc, msgs, BUILTIN_TOOLS, max_steps=2, num_steps=2, max_new=40,
+                    on_event=lambda kind, payload: events.append(kind))
+    assert out[-1]["role"] == "assistant" and not out[-1].get("tool_calls")
+    assert events.count("assistant") >= 1

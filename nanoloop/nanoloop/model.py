@@ -24,7 +24,9 @@ from torch.utils.checkpoint import checkpoint
 
 from .config import ModelConfig
 from .deltanet import DeltaCache
-from .layers import Block, KVCache, ModelCache, Rotary, init_linear_, rms_norm, zero_init
+from .layers import (Block, GatedResidual, KVCache, ModelCache, Rotary, init_linear_, rms_norm,
+                     zero_init)
+from .ngram import NgramMemory
 
 
 class NanoLoop(nn.Module):
@@ -56,8 +58,16 @@ class NanoLoop(nn.Module):
         self.adapter = nn.Linear(2 * d, d, bias=False)
         self.skip_lambdas = nn.Parameter(torch.zeros(C)) if cfg.unet_skips else None
         self.lm_head = zero_init(nn.Linear(d, V, bias=False))
+        self.n_streams = cfg.hc_streams
+        if self.n_streams > 1:  # collapse streams where a single vector is needed
+            rank = cfg.hc_rank or d // 4
+            self.collapse_e = GatedResidual(d, self.n_streams, rank, inject=False)
+            self.collapse_out = GatedResidual(d, self.n_streams, rank, inject=False)
 
         init_linear_(self)
+        # created after init_linear_ so its own (zero) init of w_v is kept
+        self.ngram = (NgramMemory(d, heads_per_order=cfg.ngram_heads, rows=cfg.ngram_rows,
+                                  d_head=cfg.ngram_dim, seed=seed) if cfg.ngram_memory else None)
         for ve in self.value_embeds:
             nn.init.normal_(ve.weight, std=0.5)
         self._rng = random.Random(seed)
@@ -68,6 +78,8 @@ class NanoLoop(nn.Module):
     def param_counts(self) -> dict:
         n = lambda ps: sum(p.numel() for p in ps)
         emb = n(self.embed.parameters()) + n(self.value_embeds.parameters())
+        if self.ngram is not None:
+            emb += self.ngram.table.weight.numel()
         head = n(self.lm_head.parameters())
         blocks = n(self.prelude.parameters()) + n(self.core.parameters()) + n(self.coda.parameters())
         total = n(self.parameters())
@@ -142,6 +154,8 @@ class NanoLoop(nn.Module):
         return x
 
     def _core_step(self, s, e, pos0, v_first, cache, i):
+        if s.dim() == e.dim() + 1:  # multi-stream state: inject e into every stream
+            e = e.unsqueeze(-2).expand_as(s)
         x = self.adapter(torch.cat([s, e], dim=-1))
         slot = i % cache.n_slots if cache is not None else 0
         for j, blk in enumerate(self.core):
@@ -159,6 +173,8 @@ class NanoLoop(nn.Module):
             x, _ = blk(x, self.rope, pos0, v_first=v_first,
                        ve=ves[ve_i] if ve_i < nve else None,
                        cache=self._layer_cache(cache, ("d", j), blk))
+        if self.n_streams > 1:
+            x = self.collapse_out(x)
         return rms_norm(x)
 
     def logits(self, h):
@@ -230,6 +246,8 @@ class NanoLoop(nn.Module):
 
         # ---- prelude
         x = self.embed_tokens(idx, embed_override, override_mask, cache)
+        if self.n_streams > 1:
+            x = x.unsqueeze(-2).expand(*x.shape[:-1], self.n_streams, x.size(-1)).contiguous()
         ves = [ve(idx) for ve in self.value_embeds]
         v_first, skips = None, []
         for i, blk in enumerate(self.prelude):
@@ -238,16 +256,24 @@ class NanoLoop(nn.Module):
             if i == 0:
                 v_first = v
             skips.append(x)
-        e = rms_norm(x)
+        if self.ngram is not None:  # Engram/PLE: static n-gram memory, ~zero FLOPs
+            prev = cache.ngram_prev if (cache is not None and cache.pos > 0) else None
+            h_ctx = x.mean(-2) if self.n_streams > 1 else x
+            u = self.ngram(idx, h_ctx, prev)
+            x = x + (u.unsqueeze(-2) if self.n_streams > 1 else u)
+            if cache is not None:
+                ctx = idx if prev is None else torch.cat([prev, idx], dim=1)
+                cache.ngram_prev = ctx[:, -self.ngram.max_ctx:]
+        e = rms_norm(self.collapse_e(x) if self.n_streams > 1 else x)
 
         # ---- recurrent core
         if num_steps is None:
             num_steps = self.sample_num_steps() if self.training else cfg.mean_recurrence
         mode = init_state or ("random" if self.training else "zero")
         if mode == "random":
-            s = torch.randn_like(e).clamp_(-3, 3) * cfg.state_init_std
+            s = torch.randn_like(x).clamp_(-3, 3) * cfg.state_init_std
         else:
-            s = torch.zeros_like(e)
+            s = torch.zeros_like(x)
 
         steps_run = 0
         if self.training:

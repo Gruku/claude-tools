@@ -128,7 +128,7 @@ class _FakeEnc:
     encode_ordinary = encode
 
     def decode(self, ids):
-        return "".join(chr(i - 1) for i in ids)
+        return "".join(chr(max(i - 1, 0)) for i in ids)
 
 
 def test_coconut_format_and_cached_solve():
@@ -150,3 +150,39 @@ def test_coconut_format_and_cached_solve():
     pred, text = solve(m, proj, fmt, ex, 2, steps=2, max_new=4)
     assert isinstance(text, str) and (pred is None or isinstance(pred, str))
     assert torch.isfinite(ref).all()
+
+
+FRONTIER = [dict(ngram_memory=True), dict(hc_streams=2), dict(ngram_memory=True, hc_streams=2, layer_pattern="GD")]
+
+
+@pytest.mark.parametrize("extra", FRONTIER)
+def test_frontier_cache_causality_and_training(extra):
+    m = _randomize(NanoLoop(make_config("tiny", **extra))).eval()
+    idx = torch.randint(0, 512, (2, 40))
+    idx[0, 17] = 50256 % 512  # in-vocab token; real EOT resets tested in test_ngram_resets_at_eot
+    full = m(idx, num_steps=3)["logits"]
+    cache = m.new_cache(2, 40, n_slots=3)
+    outs = [m(idx[:, :21], num_steps=3, cache=cache)["logits"]]
+    for t in range(21, 40):
+        outs.append(m(idx[:, t:t + 1], num_steps=3, cache=cache)["logits"])
+    assert torch.allclose(full, torch.cat(outs, 1), atol=1e-4)
+    idx2 = idx.clone()
+    idx2[:, 30:] = (idx2[:, 30:] + 7) % 512
+    assert torch.allclose(full[:, :30], m(idx2, num_steps=3)["logits"][:, :30], atol=1e-5)
+    m.train()
+    opts = build_optimizers(m)
+    loss = m(idx, idx.roll(-1, 1))["loss"]
+    loss.backward()
+    for o in opts:
+        o.step()
+    assert torch.isfinite(loss)
+
+
+def test_ngram_resets_at_eot():
+    from nanoloop.ngram import NgramMemory
+    mem = NgramMemory(16, rows=101, heads_per_order=2, d_head=4)
+    a = torch.tensor([[5, 6, 7, 50256, 8, 9]])
+    b = torch.tensor([[1, 2, 3, 50256, 8, 9]])
+    ra, rb = mem.hash_ids(a), mem.hash_ids(b)
+    assert torch.equal(ra[:, 4:], rb[:, 4:])  # nothing leaks across the document boundary
+    assert not torch.equal(ra[:, 2], rb[:, 2])
