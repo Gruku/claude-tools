@@ -125,8 +125,10 @@ class _FakeEnc:
     def encode(self, s):
         return [ord(c) % 200 + 1 for c in s]
 
+    encode_ordinary = encode
+
     def decode(self, ids):
-        return "".join(chr(i) for i in ids)
+        return "".join(chr(i - 1) for i in ids)
 
 
 def test_coconut_format_and_cached_solve():
@@ -146,4 +148,5 @@ def test_coconut_format_and_cached_solve():
     with torch.no_grad():
         ref = latent_forward(m, proj, ids, lat, steps=2)["logits"]
     pred, text = solve(m, proj, fmt, ex, 2, steps=2, max_new=4)
-    assert isinstance(pred, str) and torch.isfinite(ref).all()
+    assert isinstance(text, str) and (pred is None or isinstance(pred, str))
+    assert torch.isfinite(ref).all()

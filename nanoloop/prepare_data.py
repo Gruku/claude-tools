@@ -8,6 +8,11 @@
   python prepare_data.py fineweb-edu --max-tokens 5e9
   python prepare_data.py climbmix --max-tokens 5e9
   python prepare_data.py hf --hf-dataset <id> [--hf-config <name>] --text-column text
+
+  # Stage-A decay-phase (mid-training) ingredients:
+  python prepare_data.py finemath --max-tokens 1e9
+  python prepare_data.py cosmopedia-v2 --max-tokens 5e8
+  python prepare_data.py chat-mix        # smol-smoltalk + GSM8k-Aug + MMLU-aux in the chat template
 """
 
 from __future__ import annotations
@@ -24,6 +29,8 @@ HF_PRESETS = {
     "fineweb-edu": ("HuggingFaceFW/fineweb-edu", "sample-10BT", "text"),
     "fineweb-edu-100B": ("HuggingFaceFW/fineweb-edu", "sample-100BT", "text"),
     "climbmix": ("karpathy/climbmix-400b-shuffle", None, "text"),
+    "finemath": ("HuggingFaceTB/finemath", "finemath-4plus", "text"),
+    "cosmopedia-v2": ("HuggingFaceTB/smollm-corpus", "cosmopedia-v2", "text"),
 }
 
 _enc = None
@@ -83,9 +90,34 @@ def tokenize_hf(out_dir: str, name: str, dataset: str, config: str | None, text_
         flush(fill)
 
 
+def write_chat_mix(out_dir: str, spec: str, shard_tokens: int, val_tokens: int) -> None:
+    """Render chat/instruction data with the chat template into token shards, so
+    the decay phase teaches the format (nanochat-style midtraining). Plain LM
+    loss on every token; sft.py later masks to assistant turns only."""
+    import random
+
+    import tiktoken
+
+    from nanoloop.chat import build_mixture, render_conversation
+
+    enc = tiktoken.get_encoding("gpt2")
+    convs = build_mixture(spec, seed=0)
+    random.Random(0).shuffle(convs)
+    toks = np.concatenate([np.asarray(render_conversation(enc, c["messages"])[0], dtype=np.uint16)
+                           for c in convs])
+    write_shard(os.path.join(out_dir, "chat-mix_val_000000.bin"), toks[:val_tokens])
+    rest = toks[val_tokens:]
+    for i in range(0, len(rest), shard_tokens):
+        write_shard(os.path.join(out_dir, f"chat-mix_train_{i // shard_tokens + 1:06d}.bin"),
+                    rest[i:i + shard_tokens])
+    print(f"chat-mix: {len(convs):,} conversations, {len(toks):,} tokens")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("dataset", choices=["fineweb10B", "hf", *HF_PRESETS])
+    ap.add_argument("dataset", choices=["fineweb10B", "hf", "chat-mix", *HF_PRESETS])
+    ap.add_argument("--chat-spec", default="smoltalk:1,gsm8k-aug:0.5,mmlu:1",
+                    help="chat-mix sources (source:epochs)")
     ap.add_argument("--out", default="data")
     ap.add_argument("--train-shards", type=int, default=30, help="fineweb10B: 100M tokens each")
     ap.add_argument("--max-tokens", type=float, default=5e9)
@@ -102,6 +134,11 @@ def main():
         out = os.path.join(a.out, "fineweb10B")
         os.makedirs(out, exist_ok=True)
         download_fineweb10B(out, a.train_shards)
+        return
+    if a.dataset == "chat-mix":
+        out = os.path.join(a.out, "chat-mix")
+        os.makedirs(out, exist_ok=True)
+        write_chat_mix(out, a.chat_spec, a.shard_tokens, min(a.val_tokens, 2_000_000))
         return
     if a.dataset == "hf":
         if not a.hf_dataset:

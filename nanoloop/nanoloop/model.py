@@ -193,15 +193,37 @@ class NanoLoop(nn.Module):
                     loss = loss + w * _ce(h[:, :-off], targets[:, off:])
         return loss
 
+    def _logp_chunk(self, h, t):
+        logp = F.log_softmax(self.logits(h), dim=-1)
+        return logp.gather(-1, t.clamp(min=0)[:, None]).squeeze(-1) * (t != -1)
+
+    def token_logprobs(self, h, targets, chunk_tokens: int = 4096):
+        """log p(target) per position ([B, T], 0 where target == -1), computed in
+        checkpointed chunks so RL never materialises [B, T, V] logits."""
+        B, T, d = h.shape
+        hf, tf = h.reshape(-1, d), targets.reshape(-1)
+        parts = []
+        for i in range(0, hf.size(0), chunk_tokens):
+            fn = self._logp_chunk
+            if torch.is_grad_enabled():
+                parts.append(checkpoint(fn, hf[i:i + chunk_tokens], tf[i:i + chunk_tokens],
+                                        use_reentrant=False))
+            else:
+                parts.append(fn(hf[i:i + chunk_tokens], tf[i:i + chunk_tokens]))
+        return torch.cat(parts).view(B, T)
+
     # ---------------------------------------------------------------- forward
 
     def forward(self, idx, targets=None, *, num_steps: int | None = None,
                 embed_override=None, override_mask=None, cache: ModelCache | None = None,
                 init_state: str | None = None, return_hidden: bool = False,
                 exit_threshold: float | None = None, exit_criterion: str = "kl",
-                min_steps: int = 1, mtp_weights=None, last_only: bool = False):
+                min_steps: int = 1, mtp_weights=None, last_only: bool = False,
+                loop_readout: bool = False):
         """Returns a dict with ``loss`` (if targets), ``logits`` (if no targets),
-        ``hidden`` (if return_hidden) and ``steps`` (loops actually run)."""
+        ``hidden`` (if return_hidden) and ``steps`` (loops actually run).
+        ``loop_readout`` (training only) also returns ``loop_hidden``: the coda
+        read-out of every grad-tracked loop state, for per-loop credit (RLTT)."""
         cfg = self.cfg
         B, T = idx.shape
         pos0 = cache.pos if cache is not None else 0
@@ -233,12 +255,14 @@ class NanoLoop(nn.Module):
             with torch.no_grad():
                 for i in range(num_steps - n_grad):
                     s = self._core_step(s, e, pos0, v_first, cache, i)
+            loop_states = []
             for i in range(num_steps - n_grad, num_steps):
                 if self.checkpoint_core and cache is None:
                     s = checkpoint(self._core_step, s, e, pos0, v_first, None, i,
                                    use_reentrant=False)
                 else:
                     s = self._core_step(s, e, pos0, v_first, cache, i)
+                loop_states.append(s)
             steps_run = num_steps
         else:
             adaptive = exit_threshold is not None and T == 1
@@ -276,6 +300,9 @@ class NanoLoop(nn.Module):
             cache.pos += T
 
         out = {"steps": steps_run}
+        if loop_readout and self.training:
+            out["loop_hidden"] = [self._coda(si, skips, ves, pos0, v_first, None)
+                                  for si in loop_states[:-1]] + [h]
         if return_hidden:
             out["hidden"] = h
         if targets is not None:

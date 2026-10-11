@@ -20,7 +20,7 @@ import torch
 import torch.distributed as dist
 
 from nanoloop.config import ModelConfig, make_config
-from nanoloop.data import TokenLoader
+from nanoloop.data import TokenLoader, make_loader, parse_data_spec
 from nanoloop.model import NanoLoop
 from nanoloop.optim import build_optimizers
 
@@ -31,7 +31,10 @@ def parse_args():
     ap.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
                     help="override a ModelConfig field")
     ap.add_argument("--data", default="fineweb-edu",
-                    help="name under --data-dir, or 'synthetic' for a smoke test")
+                    help="name under --data-dir, a weighted mix 'a:0.7,b:0.3', or 'synthetic'")
+    ap.add_argument("--decay-data", default=None,
+                    help="mix used during the LR warmdown (stage A mid-training), e.g. "
+                         "'fineweb-edu:0.55,finemath:0.2,cosmopedia-v2:0.1,chat-mix:0.15'")
     ap.add_argument("--data-dir", default="data")
     ap.add_argument("--val-data", default=None, help="val set name (default: same as --data)")
     ap.add_argument("--out-dir", default=None)
@@ -46,8 +49,10 @@ def parse_args():
     ap.add_argument("--warmup-steps", type=int, default=100)
     ap.add_argument("--warmdown-frac", type=float, default=0.5)
     ap.add_argument("--final-lr-frac", type=float, default=0.05)
-    ap.add_argument("--recurrence-ramp-frac", type=float, default=0.15,
-                    help="ramp mean loop count from 2 to target over this fraction of training")
+    ap.add_argument("--recurrence-ramp-frac", type=float, default=None,
+                    help="ramp mean loop count from 2 to target over this fraction of training "
+                         "(default 0.15 from scratch, 0 with --init/--resume: keep the pretraining "
+                         "loop distribution)")
     ap.add_argument("--mtp", default="", help="same-head MTP weights, e.g. '0.5,0.25' (annealed to 0)")
     ap.add_argument("--grad-clip", type=float, default=0.0)
     ap.add_argument("--checkpoint-core", action="store_true", help="activation-checkpoint loops")
@@ -57,7 +62,13 @@ def parse_args():
     ap.add_argument("--profile-every", type=int, default=2000,
                     help="val loss vs loop count every N steps (0 = only at the end)")
     ap.add_argument("--save-every", type=int, default=1000)
-    ap.add_argument("--resume", default=None)
+    ap.add_argument("--resume", default=None, help="continue a run exactly (step, data, optimizer)")
+    ap.add_argument("--init", default=None,
+                    help="start from a checkpoint's weights+optimizer with a fresh schedule "
+                         "(e.g. a decay-only mid-training run: --warmup-steps 0 --warmdown-frac 1)")
+    ap.add_argument("--avg-frac", type=float, default=0.1,
+                    help="average weights over the final fraction of steps -> ckpt_final_avg.pt")
+    ap.add_argument("--avg-every", type=int, default=25)
     ap.add_argument("--seed", type=int, default=1337)
     ap.add_argument("--device", default="auto")
     ap.add_argument("--no-compile", action="store_true")
@@ -137,7 +148,8 @@ def main():
         torch.backends.cudnn.allow_tf32 = True
     amp = torch.autocast("cuda", dtype=torch.bfloat16) if is_cuda else nullcontext()
 
-    ck = torch.load(a.resume, map_location=device, weights_only=False) if a.resume else None
+    src = a.resume or a.init
+    ck = torch.load(src, map_location=device, weights_only=False) if src else None
     if ck is not None:  # the checkpoint's config wins over --preset/--set
         cfg = ModelConfig(**ck["config"])
     else:
@@ -157,21 +169,30 @@ def main():
         train_loader = SyntheticLoader(B, T, cfg.vocab_size, seed=a.seed + rank)
         val_factory = lambda: SyntheticLoader(B, T, cfg.vocab_size, seed=10_000)
     else:
-        root = os.path.join(a.data_dir, a.data)
-        train_loader = TokenLoader(os.path.join(root, "*_train_*.bin"), B, T, rank, world)
-        vroot = os.path.join(a.data_dir, a.val_data or a.data)
+        train_loader = make_loader(a.data, a.data_dir, B, T, rank, world, a.seed)
+        vname = a.val_data or parse_data_spec(a.data)[0][0]
+        vroot = os.path.join(a.data_dir, vname)
         val_factory = lambda: TokenLoader(os.path.join(vroot, "*_val_*.bin"), B, T, rank, world)
 
+    decay_loader = (make_loader(a.decay_data, a.data_dir, B, T, rank, world, a.seed + 1)
+                    if a.decay_data else None)
     optims = build_optimizers(model, lr_scale=a.lr_scale)
+    lrs = [[g["initial_lr"] for g in o.param_groups] for o in optims]
     step = 0
     if ck is not None:
-        model.load_state_dict(ck["model"])
-        for o, s in zip(optims, ck["optims"]):
-            o.load_state_dict(s)
-        train_loader.load_state_dict(ck["loader"])
-        model._rng.setstate(ck["rng"])
-        step = ck["step"]
-        out_dir = os.path.dirname(a.resume)
+        model.load_state_dict({k.replace("._orig_mod", ""): v for k, v in ck["model"].items()})
+        if ck.get("optims"):
+            for o, s, group_lrs in zip(optims, ck["optims"], lrs):
+                o.load_state_dict(s)
+                for g, lr in zip(o.param_groups, group_lrs):
+                    g["initial_lr"] = lr  # --lr-scale of this run wins
+        if a.resume:
+            train_loader.load_state_dict(ck["loader"])
+            if decay_loader is not None and ck.get("decay_loader"):
+                decay_loader.load_state_dict(ck["decay_loader"])
+            model._rng.setstate(ck["rng"])
+            step = ck["step"]
+            out_dir = os.path.dirname(a.resume)
 
     if not a.no_compile and is_cuda:
         for blk in [*model.prelude, *model.core, *model.coda]:
@@ -204,8 +225,24 @@ def main():
         path = os.path.join(out_dir, f"ckpt_{tag}.pt")
         torch.save(dict(model=model.state_dict(), optims=[o.state_dict() for o in optims],
                         loader=train_loader.state_dict(), rng=model._rng.getstate(), step=step,
+                        decay_loader=decay_loader.state_dict() if decay_loader else None,
                         config=cfg.to_dict()), path)
         print(f"saved {path}")
+
+    # Uniform average of the weights over the end of the warmdown: approximates
+    # (and stacks with) annealing, per "Model Merging in Pre-training" 2505.12082.
+    avg_start = int(total_steps * (1 - a.avg_frac)) if a.avg_frac > 0 else None
+    avg_state, avg_n = None, 0
+
+    def accumulate_average():
+        nonlocal avg_state, avg_n
+        avg_n += 1
+        with torch.no_grad():
+            if avg_state is None:
+                avg_state = {k: v.detach().float().cpu().clone() for k, v in model.state_dict().items()}
+            else:
+                for k, v in model.state_dict().items():
+                    avg_state[k] += (v.detach().float().cpu() - avg_state[k]) / avg_n
 
     def profile():
         rs = sorted({1, 2, 4, cfg.mean_recurrence, 2 * cfg.mean_recurrence,
@@ -217,7 +254,10 @@ def main():
 
     model.train()
     t_last, tok_last = time.time(), 0
-    ramp_steps = int(total_steps * a.recurrence_ramp_frac)
+    ramp_frac = a.recurrence_ramp_frac
+    if ramp_frac is None:
+        ramp_frac = 0.0 if (a.init or a.resume) else 0.15
+    ramp_steps = int(total_steps * ramp_frac)
     while step < total_steps:
         m = lr_mult(step, total_steps, a.warmup_steps, a.warmdown_frac, a.final_lr_frac)
         for o in optims:
@@ -230,8 +270,10 @@ def main():
         mtp = [w * (1 - step / total_steps) for w in mtp_w]
 
         loss_acc, steps_acc = 0.0, 0
+        in_decay = step >= int(total_steps * (1 - a.warmdown_frac))
+        loader = decay_loader if (decay_loader is not None and in_decay) else train_loader
         for _ in range(accum):
-            x, y = train_loader.next_batch(device)
+            x, y = loader.next_batch(device)
             r = model.sample_num_steps(mean_r)
             with amp:
                 out = model(x, y, num_steps=r, mtp_weights=mtp)
@@ -265,8 +307,15 @@ def main():
             log(dict(step=step, val_loss=evaluate(model, val_factory, a.eval_tokens, B, T, device, amp)))
         if (a.profile_every and step % a.profile_every == 0) or step == total_steps:
             profile()
+        if avg_start is not None and step > avg_start and (step % a.avg_every == 0 or step == total_steps):
+            accumulate_average()
         if step % a.save_every == 0 or step == total_steps:
             save("latest" if step < total_steps else "final")
+        if step == total_steps and avg_state is not None and master:
+            path = os.path.join(out_dir, "ckpt_final_avg.pt")
+            torch.save(dict(model=avg_state, config=cfg.to_dict(), averaged=avg_n,
+                            optims=[o.state_dict() for o in optims]), path)
+            print(f"saved {path} (average of {avg_n} snapshots)")
 
     if ddp:
         dist.destroy_process_group()

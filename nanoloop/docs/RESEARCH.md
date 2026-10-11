@@ -200,3 +200,28 @@ The sweeps were:
 | F. Coconut/CODI latents | Then optionally Dropout-GRPO on the latents | Same accuracy with ~3× shorter reasoning | 5–10 GPU-h |
 
 **Skip:** RL on the base or general-SFT model, long reasoning-trace SFT, QAT, chasing MMLU (near chance at this size).
+
+---
+
+## 6. Released models that use our techniques (as of Oct 2026)
+
+How this list was checked:
+- Configuration and attention code was confirmed in the GitHub source of `huggingface/transformers`, nanochat and modded-nanogpt.
+- Hugging Face pages could not be opened from the sandbox, so those links are as found via search.
+- **[u]** = confirmed by only one secondary source.
+
+| Technique | Models (newest first) |
+|---|---|
+| Recurrent depth / looping | [Parcae 140M–1.3B](https://huggingface.co/SandyResearch/parcae-1.3b) (Apr 26) · [Ouro-1.4B](https://huggingface.co/ByteDance/Ouro-1.4B) / [2.6B-Thinking](https://huggingface.co/ByteDance/Ouro-2.6B-Thinking) (Oct 25, `total_ut_steps: 4`) · [MoR 360M](https://github.com/raymin0223/mixture_of_recursions) (Jul 25) · [Huginn-0125 3.5B](https://huggingface.co/tomg-group-umd/huginn-0125) (Feb 25) |
+| Gated attention | Qwen3.5 / 3.6 ([blog](https://qwen.ai/blog?id=qwen3.5), Feb–Apr 26) · [Arcee Trinity Large](https://arxiv.org/abs/2602.17004) · [Qwen3-Next-80B-A3B](https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct) (Sep 25) |
+| Linear-attention hybrid | [Qwen3.8-Flash-Next](https://github.com/QwenLM/Qwen3.8-Flash-Next) (Aug 26, GDN + sparse attention) · Kimi K3 ([2607.24653](https://arxiv.org/abs/2607.24653), 3 KDA : 1 MLA) · [Nemotron 3 Nano](https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16) (Mamba-2) · [Kimi Linear 48B](https://huggingface.co/moonshotai/Kimi-Linear-48B-A3B-Instruct) (3 KDA : 1 MLA) · Qwen3-Next (3 GDN : 1 gated attention) · Granite 4.0-H (9 : 1) · Falcon-H1 (parallel) |
+| QK-norm | Gemma 4 · [OLMo 3](https://huggingface.co/allenai/Olmo-3-7B-Think) · [Qwen3](https://huggingface.co/Qwen/Qwen3-8B) · Gemma 3 · nanochat |
+| Partial RoPE / NoPE | Kimi K3 / Kimi Linear (NoPE in MLA layers) · Gemma 4 (p-RoPE 0.25 on global layers) · Qwen3-Next / 3.5 (0.25) · [GLM-4.5](https://huggingface.co/zai-org/GLM-4.5) (0.5) · [SmolLM3](https://huggingface.co/HuggingFaceTB/SmolLM3-3B) (NoPE every 4th layer) · Llama 4 (iRoPE) |
+| Sliding window / global | DeepSeek-V4 (128-token SWA branch) · Gemma 4 / Gemma 3 (5:1) · OLMo 3 (3:1, 4096 window) · [gpt-oss](https://huggingface.co/openai/gpt-oss-120b) (1:1, 128 window, learned sinks) |
+| Value residual / value embeddings / XSA | [nanochat](https://github.com/karpathy/nanochat) (gated value embeddings) · [modded-nanogpt](https://github.com/KellerJordan/modded-nanogpt) (value embeddings since #14, XSA at #82). No production LLM yet |
+| ReLU² | Nemotron 3 Nano · [Nemotron Nano 2](https://arxiv.org/abs/2508.14444) · [nanochat-d32](https://huggingface.co/karpathy/nanochat-d32) |
+| Muon | Qwen3.8-Flash-Next · Kimi K3 (per-head) · DeepSeek-V4 · Trinity · [GLM-4.5](https://arxiv.org/abs/2508.06471) · [Kimi K2](https://huggingface.co/moonshotai/Kimi-K2-Instruct) (MuonClip). Polar Express and NorMuon are used only in the speedrun so far |
+| MTP | Qwen3.8-Flash-Next · DeepSeek-V4 · GLM-4.5 → GLM-5 · [DeepSeek-V3](https://huggingface.co/deepseek-ai/DeepSeek-V3) |
+| MLA / sparse attention (skipped) | DeepSeek-V4 (CSA / HCA) · [GLM-5](https://github.com/zai-org/GLM-5) (DSA) · DeepSeek-V3.2 (DSA) · DeepSeek-V3 (MLA) |
+| Latent reasoning | Research checkpoints only: [internlm/SIM_COT-GPT2-Coconut](https://huggingface.co/internlm/SIM_COT-GPT2-Coconut) · [zen-E CODI](https://huggingface.co/zen-E) · [ModalityDance/slpo-coconut-gpt2](https://huggingface.co/ModalityDance/slpo-coconut-gpt2). Meta has no official Coconut checkpoint |
+| Post-training | [OLMo 3 Think](https://huggingface.co/allenai/Olmo-3-7B-Think) (SFT → DPO → RLVR) · [SmolLM3](https://huggingface.co/HuggingFaceTB/SmolLM3-3B) (APO, then merged with a mid-training checkpoint) · Qwen3 small models (strong-to-weak on-policy distillation, [2505.09388](https://arxiv.org/abs/2505.09388)) · [DAPO-Qwen-32B](https://huggingface.co/BytedTsinghua-SIA/DAPO-Qwen-32B) · RLTT / LoopRPT applied to Ouro (papers only, no weights) |

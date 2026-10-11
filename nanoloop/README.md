@@ -36,7 +36,7 @@ pip install -r requirements.txt
 # optional speedups:
 pip install flash-attn --no-build-isolation   # native sliding windows (loop-swa preset)
 pip install flash-linear-attention           # Triton Gated DeltaNet kernels (loop-hybrid preset)
-python -m pytest tests -q                    # 14 CPU tests: kernels, causality, cache exactness, training
+python -m pytest tests -q                    # 23 CPU tests: kernels, cache exactness, training, post-training
 ```
 
 ## 1. Data
@@ -81,10 +81,49 @@ Targets to beat (GPT-2 124M):
 - FineWeb val loss 3.28. Train with `--data fineweb-edu --val-data fineweb10B` to report it.
 - HellaSwag 29.4.
 
-## 4. Stage 2: latent reasoning (Coconut + CODI on GSM8k-Aug)
+## 4. Post-training
+
+The stages run in order. Each one is an independent script. The research behind it is in `docs/RESEARCH.md` §5.
 
 ```bash
-python coconut.py --init runs/<name>/ckpt_final.pt --out-dir runs/coconut
+# A — decay-phase mid-training: switch the data mix during the LR warmdown, then average the last weights
+python prepare_data.py finemath --max-tokens 1e9 && python prepare_data.py cosmopedia-v2 --max-tokens 5e8
+python prepare_data.py chat-mix
+python train.py --preset loop-base --data fineweb-edu --tokens 2.5e9 \
+    --decay-data fineweb-edu:0.55,finemath:0.2,cosmopedia-v2:0.1,chat-mix:0.15      # -> ckpt_final_avg.pt
+#   (already pretrained? run only the decay phase:)
+#   python train.py --init runs/base/ckpt_final.pt --data <mix> --tokens 5e8 --warmup-steps 0 --warmdown-frac 1
+
+# B — general chat SFT, then WiSE-merge with the base
+python sft.py --init runs/base/ckpt_final_avg.pt --mix smoltalk:1,mmlu:1,gsm8k:4 --out-dir runs/sft
+python merge.py runs/sft/ckpt_final.pt runs/base/ckpt_final_avg.pt --weights 0.875,0.125 --out runs/sft/wise.pt
+
+# C — task SFT: GSM8k-Aug explicit chain-of-thought
+python sft.py --init runs/sft/wise.pt --mix gsm8k-aug:3 --out-dir runs/sft-math
+
+# D — online rejection-sampling finetuning (keep only correct samples)
+python rl.py --init runs/sft-math/ckpt_final.pt --algo rft --out-dir runs/rft
+
+# E — Dr. GRPO RL (add --loop-credit all for RLTT per-loop credit)
+python rl.py --init runs/rft/ckpt_final.pt --algo drgrpo --out-dir runs/grpo
+
+# after every stage: accuracy vs thinking depth
+python eval_gsm8k.py runs/grpo/ckpt_final.pt --steps 1,2,4,6,12,24
+python sample.py runs/sft/wise.pt --chat "Explain photosynthesis to a 10 year old."
+```
+
+Guardrails built into the scripts:
+- `rl.py` measures pass@16 first and refuses to start below 30%, because RL makes tiny untuned models worse.
+- Every stage keeps the pretraining loop-count distribution.
+- RL rollouts and updates use the same loop count, so training stays on-policy.
+
+Timing (estimates, not measured): about 15–35 GPU-hours on a 4090 for stages A–E.
+
+## 5. Stage F: latent reasoning (Coconut + CODI on GSM8k-Aug)
+
+```bash
+python coconut.py --init runs/sft-math/ckpt_final.pt --cot-epochs 0 --out-dir runs/coconut  # from stage C
+# or straight from a pretrained base: python coconut.py --init runs/<name>/ckpt_final.pt
 python coconut.py --eval-only runs/coconut/stage3.pt --eval-steps 2,4,8,16
 ```
 
@@ -111,5 +150,8 @@ nanoloop/deltanet.py   Gated DeltaNet (fla kernels or exact PyTorch fallback)
 nanoloop/model.py      the looped model, adaptive exit, cache sharing, generate()
 nanoloop/optim.py      Muon (Polar Express + NorMuon + cautious WD) + AdamW groups
 nanoloop/data.py       llm.c-format token shards
-train.py  prepare_data.py  sample.py  eval_hellaswag.py  coconut.py
+nanoloop/chat.py       chat template, answer parsing, SFT data sources
+nanoloop/engine.py     batched KV-cached group sampling, GSM8K accuracy
+train.py  prepare_data.py  sample.py  eval_hellaswag.py  eval_gsm8k.py
+sft.py  rl.py  merge.py  coconut.py
 ```

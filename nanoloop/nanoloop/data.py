@@ -70,3 +70,44 @@ class TokenLoader:
     def load_state_dict(self, st):
         self.shard_idx, self.pos, self.epoch = st["shard_idx"], st["pos"], st["epoch"]
         self._tokens = load_shard(self.files[self.shard_idx])
+
+
+def parse_data_spec(spec: str):
+    """'fineweb-edu' or 'fineweb-edu:0.6,finemath:0.2,chat-mix:0.2' -> [(name, weight)]."""
+    out = []
+    for part in spec.split(","):
+        name, _, w = part.partition(":")
+        out.append((name.strip(), float(w) if w else 1.0))
+    return out
+
+
+class MixtureLoader:
+    """Samples each micro-batch from one of several TokenLoaders with fixed
+    weights. The draw sequence is seeded identically on every rank."""
+
+    def __init__(self, loaders, weights, seed=0):
+        import random
+        total = sum(weights)
+        self.loaders, self.weights = loaders, [w / total for w in weights]
+        self._rng = random.Random(seed)
+
+    def next_batch(self, device="cpu"):
+        i = self._rng.choices(range(len(self.loaders)), self.weights)[0]
+        return self.loaders[i].next_batch(device)
+
+    def state_dict(self):
+        return dict(rng=self._rng.getstate(), loaders=[l.state_dict() for l in self.loaders])
+
+    def load_state_dict(self, st):
+        self._rng.setstate(st["rng"])
+        for l, s in zip(self.loaders, st["loaders"]):
+            l.load_state_dict(s)
+
+
+def make_loader(spec, data_dir, B, T, rank=0, world=1, seed=0):
+    parts = parse_data_spec(spec)
+    loaders = [TokenLoader(os.path.join(data_dir, n, "*_train_*.bin"), B, T, rank, world)
+               for n, _ in parts]
+    if len(loaders) == 1:
+        return loaders[0]
+    return MixtureLoader(loaders, [w for _, w in parts], seed)

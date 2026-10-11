@@ -15,6 +15,15 @@ GPT2_EOT = 50256
 START_LATENT = 50257
 LATENT = 50258
 END_LATENT = 50259
+# Chat template tokens (post-training). Rows 50257+ of the embedding are never
+# seen in pretraining; sft.py initialises them to the mean embedding.
+USER = 50260
+ASSISTANT = 50261
+END_TURN = 50262
+SYSTEM = 50263
+SPECIAL_TOKENS = {START_LATENT: "<|start-latent|>", LATENT: "<|latent|>",
+                  END_LATENT: "<|end-latent|>", USER: "<|user|>", ASSISTANT: "<|assistant|>",
+                  END_TURN: "<|end|>", SYSTEM: "<|system|>"}
 
 
 @dataclass

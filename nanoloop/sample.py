@@ -2,6 +2,7 @@
 
   python sample.py runs/<run>/ckpt_final.pt --prompt "The meaning of life is" --steps 8
   python sample.py ckpt.pt --prompt "..." --steps 32 --exit-threshold 1e-3   # adaptive depth
+  python sample.py runs/sft/wise.pt --chat "Why is the sky blue?"            # post-trained model
 """
 
 from __future__ import annotations
@@ -11,13 +12,16 @@ from contextlib import nullcontext
 
 import torch
 
+from nanoloop.chat import decode, render_prompt
 from nanoloop.checkpoint import gpt2_tokenizer, load_model
+from nanoloop.config import END_TURN
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("ckpt")
     ap.add_argument("--prompt", default="The history of the Roman Empire")
+    ap.add_argument("--chat", default=None, help="user message, rendered in the chat template")
     ap.add_argument("--max-new-tokens", type=int, default=200)
     ap.add_argument("--temperature", type=float, default=0.8)
     ap.add_argument("--top-k", type=int, default=50)
@@ -32,15 +36,21 @@ def main():
     torch.manual_seed(a.seed)
     model = load_model(a.ckpt, a.device)
     enc = gpt2_tokenizer()
-    idx = torch.tensor([[enc.eot_token] + enc.encode(a.prompt)] * a.num_samples, device=a.device)
+    if a.chat:
+        prompt = render_prompt(enc, [dict(role="user", content=a.chat)])
+        stop = END_TURN
+    else:
+        prompt = [enc.eot_token] + enc.encode(a.prompt)
+        stop = enc.eot_token
+    idx = torch.tensor([prompt] * a.num_samples, device=a.device)
     amp = torch.autocast("cuda", dtype=torch.bfloat16) if a.device.startswith("cuda") else nullcontext()
     with amp:
         out, steps = model.generate(idx, a.max_new_tokens, temperature=a.temperature, top_k=a.top_k,
                                     num_steps=a.steps, exit_threshold=a.exit_threshold,
-                                    exit_criterion=a.exit_criterion, eos_token=enc.eot_token)
+                                    exit_criterion=a.exit_criterion, eos_token=stop)
     for row in out.tolist():
         print("-" * 80)
-        print(enc.decode([t for t in row[1:] if t < enc.n_vocab]))
+        print(decode(enc, row[len(prompt):] if a.chat else row[1:]))
     if steps:
         print("-" * 80)
         print(f"loops/token: mean {sum(steps) / len(steps):.2f}, min {min(steps)}, max {max(steps)}")

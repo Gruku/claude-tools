@@ -12,6 +12,9 @@ on GSM8K with GPT-2 vs Coconut's 34.1%.
 The recurrent core adds a second, orthogonal "thinking" axis: loops per token
 (depth) x continuous thoughts (length). Evaluate the grid with --eval-steps.
 
+  # from the stage-C task-SFT checkpoint (chat template, already does CoT): skip stage 0
+  python coconut.py --init runs/sft-math/ckpt_final.pt --cot-epochs 0 --out-dir runs/coconut
+  # or straight from a pretrained base
   python coconut.py --init runs/<run>/ckpt_final.pt --out-dir runs/coconut
   python coconut.py --eval-only runs/coconut/stage3.pt --eval-steps 2,4,8
 """
@@ -22,7 +25,7 @@ import argparse
 import math
 import os
 import random
-import re
+
 import time
 from contextlib import nullcontext
 
@@ -30,8 +33,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from nanoloop.checkpoint import gpt2_tokenizer, load_model
-from nanoloop.config import END_LATENT, GPT2_EOT, LATENT, START_LATENT
+from nanoloop.chat import decode, extract_answer, normalize_number
+from nanoloop.checkpoint import gpt2_tokenizer, load_checkpoint, load_model
+from nanoloop.config import ASSISTANT, END_LATENT, END_TURN, GPT2_EOT, LATENT, START_LATENT, USER
+from nanoloop.gsm8k_aug import load_gsm8k_aug
 from nanoloop.layers import rms_norm
 
 
@@ -55,35 +60,30 @@ class LatentProjector(nn.Module):
 # ----------------------------------------------------------------------------
 
 
-def load_gsm8k_aug(split):
-    from datasets import load_dataset
-
-    ds = load_dataset("whynlp/gsm8k-aug", split=split)
-    out = []
-    for row in ds:
-        steps = row.get("steps")
-        if steps is None:  # CODI/iCoT format: "<<a*b=c>> <<c+d=e>>"
-            cot = row.get("cot") or row.get("rationale") or ""
-            steps = re.findall(r"<<[^>]*>>", cot) or [s for s in cot.split("\n") if s.strip()]
-        out.append(dict(question=row["question"].strip(), steps=[s.strip() for s in steps],
-                        answer=str(row["answer"]).strip().replace(",", "")))
-    return out
-
-
 class Formatter:
+    """Chat-template layout shared with sft.py / rl.py, so a task-SFT checkpoint
+    (stage C) is directly a Coconut stage-0 model:
+
+        <eot><|user|> question <|end|><|assistant|> [<|start-latent|> ●×n <|end-latent|>]
+        remaining steps (one per line) #### answer <|end|>
+    """
+
     def __init__(self, enc, c_thought, max_stage):
         self.enc, self.c, self.max_stage = enc, c_thought, max_stage
-        self.hash = enc.encode("###")
+        self.hash = enc.encode_ordinary("####")
 
     def n_latent(self, stage):
         return min(stage, self.max_stage) * self.c
 
+    def prompt(self, ex):
+        return [GPT2_EOT, USER] + self.enc.encode_ordinary(ex["question"]) + [END_TURN, ASSISTANT]
+
     def build(self, ex, stage, with_answer=True):
         """Returns ids, labels, latent positions, answer-anchor position."""
         enc = self.enc
-        q = [GPT2_EOT] + enc.encode(ex["question"] + "\n")
-        steps = [enc.encode(s + "\n") for s in ex["steps"]]
-        ans = enc.encode(" " + ex["answer"]) + [GPT2_EOT] if with_answer else []
+        q = self.prompt(ex)
+        steps = [enc.encode_ordinary(s + "\n") for s in ex["steps"]]
+        ans = enc.encode_ordinary(" " + ex["answer"]) + [END_TURN] if with_answer else []
         if stage == 0:
             pre, lat_pos = q, []
             rest = [t for s in steps for t in s]
@@ -151,9 +151,9 @@ def solve(model, proj, fmt, ex, stage, steps, max_new=128):
     ids, _, lat_pos, _ = fmt.build(ex, stage, with_answer=False)
     dev = model.embed.weight.device
     if stage == 0:
-        prompt = ids[: len(ids) - len(fmt.hash)]  # question only; model writes CoT
+        prompt = fmt.prompt(ex)  # model writes the CoT itself
     else:
-        prompt = ids[: lat_pos[0]] if lat_pos else ids
+        prompt = ids[: lat_pos[0]]
     cache = model.new_cache(1, len(ids) + max_new + 8, n_slots=steps)
     out = model(torch.tensor([prompt], device=dev), num_steps=steps, cache=cache, return_hidden=True)
     if stage > 0:
@@ -167,13 +167,12 @@ def solve(model, proj, fmt, ex, stage, steps, max_new=128):
     gen = []
     for _ in range(max_new):
         nxt = int(out["logits"][0, -1].argmax())
-        if nxt == GPT2_EOT:
+        if nxt in (GPT2_EOT, END_TURN):
             break
         gen.append(nxt)
         out = model(torch.tensor([[nxt]], device=dev), num_steps=steps, cache=cache)
-    text = fmt.enc.decode([t for t in gen if t < fmt.enc.n_vocab])
-    pred = text.split("###")[-1].strip().replace(",", "")
-    return pred, text
+    text = decode(fmt.enc, gen)
+    return extract_answer(text), text
 
 
 def evaluate(model, proj, fmt, data, stage, steps, amp):
@@ -182,7 +181,7 @@ def evaluate(model, proj, fmt, data, stage, steps, amp):
     with amp:
         for ex in data:
             pred, _ = solve(model, proj, fmt, ex, stage, steps)
-            correct += pred == ex["answer"]
+            correct += pred == normalize_number(ex["answer"])
     model.train()
     return correct / max(1, len(data))
 
@@ -231,7 +230,10 @@ def main():
             print(f"stage {ck['stage']} loops={r}: GSM8K acc {acc * 100:.2f}%")
         return
 
-    model = load_model(a.init, a.device)
+    model, ck = load_checkpoint(a.init, a.device)
+    if not ck.get("chat_init"):
+        from sft import init_special_tokens
+        init_special_tokens(model)
     model.train()
     proj = LatentProjector(model.cfg.d_model).to(a.device)
     train = load_gsm8k_aug("train")[: a.train_limit]
@@ -274,7 +276,7 @@ def main():
         if epoch == len(schedule) - 1 or schedule[epoch + 1] != stage:
             path = os.path.join(a.out_dir, f"stage{stage}.pt")
             torch.save(dict(model=model.state_dict(), proj=proj.state_dict(), stage=stage,
-                            config=model.cfg.to_dict()), path)
+                            config=model.cfg.to_dict(), chat_init=True), path)
             print(f"saved {path}")
 
 
