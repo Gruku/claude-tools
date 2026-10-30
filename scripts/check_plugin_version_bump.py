@@ -79,7 +79,29 @@ def _submodule_file(name: str, sha: str, rel: str) -> str | None:
     return blob or None
 
 
+def _nested_source(name: str) -> tuple[str, str] | None:
+    """(submodule, path inside it) for a marketplace entry sourced from a
+    plugin nested in another plugin's submodule, e.g. the terminal mods at
+    ./plugins/taskmaster/mods/<name>; None for a top-level plugins/<name>."""
+    data = json.loads(MARKETPLACE.read_text(encoding="utf-8"))
+    for entry in data.get("plugins", []):
+        if entry.get("name") == name and isinstance(entry.get("source"), str):
+            parts = entry["source"].removeprefix("./").split("/")
+            if len(parts) > 2 and parts[0] == "plugins":
+                return parts[1], "/".join(parts[2:])
+    return None
+
+
 def _plugin_json_version(name: str) -> str | None:
+    nested = _nested_source(name)
+    if nested:
+        sub, rel = nested
+        sha = _submodule_sha(sub, "HEAD")
+        blob = _submodule_file(sub, sha, f"{rel}/.claude-plugin/plugin.json") if sha else None
+        try:
+            return json.loads(blob).get("version") if blob else None
+        except json.JSONDecodeError:
+            return None
     # Submodule plugins: read through the gitlink at HEAD, not the working
     # dir — a lagging `git submodule update` must not skew the check.
     sha = _submodule_sha(name, "HEAD")

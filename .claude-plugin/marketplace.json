@@ -15,6 +15,18 @@
       "version": "7.4.0"
     },
     {
+      "name": "rr-tui",
+      "source": "./plugins/taskmaster/mods/rr-tui",
+      "description": "Reality Reprojection for terminal mods: $.rr gives RR tokens and finished element trees for the active polarity; /rr-gallery tunes the look live.",
+      "version": "0.2.0"
+    },
+    {
+      "name": "taskmaster-mods",
+      "source": "./plugins/taskmaster/mods/taskmaster-mods",
+      "description": "Taskmaster in the terminal: review queue, this session's current task above the prompt, handovers pane, faults-only status line. Requires the taskmaster and rr-tui plugins.",
+      "version": "0.2.3"
+    },
+    {
       "name": "guard-hooks",
       "source": "./plugins/guard-hooks",
       "description": "Safety guard hooks that block destructive CLI commands and sensitive file edits, with user-approval override flow via AskUserQuestion. Pure-Python hooks (3.9+), no jq required.",
