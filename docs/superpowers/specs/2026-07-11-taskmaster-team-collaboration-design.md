@@ -2,6 +2,7 @@
 
 - **Date:** 2026-07-11 (rev 2, same day — amended after adversarial spec review)
 - **Status:** Approved design, revised. Rev 1 FAILED the spec-review gate (two independent adversarial reviews, 29 findings, 7 blockers); this revision resolves them. Key reversal: state syncs on a **dedicated orphan branch**, not the code integration branch (user re-decided with review evidence).
+- **Superseded 2026-10-31** by rev 3 for the native store: `taskmaster/docs/specs/2026-10-31-team-collaboration-native-design.md`. Requirements here still hold unless rev 3 changes them; the mechanics below target the file-based v4 store and are replaced.
 - **Owner:** Gruku
 - **Repos:** `C:\Users\gruku\Files\Claude\taskmaster` (source of truth); claude-tools consumes via submodule
 - **Version impact:** schema/layout break → next **major** taskmaster release
